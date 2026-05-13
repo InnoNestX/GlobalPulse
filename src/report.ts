@@ -25,12 +25,7 @@ export async function buildScheduleReport(env: Env, schedule: PulseSchedule, now
   const fetched = await fetchItemsWithFallback(schedule);
   const translatedItems = await maybeTranslateItems(env, fetched.items, schedule.language);
   const enrichedBody = buildEnrichedBody(schedule, translatedItems, local.label, fetched.sourceUrl);
-  const actions = translatedItems
-    .map((item, index) => ({
-      label: schedule.language === "zh" ? `查看原文${index + 1}` : `Source ${index + 1}`,
-      url: item.url,
-    }))
-    .slice(0, 10);
+  const actions = buildActions(translatedItems, schedule.language);
 
   return {
     title: enrichedBody.title,
@@ -83,21 +78,15 @@ async function maybeTranslateItems(env: Env, items: TopicItem[], language: Pulse
     return items;
   }
 
-  const hasAiBinding = typeof env.AI === "object" && env.AI !== null && "run" in env.AI;
-
-  if (!hasAiBinding) {
-    return items.map((item) => withOptionalSummary(item, appendTranslationFallbackHint(item.summary)));
-  }
-
   return Promise.all(items.map(async (item) => {
     if (!needsTranslation(item.title) && !needsTranslation(item.summary)) {
       return item;
     }
 
     const translated = await translateToChinese(env, item.title, item.summary);
-
     const translatedTitle = translated.title?.trim() || item.title;
-    const translatedSummary = translated.summary?.trim() || appendTranslationFallbackHint(item.summary);
+    const translatedSummary = translated.summary?.trim()
+      || (needsTranslation(item.summary) ? appendTranslationFallbackHint(item.summary) : item.summary);
 
     return withOptionalSummary({
       ...item,
@@ -107,6 +96,12 @@ async function maybeTranslateItems(env: Env, items: TopicItem[], language: Pulse
 }
 
 async function translateToChinese(env: Env, title: string, summary?: string): Promise<TranslationResult> {
+  const translatedByGoogle = await translateViaGoogleFree(title, summary);
+
+  if (translatedByGoogle.title || translatedByGoogle.summary) {
+    return translatedByGoogle;
+  }
+
   const ai = env.AI;
 
   if (!ai || typeof ai !== "object" || !("run" in ai) || typeof ai.run !== "function") {
@@ -149,6 +144,84 @@ async function translateToChinese(env: Env, title: string, summary?: string): Pr
     console.warn("Workers AI translation failed", error);
     return {};
   }
+}
+
+async function translateViaGoogleFree(title: string, summary?: string): Promise<TranslationResult> {
+  const titleTranslation = needsTranslation(title)
+    ? await translateSingleViaGoogleFree(title)
+    : undefined;
+  const summaryTranslation = needsTranslation(summary)
+    ? await translateSingleViaGoogleFree(summary ?? "")
+    : undefined;
+  const translation: TranslationResult = {};
+
+  if (titleTranslation) {
+    translation.title = titleTranslation;
+  }
+
+  if (summaryTranslation) {
+    translation.summary = summaryTranslation;
+  }
+
+  return translation;
+}
+
+async function translateSingleViaGoogleFree(input: string): Promise<string | undefined> {
+  if (!input.trim()) {
+    return undefined;
+  }
+
+  const url = new URL("https://translate.googleapis.com/translate_a/single");
+  url.searchParams.set("client", "gtx");
+  url.searchParams.set("sl", "auto");
+  url.searchParams.set("tl", "zh-CN");
+  url.searchParams.set("dt", "t");
+  url.searchParams.set("q", input);
+
+  try {
+    const response = await fetch(url.toString(), {
+      headers: {
+        "User-Agent": "globalpulse-worker/0.1",
+        "Accept": "application/json,text/plain,*/*",
+      },
+    });
+
+    if (!response.ok) {
+      return undefined;
+    }
+
+    const payload = await response.json() as unknown;
+    const translated = extractGoogleTranslation(payload);
+
+    return translated?.trim() || undefined;
+  } catch (error) {
+    console.warn("Google free translation failed", error);
+    return undefined;
+  }
+}
+
+function extractGoogleTranslation(payload: unknown): string | undefined {
+  if (!Array.isArray(payload)) {
+    return undefined;
+  }
+
+  const sentences = payload[0];
+
+  if (!Array.isArray(sentences)) {
+    return undefined;
+  }
+
+  const translated = sentences.flatMap((segment) => {
+    if (!Array.isArray(segment)) {
+      return [];
+    }
+
+    const value = segment[0];
+
+    return typeof value === "string" ? [value] : [];
+  }).join("");
+
+  return translated || undefined;
 }
 
 function extractAiText(result: unknown): string | undefined {
@@ -272,23 +345,25 @@ function buildAnalysisSection(schedule: PulseSchedule, items: TopicItem[]): stri
   const neutralHitCount = Math.max(items.length - positiveHitCount - negativeHitCount, 0);
 
   if (schedule.language === "zh") {
-    const focusSummary = focusSymbols.length
-      ? focusSymbols.map((symbol) => `${symbol}${allText.includes(symbol.toUpperCase()) ? "（命中）" : "（待观察）"}`).join("、")
-      : "未设置";
-    const positionSummary = positionSymbols.length
-      ? positionSymbols.map((symbol) => `${symbol}${allText.includes(symbol.toUpperCase()) ? "（相关资讯出现）" : "（暂未出现）"}`).join("、")
-      : "未设置";
+    const focusSummary = buildSymbolSummary(items, focusSymbols, "focus");
+    const positionSummary = buildSymbolSummary(items, positionSymbols, "position");
     const base = positiveHitCount >= negativeHitCount
       ? "基准场景：情绪偏中性偏多，关注量能延续与政策边际变化。"
       : "基准场景：情绪偏谨慎，优先关注回撤与波动放大风险。";
     const optimistic = "乐观场景：若宏观与业绩共振，相关资产可能出现趋势延续。";
     const risk = "风险场景：若流动性收紧或事件冲击，短期波动可能快速抬升。";
+    const portfolioLayer = [
+      positiveHitCount > negativeHitCount ? "情绪面：风险偏好小幅回升。" : "情绪面：市场防御情绪抬头。",
+      negativeHitCount > 0 ? "事件面：出现潜在冲击事件，需跟踪后续发酵。" : "事件面：暂未出现高强度黑天鹅事件。",
+      items.length >= 12 ? "波动面：样本新闻较密集，短线波动概率偏高。" : "波动面：信息密度一般，维持常规波动预期。",
+    ];
 
     return [
       "## 特别关注与持仓分析",
-      `- 特别关注代码：${focusSummary}`,
-      `- 持仓代码：${positionSummary}`,
+      ...focusSummary,
+      ...positionSummary,
       `- 异动统计：利多线索 ${positiveHitCount}，利空线索 ${negativeHitCount}，中性线索 ${neutralHitCount}`,
+      `- 组合层：${portfolioLayer.join(" ")}`,
       "",
       "## 深度预测（场景推演）",
       `- ${base}`,
@@ -322,6 +397,102 @@ function buildAnalysisSection(schedule: PulseSchedule, items: TopicItem[]): stri
 
 function countKeywordHits(input: string, keywords: string[]): number {
   return keywords.reduce((count, keyword) => count + (input.includes(keyword) ? 1 : 0), 0);
+}
+
+function buildActions(items: TopicItem[], language: PulseSchedule["language"]): Array<{ label: string; url: string }> {
+  const actions: Array<{ label: string; url: string }> = [];
+  const seen = new Set<string>();
+
+  for (const item of items) {
+    const url = normalizeHttpUrl(item.url);
+
+    if (!url || seen.has(url)) {
+      continue;
+    }
+
+    seen.add(url);
+    actions.push({
+      label: language === "zh" ? `查看原文${actions.length + 1}` : `Source ${actions.length + 1}`,
+      url,
+    });
+
+    if (actions.length >= 6) {
+      break;
+    }
+  }
+
+  return actions;
+}
+
+function normalizeHttpUrl(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    const parsed = new URL(value.trim());
+
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return undefined;
+    }
+
+    return parsed.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function buildSymbolSummary(items: TopicItem[], symbols: string[], mode: "focus" | "position"): string[] {
+  const prefix = mode === "focus" ? "- 特别关注" : "- 持仓";
+
+  if (symbols.length === 0) {
+    return [`${prefix}：未设置`];
+  }
+
+  return symbols.map((symbol) => {
+    const upper = symbol.toUpperCase();
+    const refs: number[] = [];
+    let positive = 0;
+    let negative = 0;
+
+    items.forEach((item, index) => {
+      const text = `${item.title}\n${item.summary ?? ""}`.toUpperCase();
+
+      if (!text.includes(upper)) {
+        return;
+      }
+
+      refs.push(index + 1);
+      const score = classifySentiment(text);
+
+      if (score > 0) positive += 1;
+      if (score < 0) negative += 1;
+    });
+
+    const hitCount = refs.length;
+    const refsText = hitCount > 0 ? refs.map((ref) => `#${ref}`).join(" ") : "无";
+    const narrative = hitCount === 0
+      ? "待观察"
+      : positive > negative
+        ? "偏利多"
+        : negative > positive
+          ? "偏利空"
+          : "中性";
+    const opportunity = hitCount === 0 ? "机会信号弱" : (positive >= negative ? "机会信号中等" : "机会信号偏弱");
+    const risk = hitCount === 0 ? "风险未知" : (negative > 0 ? "风险因子偏高" : "风险因子可控");
+    const correlation = hitCount >= 3 ? "高" : hitCount >= 1 ? "中" : "低";
+
+    return `${prefix} ${symbol}：命中 ${hitCount} 条（${refsText}），主叙事 ${narrative}，机会 ${opportunity}，风险 ${risk}，相关性 ${correlation}`;
+  });
+}
+
+function classifySentiment(input: string): number {
+  const positive = countKeywordHits(input, ["BEAT", "SURGE", "RISE", "突破", "增长", "利好", "反弹", "创新高"]);
+  const negative = countKeywordHits(input, ["MISS", "FALL", "DROP", "CRASH", "下跌", "利空", "回撤", "风险"]);
+
+  if (positive > negative) return 1;
+  if (negative > positive) return -1;
+  return 0;
 }
 
 function getSampleItems(language: PulseSchedule["language"]): TopicItem[] {

@@ -260,6 +260,9 @@ describe("handleRequest", () => {
     expect(url).toBe("https://api.telegram.org/bottelegram-token/sendMessage");
     expect(payload.chat_id).toBe("-100123456");
     expect(payload.text).toContain("Telegram check");
+    expect(payload.parse_mode).toBe("HTML");
+    expect(payload.text).not.toContain("Sources:");
+    expect(payload.text).not.toContain("Tags:");
   });
 
   it("sends customer-service messages through WeChat Official Account", async () => {
@@ -503,7 +506,7 @@ describe("handleRequest", () => {
 
     expect(telegramPreview).toMatchObject({ label: "Telegram", format: "text" });
     expect(clawbotPreview).toMatchObject({ label: "wechat clawbot", format: "markdown" });
-    expect(telegramPreview?.content).toContain("查看原文");
+    expect(telegramPreview?.content).toContain("🔗");
   });
 
   it("runs admin test send without KV when schedule payload is provided", async () => {

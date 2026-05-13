@@ -68,8 +68,9 @@ function renderItemsMarkdown(items: TopicItem[], language: PulseSchedule["langua
     const score = typeof item.score === "number" ? ` · score ${item.score}` : "";
     const category = item.category ? ` · ${item.category}` : "";
     const summary = item.summary ? `\n   ${item.summary}` : "";
-    const linkLabel = language === "zh" ? `查看原文${index + 1}` : `Source ${index + 1}`;
-    const link = `\n   [${linkLabel}](${item.url})`;
+    const linkLabel = "🔗";
+    const url = normalizeHttpUrl(item.url);
+    const link = url ? `\n   [${linkLabel}](${url})` : "";
 
     return `${index + 1}. ${escapeMarkdown(item.title)}${source}${category}${score}${summary}${link}`;
   }).join("\n");
@@ -84,7 +85,7 @@ function renderItemsText(items: TopicItem[], language: PulseSchedule["language"]
     const source = item.source ? ` - ${item.source}` : "";
     const score = typeof item.score === "number" ? ` - score ${item.score}` : "";
     const summary = item.summary ? ` - ${item.summary}` : "";
-    const linkHint = language === "zh" ? ` - 查看原文${index + 1}` : ` - Source ${index + 1}`;
+    const linkHint = normalizeHttpUrl(item.url) ? (language === "zh" ? " - 🔗" : " - 🔗") : "";
 
     return `${index + 1}. ${item.title}${source}${score}${summary}${linkHint}`;
   }).join("\n");
@@ -92,4 +93,18 @@ function renderItemsText(items: TopicItem[], language: PulseSchedule["language"]
 
 function escapeMarkdown(value: string): string {
   return value.replaceAll("[", "\\[").replaceAll("]", "\\]");
+}
+
+function normalizeHttpUrl(value: string): string | undefined {
+  try {
+    const parsed = new URL(value.trim());
+
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return undefined;
+    }
+
+    return parsed.toString();
+  } catch {
+    return undefined;
+  }
 }
