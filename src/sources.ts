@@ -357,9 +357,14 @@ function decodeXml(value: string): string {
 }
 
 function cleanText(value: string): string {
-  return decodeXml(value)
+  // First strip HTML tags to avoid double-decoding if content was already processed
+  const stripped = value
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, "$1")
     .replace(/<[^>]*>/g, "")
-    .replace(/&[a-z]+;/gi, "")
+    .trim();
+  // Then decode entities only once, skipping already-decoded ones
+  return decodeXml(stripped)
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 240);
