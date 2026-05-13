@@ -197,7 +197,7 @@ function readSchedules(value: unknown, fallback: PulseSchedule[]): PulseSchedule
       language: readLanguage(entry.language, "zh"),
       outputFormat: readOutputFormat(entry.outputFormat, "markdown"),
       targets: readTargets(entry.targets, ["feishu"]),
-      marketCalendar: readMarketCalendar(entry.marketCalendar, "everyday"),
+      marketCalendar: readMarketCalendar(entry.marketCalendar, inferMarketCalendar(entry)),
       marketHolidayDates: parseHolidayDates(entry.marketHolidayDates),
       topicQuery: readString(entry.topicQuery, "global finance international news").slice(0, 300),
       template: readString(entry.template, readLanguage(entry.language, "zh") === "zh" ? zhTemplate : enTemplate).slice(0, 8000),
@@ -212,6 +212,24 @@ function readSchedules(value: unknown, fallback: PulseSchedule[]): PulseSchedule
   });
 
   return schedules.slice(0, 20);
+}
+
+function inferMarketCalendar(entry: Record<string, unknown>): MarketCalendar {
+  const hint = `${typeof entry.id === "string" ? entry.id : ""} ${typeof entry.name === "string" ? entry.name : ""} ${typeof entry.topicQuery === "string" ? entry.topicQuery : ""}`.toLowerCase();
+
+  if (hint.includes("crypto") || hint.includes("bitcoin") || hint.includes("btc")) {
+    return "crypto";
+  }
+
+  if (hint.includes("us-") || hint.includes("us ") || hint.includes("nyse") || hint.includes("nasdaq")) {
+    return "us_stock";
+  }
+
+  if (hint.includes("asia") || hint.includes("a-share") || hint.includes("ashare") || hint.includes("china")) {
+    return "a_share";
+  }
+
+  return "everyday";
 }
 
 function readString(value: unknown, fallback: string): string {
