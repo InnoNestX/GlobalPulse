@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="GlobalPulse - Cloudflare Workers app for scheduled finance and global hotspot briefings pushed to Feishu, WeChat, and Telegram.">
+<meta name="theme-color" content="#0F172A">
+<meta property="og:title" content="GlobalPulse - Finance & Global Hotspot Briefings">
+<meta property="og:description" content="智能全球热点与金融市场早报服务 — Scheduled briefings to Feishu, WeChat, and Telegram.">
+<meta property="og:type" content="website">
+<link rel="icon" href="https://avatars.githubusercontent.com/u/273979879?v=4" sizes="any" type="image/png">
+<title>GlobalPulse - Finance & Global Hotspot Briefings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+(function(){
+  const saved=localStorage.getItem('theme')||'system';
+  if(saved==='system'){
+    document.documentElement.setAttribute('data-theme', window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+  } else {
+    document.documentElement.setAttribute('data-theme', saved);
+  }
+})();
+</script>
+<style>
+:root{--bg:#0a0a0a;--surface:#111;--border:#222;--text:#fff;--text-dim:#888;--accent:#3b82f6;--success:#22c55e;--code-bg:#1a1a1a}
+[data-theme="light"]{--bg:#ffffff;--surface:#f6f8fa;--border:#d0d7de;--text:#1f2328;--text-dim:#656d76;--accent:#0969da;--success:#1a7f37;--code-bg:#f6f8fa}
+*{box-sizing:border-box;margin:0;padding:0}
+html{overflow-x:hidden}
+body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;max-width:100vw;overflow-x:hidden}
+.container{max-width:1400px;margin:0 auto;padding:0 24px}
+header{border-bottom:1px solid var(--border);padding:16px 0;position:sticky;top:0;background:rgba(10,10,10,0.8);backdrop-filter:blur(12px);z-index:100}
+.header-inner{display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:1.25rem;font-weight:700;letter-spacing:-0.5px}.logo span{color:var(--accent)}
+.header-links{display:flex;gap:24px;align-items:center}
+.header-link{color:var(--text-dim);text-decoration:none;font-size:0.875rem;transition:color 0.2s;display:flex;align-items:center;gap:6px}
+.header-link:hover{color:var(--text)}
+.header-link.active{color:var(--accent)}
+.lang-switch{display:flex;gap:8px;align-items:center}
+.menu-toggle{display:none;background:transparent;border:none;color:var(--text);font-size:1.5rem;cursor:pointer;padding:8px}
+.lang-btn{background:transparent;border:1px solid var(--border);color:var(--text-dim);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:0.875rem;transition:all 0.2s}
+.lang-btn:hover{border-color:var(--text-dim);color:var(--text)}
+.lang-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.theme-switch{display:flex;gap:4px;align-items:center}
+.theme-btn{background:transparent;border:1px solid var(--border);color:var(--text-dim);padding:6px 10px;border-radius:6px;cursor:pointer;font-size:0.875rem;transition:all 0.2s}
+.theme-btn:hover{border-color:var(--text-dim);color:var(--text)}
+.theme-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.hero{padding:80px 0 60px;border-bottom:1px solid var(--border)}
+.hero h1{font-size:2.5rem;font-weight:700;letter-spacing:-1px;margin-bottom:16px;line-height:1.2}
+.hero p{font-size:1.125rem;color:var(--text-dim);max-width:600px}
+.hero-note{margin-top:24px;padding:16px 20px;background:var(--surface);border:1px solid var(--border);border-radius:10px;font-size:0.9rem;color:var(--text-dim);max-width:600px;display:flex;align-items:center;gap:10px}
+.hero-note .icon{font-size:1.1rem}
+.main{display:grid;grid-template-columns:280px 1fr;gap:48px;padding:48px 0}
+.sidebar{position:sticky;top:80px;height:fit-content}
+.nav-section{margin-bottom:32px}
+.nav-title{font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim);margin-bottom:12px}
+.nav-item{display:block;padding:8px 12px;margin:4px -12px;border-radius:6px;color:var(--text-dim);text-decoration:none;font-size:0.875rem;transition:all 0.2s;cursor:pointer;border:none;background:transparent;width:100%;text-align:left}
+.nav-item:hover{background:var(--surface);color:var(--text)}
+.nav-item.active{background:var(--surface);color:var(--accent)}
+.mobile-menu{display:none;position:fixed;top:60px;left:0;right:0;background:var(--surface);border-bottom:1px solid var(--border);padding:16px;z-index:99;max-height:400px;overflow-y:auto}
+.mobile-menu.active{display:block}
+.mobile-nav-item{display:block;padding:12px 16px;margin:4px 0;border-radius:6px;color:var(--text-dim);text-decoration:none;font-size:0.9rem;transition:all 0.2s;cursor:pointer;border:none;background:transparent;width:100%;text-align:left}
+.mobile-nav-item:hover{background:var(--bg);color:var(--text)}
+.mobile-nav-item.active{background:var(--bg);color:var(--accent)}
+.content{min-width:0}
+.section{margin-bottom:64px;scroll-margin-top:100px}
+.section h2{font-size:1.5rem;font-weight:600;margin-bottom:12px}
+.section p{color:var(--text-dim);margin-bottom:24px}
+.features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
+.feature-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;transition:border-color 0.2s}
+.feature-card:hover{border-color:var(--accent)}
+.feature-icon{font-size:2rem;margin-bottom:16px}
+.feature-card h3{font-size:1rem;font-weight:600;margin-bottom:8px}
+.feature-card p{font-size:0.875rem;color:var(--text-dim);margin:0}
+.endpoint{margin-bottom:48px;scroll-margin-top:100px}
+.endpoint-header{display:flex;align-items:center;gap:16px;margin-bottom:16px}
+.method{font-family:'JetBrains Mono',monospace;font-size:0.75rem;font-weight:600;padding:4px 10px;border-radius:6px;text-transform:uppercase}
+.method.post{background:rgba(59,130,246,0.15);color:var(--accent)}
+.path{font-family:'JetBrains Mono',monospace;font-size:1rem;color:var(--text)}
+.params{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:24px}
+.param-row{display:grid;grid-template-columns:180px 1fr 120px;border-bottom:1px solid var(--border);padding:16px;align-items:start}
+.param-row:last-child{border-bottom:none}
+.param-name{font-family:'JetBrains Mono',monospace;font-size:0.875rem;font-weight:500}
+.param-desc{color:var(--text-dim);font-size:0.875rem}
+.param-type{font-size:0.75rem;color:var(--text-dim);text-align:right}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:500;margin-left:8px}
+.badge.req{background:rgba(239,68,68,0.15);color:#ef4444}
+.badge.opt{background:rgba(59,130,246,0.15);color:var(--accent)}
+.code-block{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:16px;font-family:'JetBrains Mono',monospace;font-size:0.8rem;overflow-x:auto;margin:16px 0;white-space:pre}
+.steps{display:flex;flex-direction:column;gap:16px}
+.step{display:flex;gap:16px;align-items:flex-start}
+.step-num{flex-shrink:0;width:32px;height:32px;background:var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.875rem;font-weight:600;color:#fff}
+.step-content{flex:1;padding-top:4px}
+.step-content h4{font-size:1rem;font-weight:600;margin-bottom:4px}
+.step-content p{font-size:0.875rem;color:var(--text-dim);margin:0}
+.site-footer{background:var(--surface);border-top:1px solid var(--border);padding:48px 24px 24px;margin-top:64px}
+.footer-content{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:repeat(2,1fr);gap:32px;margin-bottom:32px}
+.footer-section h4{color:var(--text);font-size:0.9rem;font-weight:600;margin-bottom:8px}
+.footer-section p{color:var(--text-dim);font-size:0.8rem;margin-bottom:16px}
+.footer-links{display:flex;flex-direction:column;gap:8px}
+.footer-links a{color:var(--text-dim);text-decoration:none;font-size:0.85rem;display:flex;align-items:center;gap:8px;transition:color 0.2s}
+.footer-links a:hover{color:var(--accent)}
+.footer-links .icon{font-size:1rem}
+.footer-bottom{max-width:1200px;margin:0 auto;padding-top:24px;border-top:1px solid var(--border);text-align:center;color:var(--text-dim);font-size:0.8rem}
+@media(max-width:1024px){.main{grid-template-columns:1fr}.sidebar{display:none}.hero h1{font-size:2rem}}
+@media(max-width:768px){.menu-toggle{display:block}.header-links{display:none}.container{padding:0 16px}.hero{padding:48px 0 32px}.hero h1{font-size:1.75rem}.hero p{font-size:1rem}.main{padding:32px 0}.section{margin-bottom:40px}.section h2{font-size:1.25rem}.param-row{grid-template-columns:1fr;gap:8px}.param-type{text-align:left}.footer-content{grid-template-columns:1fr;gap:24px}.site-footer{padding:32px 16px 16px}}
+@media(max-width:480px){.hero h1{font-size:1.5rem}.hero p{font-size:0.9rem}.hero-note{flex-direction:column;align-items:flex-start}.features-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><div class="container header-inner">
+  <a href="index.html" class="logo" style="display:flex;align-items:center;gap:10px;text-decoration:none">
+    <img src="https://avatars.githubusercontent.com/u/273979879?v=4" alt="InnoNest" style="width:32px;height:32px;border-radius:8px">
+    <span style="font-size:1.25rem;font-weight:700;letter-spacing:-0.5px">Global<span>Pulse</span></span>
+  </a>
+  <div class="header-links">
+    <a href="index.html" class="header-link active">
+      <span>📖</span> <span data-i18n="nav-docs">Documentation</span>
+    </a>
+    <a href="api-tester.html" class="header-link">
+      <span>🧪</span> <span data-i18n="nav-tester">API Tester</span>
+    </a>
+  </div>
+  <div class="lang-switch">
+    <div class="theme-switch">
+      <button class="theme-btn" data-theme="light" title="Light">☀️</button>
+      <button class="theme-btn" data-theme="dark" title="Dark">🌙</button>
+      <button class="theme-btn" data-theme="system" title="System">💻</button>
+    </div>
+    <button class="menu-toggle" onclick="toggleMenu()">☰</button>
+    <button class="lang-btn active" onclick="setLang('en')">EN</button>
+    <button class="lang-btn" onclick="setLang('zh')">中文</button>
+  </div>
+</div></header>
+<nav class="mobile-menu">
+  <a class="mobile-nav-item active" href="index.html" data-i18n="nav-docs">Documentation</a>
+  <a class="mobile-nav-item" href="api-tester.html" data-i18n="nav-tester">API Tester</a>
+</nav>
+<main>
+<section class="hero"><div class="container">
+  <h1 data-i18n="hero-title">GlobalPulse — Global Hotspots and Finance Briefings</h1>
+  <p data-i18n="hero-desc">Intelligent global hotspots and financial market morning briefings pushed to Feishu, WeChat, and Telegram on schedule.</p>
+  <div class="hero-note">
+    <span class="icon">💡</span>
+    <span data-i18n="hero-note">Want to test the API? Use the <a href="api-tester.html" style="color:var(--accent)">API Tester</a> to try requests interactively.</span>
+  </div>
+</div></section>
+<div class="container main">
+<aside class="sidebar">
+<nav class="nav-section">
+  <div class="nav-title" data-i18n="nav-quick">Quick Links</div>
+  <a class="nav-item" href="#features" data-i18n="nav-features">Features</a>
+  <a class="nav-item" href="#endpoints" data-i18n="nav-endpoints">API Endpoints</a>
+  <a class="nav-item" href="#deployment" data-i18n="nav-deployment">Deployment</a>
+</nav>
+</aside>
+<div class="content">
+
+<div class="section" id="features">
+  <h2 data-i18n="features-title">Features</h2>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">📨</div>
+      <h3 data-i18n="feature-multi-title">Multi-Platform Push</h3>
+      <p data-i18n="feature-multi-desc">Push to Feishu, WeChat Official Account, WeChat Clawbot, and Telegram simultaneously.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">⏰</div>
+      <h3 data-i18n="feature-schedule-title">Scheduled Briefings</h3>
+      <p data-i18n="feature-schedule-desc">Configurable push times with timezone support. Market-calendar-aware scheduling.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🎨</div>
+      <h3 data-i18n="feature-admin-title">Admin Web UI</h3>
+      <p data-i18n="feature-admin-desc">Password-protected admin interface backed by Cloudflare Workers KV. No code required.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📅</div>
+      <h3 data-i18n="feature-calendar-title">Market Calendars</h3>
+      <p data-i18n="feature-calendar-desc">Everyday, A-share, US stock, and crypto trading day checks with holiday lookups.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">👁️</div>
+      <h3 data-i18n="feature-preview-title">Message Preview</h3>
+      <p data-i18n="feature-preview-desc">Preview exactly what each platform will receive before sending.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔗</div>
+      <h3 data-i18n="feature-api-title">Event Webhooks</h3>
+      <p data-i18n="feature-api-desc">Integrate with GitHub Actions and Cloudflare events for automated workflows.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" id="endpoints">
+  <h2 data-i18n="endpoints-title">API Endpoints</h2>
+
+  <div class="endpoint" id="ep-messages">
+    <div class="endpoint-header">
+      <span class="method post">POST</span>
+      <span class="path">/v1/messages</span>
+    </div>
+    <p data-i18n="ep-messages-desc">Direct push message to configured targets. Requires API_TOKEN in Authorization header.</p>
+    <div class="params">
+      <div class="param-row">
+        <div class="param-name">Authorization<span class="badge req">Required</span></div>
+        <div class="param-desc" data-i18n="param-auth-desc">Bearer token: Bearer YOUR_API_TOKEN</div>
+        <div class="param-type">header</div>
+      </div>
+      <div class="param-row">
+        <div class="param-name">content<span class="badge req">Required</span></div>
+        <div class="param-desc" data-i18n="param-content-desc">Message content (markdown or text)</div>
+        <div class="param-type">string</div>
+      </div>
+      <div class="param-row">
+        <div class="param-name">targets<span class="badge opt">Optional</span></div>
+        <div class="param-desc" data-i18n="param-targets-desc">Comma-separated: feishu, wechat_official_account, wechat_clawbot, telegram</div>
+        <div class="param-type">string</div>
+      </div>
+    </div>
+    <div class="code-block">curl -X POST https://globalpulse.workers.dev/v1/messages \
+  -H "Authorization: Bearer YOUR_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Hello World", "targets": "feishu,telegram"}'</div>
+  </div>
+
+  <div class="endpoint" id="ep-github">
+    <div class="endpoint-header">
+      <span class="method post">POST</span>
+      <span class="path">/v1/events/github-actions</span>
+    </div>
+    <p data-i18n="ep-github-desc">Receive GitHub Actions workflow run events. Triggers briefing based on event type.</p>
+    <div class="code-block">curl -X POST https://globalpulse.workers.dev/v1/events/github-actions \
+  -H "Authorization: Bearer YOUR_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"action": "completed", "workflow": "ci"}'</div>
+  </div>
+
+  <div class="endpoint" id="ep-cloudflare">
+    <div class="endpoint-header">
+      <span class="method post">POST</span>
+      <span class="path">/v1/events/cloudflare</span>
+    </div>
+    <p data-i18n="ep-cloudflare-desc">Receive Cloudflare Workers KV events, zone changes, or analytics alerts.</p>
+    <div class="code-block">curl -X POST https://globalpulse.workers.dev/v1/events/cloudflare \
+  -H "Authorization: Bearer YOUR_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"type": "kv", "key": "config"}'</div>
+  </div>
+</div>
+
+<div class="section" id="deployment">
+  <h2 data-i18n="deployment-title">Deployment</h2>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <h4 data-i18n="step1-title">Clone and Install</h4>
+        <p data-i18n="step1-desc">Clone the repo and install dependencies.</p>
+        <div class="code-block">git clone https://github.com/InnoNestX/GlobalPulse.git
+cd GlobalPulse
+npm install</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <h4 data-i18n="step2-title">Configure</h4>
+        <p data-i18n="step2-desc">Copy example files and add your secrets.</p>
+        <div class="code-block">cp .dev.vars.example .dev.vars
+cp wrangler.example.jsonc wrangler.jsonc</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <h4 data-i18n="step3-title">Run Locally</h4>
+        <p data-i18n="step3-desc">Start dev server and access the admin UI.</p>
+        <div class="code-block">npm run dev
+# Open http://localhost:8787/admin</div>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <h4 data-i18n="step4-title">Deploy to Cloudflare</h4>
+        <p data-i18n="step4-desc">Deploy with Wrangler using your Cloudflare credentials.</p>
+        <div class="code-block">npm run deploy</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+</div>
+</main>
+<footer class="site-footer">
+<div class="footer-content">
+<div class="footer-section">
+  <h4 data-i18n="footer-contribute">Contribute</h4>
+  <p data-i18n="footer-contribute-desc">Found a bug or want to contribute?</p>
+  <div class="footer-links">
+    <a href="https://github.com/InnoNestX/GlobalPulse/issues" target="_blank" rel="noopener">
+      <span class="icon">🐛</span> <span data-i18n="footer-report-bug">Report Bug</span>
+    </a>
+    <a href="https://github.com/InnoNestX/GlobalPulse/pulls" target="_blank" rel="noopener">
+      <span class="icon">🔧</span> <span data-i18n="footer-submit-pr">Submit PR</span>
+    </a>
+    <a href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noopener">
+      <span class="icon">⭐</span> <span data-i18n="footer-star-repo">Star Repo</span>
+    </a>
+  </div>
+</div>
+<div class="footer-section">
+  <h4 data-i18n="footer-support">Support</h4>
+  <p data-i18n="footer-support-desc">Enjoy the project? Support it!</p>
+  <div class="footer-links">
+    <a href="https://github.com/sponsors/InnoNestX" target="_blank" rel="noopener">
+      <span class="icon">💖</span> <span data-i18n="footer-sponsor">Sponsor</span>
+    </a>
+    <a href="https://www.buymeacoffee.com/xuxuclassmate" target="_blank" rel="noopener">
+      <span class="icon">☕</span> <span data-i18n="footer-coffee">Buy Me a Coffee</span>
+    </a>
+    <a href="https://github.com/InnoNestX/GlobalPulse/discussions" target="_blank" rel="noopener">
+      <span class="icon">💬</span> <span data-i18n="footer-discussions">Discussions</span>
+    </a>
+  </div>
+</div>
+</div>
+<div class="footer-bottom">
+  <p>© 2026 InnoNestX. <span data-i18n="footer-made-with">Made with</span> ❤️ <span data-i18n="footer-for-community">for the community</span>.</p>
+</div>
+</footer>
+<script>
+const translations={
+  en:{
+    'nav-docs':'Documentation','nav-tester':'API Tester',
+    'nav-quick':'Quick Links','nav-features':'Features','nav-endpoints':'API Endpoints','nav-deployment':'Deployment',
+    'hero-title':'GlobalPulse — Global Hotspots and Finance Briefings',
+    'hero-desc':'Intelligent global hotspots and financial market morning briefings pushed to Feishu, WeChat, and Telegram on schedule.',
+    'hero-note':'Want to test the API? Use the API Tester to try requests interactively.',
+    'features-title':'Features',
+    'feature-multi-title':'Multi-Platform Push','feature-multi-desc':'Push to Feishu, WeChat Official Account, WeChat Clawbot, and Telegram simultaneously.',
+    'feature-schedule-title':'Scheduled Briefings','feature-schedule-desc':'Configurable push times with timezone support. Market-calendar-aware scheduling.',
+    'feature-admin-title':'Admin Web UI','feature-admin-desc':'Password-protected admin interface backed by Cloudflare Workers KV. No code required.',
+    'feature-calendar-title':'Market Calendars','feature-calendar-desc':'Everyday, A-share, US stock, and crypto trading day checks with holiday lookups.',
+    'feature-preview-title':'Message Preview','feature-preview-desc':'Preview exactly what each platform will receive before sending.',
+    'feature-api-title':'Event Webhooks','feature-api-desc':'Integrate with GitHub Actions and Cloudflare events for automated workflows.',
+    'endpoints-title':'API Endpoints',
+    'ep-messages-desc':'Direct push message to configured targets. Requires API_TOKEN in Authorization header.',
+    'ep-github-desc':'Receive GitHub Actions workflow run events. Triggers briefing based on event type.',
+    'ep-cloudflare-desc':'Receive Cloudflare Workers KV events, zone changes, or analytics alerts.',
+    'param-auth-desc':'Bearer token: Bearer YOUR_API_TOKEN','param-content-desc':'Message content (markdown or text)',
+    'param-targets-desc':'Comma-separated: feishu, wechat_official_account, wechat_clawbot, telegram',
+    'deployment-title':'Deployment',
+    'step1-title':'Clone and Install','step1-desc':'Clone the repo and install dependencies.',
+    'step2-title':'Configure','step2-desc':'Copy example files and add your secrets.',
+    'step3-title':'Run Locally','step3-desc':'Start dev server and access the admin UI.',
+    'step4-title':'Deploy to Cloudflare','step4-desc':'Deploy with Wrangler using your Cloudflare credentials.',
+    'footer-contribute':'Contribute','footer-contribute-desc':'Found a bug or want to contribute?',
+    'footer-report-bug':'Report Bug','footer-submit-pr':'Submit PR','footer-star-repo':'Star Repo',
+    'footer-support':'Support','footer-support-desc':'Enjoy the project? Support it!',
+    'footer-sponsor':'Sponsor','footer-coffee':'Buy Me a Coffee','footer-discussions':'Discussions',
+    'footer-made-with':'Made with','footer-for-community':'for the community'
+  },
+  zh:{
+    'nav-docs':'文档','nav-tester':'API 测试',
+    'nav-quick':'快速链接','nav-features':'功能特性','nav-endpoints':'API 接口','nav-deployment':'部署',
+    'hero-title':'GlobalPulse — 全球热点与金融市场早报',
+    'hero-desc':'智能全球热点与金融市场早报服务，定时推送到飞书、微信公众号和 Telegram。',
+    'hero-note':'想测试 API？使用 API 测试工具进行交互式测试。',
+    'features-title':'功能特性',
+    'feature-multi-title':'多平台推送','feature-multi-desc':'同时推送至飞书、微信公众号、微信 clawbot 和 Telegram。',
+    'feature-schedule-title':'定时简报','feature-schedule-desc':'可配置推送时间，支持时区，配合交易日历的智能调度。',
+    'feature-admin-title':'管理后台','feature-admin-desc':'Cloudflare Workers KV 支撑的密码保护管理界面，无需写代码。',
+    'feature-calendar-title':'交易日历','feature-calendar-desc':'支持每日、A股、美股、加密货币交易日检查及节假日查询。',
+    'feature-preview-title':'消息预览','feature-preview-desc':'发送前预览各平台将收到的确切内容。',
+    'feature-api-title':'事件 Webhook','feature-api-desc':'与 GitHub Actions 和 Cloudflare 事件集成，实现自动化工作流。',
+    'endpoints-title':'API 接口',
+    'ep-messages-desc':'直接向配置的目标推送消息，需要在 Authorization header 中提供 API_TOKEN。',
+    'ep-github-desc':'接收 GitHub Actions 工作流运行事件，根据事件类型触发简报。',
+    'ep-cloudflare-desc':'接收 Cloudflare Workers KV 事件、zone 变更或分析警报。',
+    'param-auth-desc':'Bearer token: Bearer YOUR_API_TOKEN','param-content-desc':'消息内容（支持 markdown 或 text）',
+    'param-targets-desc':'逗号分隔：feishu, wechat_official_account, wechat_clawbot, telegram',
+    'deployment-title':'部署',
+    'step1-title':'克隆与安装','step1-desc':'克隆仓库并安装依赖。',
+    'step2-title':'配置环境','step2-desc':'复制示例配置文件并添加你的密钥。',
+    'step3-title':'本地运行','step3-desc':'启动开发服务器并访问管理后台。',
+    'step4-title':'部署到 Cloudflare','step4-desc':'使用 Wrangler 和你的 Cloudflare 凭证进行部署。',
+    'footer-contribute':'贡献','footer-contribute-desc':'发现 Bug 或想贡献代码？',
+    'footer-report-bug':'报告 Bug','footer-submit-pr':'提交 PR','footer-star-repo':'Star 仓库',
+    'footer-support':'支持','footer-support-desc':'喜欢这个项目？支持一下！',
+    'footer-sponsor':'赞助','footer-coffee':'请我喝咖啡','footer-discussions':'讨论区',
+    'footer-made-with':'用','footer-for-community':'为社区制作'
+  }
+};
+let lang='en';
+function setLang(l){
+  lang=l;
+  document.querySelectorAll('.lang-btn').forEach((b,i)=>b.classList.toggle('active',(l==='en'&&i===0)||(l==='zh'&&i===1)));
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const k=el.dataset.i18n;
+    if(translations[lang][k])el.textContent=translations[lang][k];
+  });
+  localStorage.setItem('lang',l);
+}
+function toggleMenu(){
+  document.querySelector('.mobile-menu').classList.toggle('active');
+}
+document.querySelectorAll('.theme-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const theme=btn.dataset.theme;
+    document.querySelectorAll('.theme-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.documentElement.setAttribute('data-theme',theme==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):theme);
+    localStorage.setItem('theme',theme);
+  });
+});
+(function(){
+  const saved=localStorage.getItem('theme')||'system';
+  document.querySelectorAll('.theme-btn').forEach(b=>b.classList.toggle('active',b.dataset.theme===saved));
+})();
+document.addEventListener('DOMContentLoaded',()=>{
+  const savedLang=localStorage.getItem('lang')||'en';
+  setLang(savedLang);
+});
+</script>
+</body>
+</html>
