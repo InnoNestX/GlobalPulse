@@ -8,6 +8,8 @@ wrangler.jsonc
 worker-configuration.d.ts
 .dev.vars
 .env
+.globalpulse.secrets
+.cloudflare-api-token
 coverage/
 npm-debug.log*
 .DS_Store
