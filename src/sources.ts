@@ -342,16 +342,26 @@ function readTag(xml: string, tagName: string): string | undefined {
 }
 
 // Decodes XML/HTML entities only. Does NOT strip HTML — use cleanText() for that.
+// Uses single-pass character iteration to avoid CodeQL 'double-unescaping' false positives
+// that arise from sequential .replace() chains.
 function decodeXml(value: string): string {
-  return value
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x27;/gi, "'")
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(dec))
-    .replace(/&#x([0-9a-fA-F]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+  let result = "";
+  let i = 0;
+  while (i < value.length) {
+    if (value[i] !== "&") { result += value[i]; i++; continue; }
+    const semi = value.indexOf(";", i);
+    if (semi === -1) { result += value[i]; i++; continue; }
+    const name = value.slice(i + 1, semi);
+    if (name === "amp")  { result += "&";  i = semi + 1; continue; }
+    if (name === "lt")   { result += "<";  i = semi + 1; continue; }
+    if (name === "gt")   { result += ">";  i = semi + 1; continue; }
+    if (name === "quot") { result += '"';  i = semi + 1; continue; }
+    if (name === "apos") { result += "'";  i = semi + 1; continue; }
+    if (/^#[0-9]+$/.test(name)) { result += String.fromCharCode(parseInt(name.slice(1), 10)); i = semi + 1; continue; }
+    if (/^#[xX][0-9a-fA-F]+$/.test(name)) { result += String.fromCharCode(parseInt(name.slice(2), 16)); i = semi + 1; continue; }
+    result += value[i]; i++;
+  }
+  return result;
 }
 
 // Combines entity decode + HTML strip into a single pass so CodeQL sees one cross-product.
