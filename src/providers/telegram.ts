@@ -20,10 +20,32 @@ export const telegramProvider: Provider = {
       body: JSON.stringify({
         chat_id: env.TELEGRAM_CHAT_ID,
         text: formatPlainText(message).slice(0, 4096),
-        disable_web_page_preview: false,
+        disable_web_page_preview: true,
+        ...(message.actions.length > 0
+          ? {
+              reply_markup: {
+                inline_keyboard: toInlineKeyboard(message.actions),
+              },
+            }
+          : {}),
       }),
     });
 
     return jsonApiResponseToResult("telegram", response, (responseBody) => responseBody.ok === true);
   },
 };
+
+function toInlineKeyboard(actions: Array<{ label: string; url: string }>): Array<Array<{ text: string; url: string }>> {
+  const rows: Array<Array<{ text: string; url: string }>> = [];
+  const sliced = actions.slice(0, 10);
+
+  for (let index = 0; index < sliced.length; index += 2) {
+    const row = sliced.slice(index, index + 2).map((action) => ({
+      text: action.label,
+      url: action.url,
+    }));
+    rows.push(row);
+  }
+
+  return rows;
+}

@@ -22,8 +22,8 @@ export function renderDigest(schedule: PulseSchedule, context: DigestContext): {
     timezone: context.timezone,
     topicQuery: context.topicQuery,
     sourceUrl: context.sourceUrl,
-    itemsMarkdown: renderItemsMarkdown(context.items),
-    itemsText: renderItemsText(context.items),
+    itemsMarkdown: renderItemsMarkdown(context.items, schedule.language),
+    itemsText: renderItemsText(context.items, schedule.language),
     itemsJson: JSON.stringify(context.items, null, 2),
   };
   const body = renderByFormat(schedule.template, variables, context.format);
@@ -58,9 +58,9 @@ function renderByFormat(template: string, variables: Record<string, string>, for
   return rendered;
 }
 
-function renderItemsMarkdown(items: TopicItem[]): string {
+function renderItemsMarkdown(items: TopicItem[], language: PulseSchedule["language"]): string {
   if (items.length === 0) {
-    return "_No topic items were found._";
+    return language === "zh" ? "_暂无可用热点数据。_" : "_No topic items were found._";
   }
 
   return items.map((item, index) => {
@@ -68,22 +68,25 @@ function renderItemsMarkdown(items: TopicItem[]): string {
     const score = typeof item.score === "number" ? ` · score ${item.score}` : "";
     const category = item.category ? ` · ${item.category}` : "";
     const summary = item.summary ? `\n   ${item.summary}` : "";
+    const linkLabel = language === "zh" ? `查看原文${index + 1}` : `Source ${index + 1}`;
+    const link = `\n   [${linkLabel}](${item.url})`;
 
-    return `${index + 1}. [${escapeMarkdown(item.title)}](${item.url})${source}${category}${score}${summary}`;
+    return `${index + 1}. ${escapeMarkdown(item.title)}${source}${category}${score}${summary}${link}`;
   }).join("\n");
 }
 
-function renderItemsText(items: TopicItem[]): string {
+function renderItemsText(items: TopicItem[], language: PulseSchedule["language"]): string {
   if (items.length === 0) {
-    return "No topic items were found.";
+    return language === "zh" ? "暂无可用热点数据。" : "No topic items were found.";
   }
 
   return items.map((item, index) => {
     const source = item.source ? ` - ${item.source}` : "";
     const score = typeof item.score === "number" ? ` - score ${item.score}` : "";
     const summary = item.summary ? ` - ${item.summary}` : "";
+    const linkHint = language === "zh" ? ` - 查看原文${index + 1}` : ` - Source ${index + 1}`;
 
-    return `${index + 1}. ${item.title}${source}${score}${summary} - ${item.url}`;
+    return `${index + 1}. ${item.title}${source}${score}${summary}${linkHint}`;
   }).join("\n");
 }
 

@@ -360,6 +360,52 @@ describe("handleRequest", () => {
     });
   });
 
+  it("rejects cron schedules that cannot be triggered by 5-minute polling", async () => {
+    const appEnv: Env = {
+      ...env,
+      ADMIN_PASSWORD: "admin-pass",
+      APP_KV: createMemoryKV(),
+    };
+
+    const response = await handleRequest(new Request("https://worker.example/api/admin/settings", {
+      method: "PUT",
+      headers: {
+        Authorization: "Bearer admin-pass",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        appName: "GlobalPulse",
+        language: "zh",
+        timezone: "Asia/Hong_Kong",
+        defaultTargets: ["feishu"],
+        outputFormat: "markdown",
+        topicFocus: "markets",
+        providerSettings: {},
+        template: "# Brief\\n\\n{{itemsMarkdown}}",
+        schedules: [{
+          id: "cron-invalid",
+          name: "Invalid Cron",
+          enabled: true,
+          triggerMode: "cron",
+          cronExpression: "1 * * * *",
+          time: "09:00",
+          days: [1, 2, 3, 4, 5],
+          timezone: "Asia/Hong_Kong",
+          language: "zh",
+          outputFormat: "markdown",
+          targets: ["feishu"],
+          topicQuery: "markets",
+          template: "# Brief\\n\\n{{itemsMarkdown}}",
+        }],
+      }),
+    }), appEnv);
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: expect.stringContaining("5-minute"),
+    });
+  });
+
   it("uses provider settings saved in KV for Telegram delivery", async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true, result: { message_id: 7 } }), { status: 200 }));
     const appEnv: Env = {
@@ -409,6 +455,10 @@ describe("handleRequest", () => {
       ADMIN_PASSWORD: "admin-pass",
       APP_KV: createMemoryKV(),
     };
+    const fetchMock = vi.fn(async () => {
+      throw new Error("network disabled in test");
+    });
+    vi.stubGlobal("fetch", fetchMock);
 
     const response = await handleRequest(new Request("https://worker.example/api/admin/preview", {
       method: "POST",
@@ -439,17 +489,21 @@ describe("handleRequest", () => {
     expect(response.status).toBe(200);
     const body = await response.json() as {
       preview: {
+        sourceStatus: string;
+        sourceMessage: string;
         deliveries: Array<{ label: string; format: string; content: string }>;
       };
     };
 
+    expect(body.preview.sourceStatus).toBe("fallback");
+    expect(body.preview.sourceMessage).toContain("回退");
     expect(body.preview.deliveries).toHaveLength(2);
     const telegramPreview = body.preview.deliveries[0];
     const clawbotPreview = body.preview.deliveries[1];
 
     expect(telegramPreview).toMatchObject({ label: "Telegram", format: "text" });
     expect(clawbotPreview).toMatchObject({ label: "wechat clawbot", format: "markdown" });
-    expect(telegramPreview?.content).toContain("美联储");
+    expect(telegramPreview?.content).toContain("查看原文");
   });
 
   it("runs admin test send without KV when schedule payload is provided", async () => {

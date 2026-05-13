@@ -17,6 +17,7 @@ export interface PushMessage {
   body: string;
   level: MessageLevel;
   url?: string;
+  actions: Array<{ label: string; url: string }>;
   tags: string[];
   metadata: Record<string, string | number | boolean | null>;
 }
@@ -27,6 +28,7 @@ export interface IncomingMessageBody {
   body: string;
   level?: MessageLevel;
   url?: string;
+  actions?: Array<{ label: string; url: string }>;
   tags?: string[];
   metadata?: Record<string, string | number | boolean | null>;
 }
@@ -107,6 +109,7 @@ export function normalizeMessage(input: unknown): IncomingMessageBody {
   const body = readRequiredString(input, "body", 4000);
   const level = readLevel(input.level);
   const url = readOptionalUrl(input.url);
+  const actions = readActions(input.actions);
   const tags = readTags(input.tags);
   const metadata = readMetadata(input.metadata);
 
@@ -114,6 +117,7 @@ export function normalizeMessage(input: unknown): IncomingMessageBody {
     title,
     body,
     level,
+    actions,
     tags,
     metadata,
   };
@@ -135,6 +139,7 @@ export function toPushMessage(input: IncomingMessageBody): PushMessage {
     body: input.body,
     level: input.level ?? "info",
     ...(input.url ? { url: input.url } : {}),
+    actions: input.actions ?? [],
     tags: input.tags ?? [],
     metadata: input.metadata ?? {},
   };
@@ -210,6 +215,42 @@ function readTags(value: unknown): string[] {
   });
 
   return [...new Set(tags)].slice(0, 20);
+}
+
+function readActions(value: unknown): Array<{ label: string; url: string }> {
+  if (value === undefined || value === null) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    throw new HttpError(400, "Field \"actions\" must be an array");
+  }
+
+  const actions: Array<{ label: string; url: string }> = [];
+
+  for (const entry of value) {
+    if (!isRecord(entry)) {
+      throw new HttpError(400, "Field \"actions\" entries must be objects");
+    }
+
+    const labelRaw = entry.label;
+    const urlRaw = entry.url;
+    if (typeof labelRaw !== "string" || labelRaw.trim().length === 0) {
+      throw new HttpError(400, "Field \"actions[].label\" must be a non-empty string");
+    }
+
+    const url = readOptionalUrl(urlRaw);
+    if (!url) {
+      throw new HttpError(400, "Field \"actions[].url\" must be a valid URL");
+    }
+
+    actions.push({
+      label: labelRaw.trim().slice(0, 32),
+      url,
+    });
+  }
+
+  return actions.slice(0, 20);
 }
 
 function readMetadata(value: unknown): Record<string, string | number | boolean | null> {

@@ -1,5 +1,5 @@
 import type { Env } from "./env";
-import { getLogs, getSettings, mergeProviderSettings, normalizeSettings, saveSettings } from "./config";
+import { getLogs, getSettings, mergeProviderSettings, normalizeSettings, saveSettings, type AppSettings } from "./config";
 import { renderAdminUi } from "./admin-ui";
 import { createDeliveryEnv, sendIncomingMessage } from "./delivery";
 import { normalizeCloudflareEvent, normalizeGitHubActionsEvent } from "./events";
@@ -99,7 +99,12 @@ async function handleAdminApi(request: Request, env: Env): Promise<Response> {
 
   if (request.method === "PUT" && url.pathname === "/api/admin/settings") {
     const body = await readJson(request);
-    const settings = await saveSettings(env, body);
+    let settings: AppSettings;
+    try {
+      settings = await saveSettings(env, body);
+    } catch (error) {
+      throw new HttpError(400, error instanceof Error ? error.message : "Invalid settings payload");
+    }
 
     return json({
       settings,
@@ -122,7 +127,7 @@ async function handleAdminApi(request: Request, env: Env): Promise<Response> {
       throw new HttpError(400, "Field \"schedule\" must be an object");
     }
 
-    return json({ preview: createSchedulePreview(schedule) }, env);
+    return json({ preview: await createSchedulePreview(env, schedule) }, env);
   }
 
   if (request.method === "GET" && url.pathname === "/api/admin/logs") {

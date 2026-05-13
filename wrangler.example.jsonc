@@ -13,6 +13,9 @@
   "triggers": {
     "crons": ["*/5 * * * *"]
   },
+  "ai": {
+    "binding": "AI"
+  },
   "vars": {
     "DEFAULT_TARGETS": "feishu"
   }

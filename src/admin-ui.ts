@@ -706,7 +706,6 @@ const adminHtml = `<!doctype html>
         </div>
       </a>
       <div class="toolbar">
-        <a class="button-link secondary" href="https://github.com/InnoNestX/globalpulse/issues/new/choose" target="_blank" rel="noreferrer" data-i18n="feedback">提 Bug / 需求</a>
         <button class="secondary icon-button" id="langButton" title="Toggle language">EN</button>
         <button class="secondary icon-button" id="themeButton" title="Theme">◐</button>
         <button class="secondary hidden" id="logoutButton" data-i18n="logout">退出</button>
@@ -816,13 +815,6 @@ const adminHtml = `<!doctype html>
           <button class="sidebar-item" data-section="logs">
             <span>📜</span> <span data-i18n="logs">最近记录</span>
           </button>
-          <div class="sidebar-divider"></div>
-          <a class="sidebar-item" href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noreferrer">
-            <span>⭐</span> GitHub
-          </a>
-          <a class="sidebar-item" href="https://github.com/InnoNestX/GlobalPulse/issues/new/choose" target="_blank" rel="noreferrer">
-            <span>🐛</span> <span data-i18n="feedback">提 Bug</span>
-          </a>
         </nav>
 
         <div class="admin-main">
@@ -863,6 +855,29 @@ const adminHtml = `<!doctype html>
               <div class="section-head">
                 <h2 data-i18n="schedules">推送时间表</h2>
                 <button class="secondary" id="addScheduleButton" data-i18n="addSchedule">新增时间点</button>
+              </div>
+              <div class="provider-config">
+                <h3><span data-i18n="scheduleConfigurator">日报配置器</span><span class="badge" data-i18n="batchBuilder">批量生成</span></h3>
+                <div class="cols">
+                  <label><span data-i18n="reportType">日报类型</span>
+                    <select id="builderReportType">
+                      <option value="a_share">A股</option>
+                      <option value="us_stock">美股</option>
+                      <option value="crypto">加密</option>
+                      <option value="daily_hot">每日热点</option>
+                      <option value="custom">自定义</option>
+                    </select>
+                  </label>
+                  <label><span data-i18n="customReportName">自定义名称</span><input id="builderCustomName" placeholder="例如：AI 热点"></label>
+                </div>
+                <label><span data-i18n="slotTimes">时间点（多选后一次生成）</span>
+                  <div class="target-list" id="builderSlots"></div>
+                </label>
+                <div class="row">
+                  <button class="secondary" id="applySlotTemplateButton" data-i18n="applySlotTemplate">套用预置时间</button>
+                  <button class="primary" id="buildSchedulesButton" data-i18n="buildSchedules">按所选时间生成计划</button>
+                  <span class="status" id="builderStatus"></span>
+                </div>
               </div>
               <div class="stack" id="schedules"></div>
             </section>
@@ -940,6 +955,20 @@ const adminHtml = `<!doctype html>
       ["us_stock", "US stock"],
       ["crypto", "Crypto"]
     ];
+    const reportTypeOptions = [
+      ["a_share", "A股"],
+      ["us_stock", "美股"],
+      ["crypto", "加密"],
+      ["daily_hot", "每日热点"],
+      ["custom", "Custom"]
+    ];
+    const slotTemplates = {
+      a_share: ["09:00", "13:00", "16:00"],
+      us_stock: ["21:30", "23:30", "04:30", "07:30"],
+      crypto: ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00"],
+      daily_hot: ["10:00", "17:00"],
+      custom: []
+    };
     const timezones = ["Asia/Hong_Kong", "Asia/Shanghai", "UTC", "America/New_York", "Europe/London", "Europe/Paris", "Asia/Tokyo", "Asia/Singapore"];
     const dict = {
       zh: {
@@ -976,6 +1005,24 @@ const adminHtml = `<!doctype html>
         telegramChatId: "Telegram Chat ID",
         schedules: "推送时间表",
         addSchedule: "新增时间点",
+        scheduleConfigurator: "日报配置器",
+        batchBuilder: "批量生成",
+        reportType: "日报类型",
+        customReportName: "自定义名称",
+        slotTimes: "时间点（可多选）",
+        applySlotTemplate: "套用预置时间",
+        buildSchedules: "按所选时间生成计划",
+        triggerMode: "触发模式",
+        triggerModeSlots: "时间点匹配",
+        triggerModeCron: "手工 cron",
+        cronExpression: "Cron 表达式",
+        cronHelp: "Cron 为 5 段格式，分钟位需兼容 5 分钟轮询。",
+        skipNonTradingInCron: "Cron 模式跳过非交易日",
+        focusSymbols: "特别关注代码",
+        positionSymbols: "持仓代码",
+        symbolsHelp: "支持逗号/空格/换行，自动去重。",
+        sourceStateLive: "实时数据",
+        sourceStateFallback: "回退预览",
         previewTitle: "推送预览",
         previewHelp: "查看当前配置会发送到各渠道的实际内容。",
         refreshPreview: "刷新预览",
@@ -1079,6 +1126,24 @@ const adminHtml = `<!doctype html>
         telegramChatId: "Telegram chat ID",
         schedules: "Schedules",
         addSchedule: "Add time",
+        scheduleConfigurator: "Report configurator",
+        batchBuilder: "Batch builder",
+        reportType: "Report type",
+        customReportName: "Custom name",
+        slotTimes: "Time slots (multi-select)",
+        applySlotTemplate: "Apply preset slots",
+        buildSchedules: "Build schedules from selected slots",
+        triggerMode: "Trigger mode",
+        triggerModeSlots: "Time slots",
+        triggerModeCron: "Manual cron",
+        cronExpression: "Cron expression",
+        cronHelp: "Use 5-field cron; minute values must match 5-minute polling.",
+        skipNonTradingInCron: "Skip non-trading days in cron mode",
+        focusSymbols: "Focus symbols",
+        positionSymbols: "Position symbols",
+        symbolsHelp: "Comma/space/newline supported, auto-deduped.",
+        sourceStateLive: "Live data",
+        sourceStateFallback: "Fallback preview",
         previewTitle: "Push preview",
         previewHelp: "See the exact payload each selected provider will receive.",
         refreshPreview: "Refresh preview",
@@ -1249,6 +1314,7 @@ const adminHtml = `<!doctype html>
       renderTargetList($("defaultTargets"), state.defaultTargets, "default");
       renderProviderStatus();
       renderProviderSettings();
+      renderSlotBuilder();
       renderSchedules();
       renderPreviewSelect();
       applyI18n();
@@ -1315,11 +1381,28 @@ const adminHtml = `<!doctype html>
       }).join("");
     }
 
+    function renderSlotBuilder() {
+      const reportType = $("builderReportType").value || "a_share";
+      const slots = slotTemplates[reportType] || [];
+
+      $("builderSlots").innerHTML = slots.map((slot) =>
+        '<label><input type="checkbox" name="builder-slots" value="' + slot + '" checked><span>' + slot + '</span></label>'
+      ).join("");
+      $("builderStatus").textContent = "";
+    }
+
     function renderSchedules() {
       $("schedules").innerHTML = state.schedules.map((schedule, index) => {
+        schedule.triggerMode = schedule.triggerMode || "slots";
+        schedule.skipNonTradingInCron = Boolean(schedule.skipNonTradingInCron);
+        schedule.cronExpression = schedule.cronExpression || "";
         schedule.marketCalendar = schedule.marketCalendar || "everyday";
         schedule.tradingDaySource = schedule.tradingDaySource || (schedule.marketCalendar === "a_share" || schedule.marketCalendar === "us_stock" ? "external" : "weekday");
         schedule.marketHolidayDates = schedule.marketHolidayDates || [];
+        schedule.reportType = schedule.reportType || inferReportType(schedule);
+        schedule.focusSymbols = Array.isArray(schedule.focusSymbols) ? schedule.focusSymbols : parseSymbols(schedule.focusSymbols);
+        schedule.positionSymbols = Array.isArray(schedule.positionSymbols) ? schedule.positionSymbols : parseSymbols(schedule.positionSymbols);
+        const triggerLabel = schedule.triggerMode === "cron" ? "cron" : schedule.time;
         const days = dayLabels[uiLanguage].map((label, day) => {
           const checked = schedule.days.includes(day) ? "checked" : "";
           return '<label><input type="checkbox" data-index="' + index + '" data-field="days" value="' + day + '" ' + checked + '><span>' + label + '</span></label>';
@@ -1331,7 +1414,7 @@ const adminHtml = `<!doctype html>
         return '<details class="schedule" data-index="' + index + '"' + (index === 0 ? " open" : "") + '>' +
           '<summary class="schedule-summary">' +
           '<div class="schedule-summary-main">' +
-          '<div class="schedule-summary-row"><h3>' + escapeHtml(schedule.name) + '</h3><span class="badge">' + escapeHtml(schedule.time) + '</span></div>' +
+          '<div class="schedule-summary-row"><h3>' + escapeHtml(schedule.name) + '</h3><span class="badge">' + escapeHtml(triggerLabel) + '</span></div>' +
           '<div class="muted">' + escapeHtml(schedule.timezone) + ' · ' + escapeHtml(schedule.marketCalendar) + ' · ' + (schedule.enabled ? t("enabled") : t("disabled")) + '</div>' +
           '</div>' +
           '<span class="schedule-chevron">▾</span>' +
@@ -1340,19 +1423,28 @@ const adminHtml = `<!doctype html>
           '<div class="schedule-summary-row"><label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" data-index="' + index + '" data-field="enabled" ' + (schedule.enabled ? "checked" : "") + '>' + t("enabled") + '</label></div>' +
           '<div class="cols">' +
           field(t("name"), "name", schedule.name, index) +
+          selectField(t("reportType"), "reportType", schedule.reportType, index, reportTypeOptions) +
+          selectField(t("triggerMode"), "triggerMode", schedule.triggerMode, index, [["slots", t("triggerModeSlots")], ["cron", t("triggerModeCron")]]) +
           field(t("time"), "time", schedule.time, index, "time") +
+          field(t("cronExpression"), "cronExpression", schedule.cronExpression, index, "text") +
           selectField(t("contentLanguage"), "language", schedule.language, index, [["zh", "中文"], ["en", "English"]]) +
           selectField(t("format"), "outputFormat", schedule.outputFormat, index, [["markdown", "Markdown"], ["text", "Text"], ["json", "JSON"]]) +
           '</div>' +
+          '<div class="muted">' + t("cronHelp") + '</div>' +
           '<div class="cols">' +
           '<label>' + t("timezone") + '<select data-index="' + index + '" data-field="timezone">' + timezones.map((zone) => '<option value="' + zone + '"' + (zone === schedule.timezone ? " selected" : "") + '>' + zone + '</option>').join("") + '</select></label>' +
           selectField(t("marketCalendar"), "marketCalendar", schedule.marketCalendar, index, marketOptions) +
           selectField(t("tradingDaySource"), "tradingDaySource", schedule.tradingDaySource, index, localizedTradingDayOptions()) +
           '</div>' +
+          '<label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" data-index="' + index + '" data-field="skipNonTradingInCron" ' + (schedule.skipNonTradingInCron ? "checked" : "") + '><span>' + t("skipNonTradingInCron") + '</span></label>' +
           '<label>' + t("topicQuery") + '<input data-index="' + index + '" data-field="topicQuery" value="' + escapeAttr(schedule.topicQuery) + '"></label>' +
           '<label>' + t("sourceUrl") + '<input data-index="' + index + '" data-field="sourceUrl" value="' + escapeAttr(schedule.sourceUrl || "") + '"></label>' +
+          '<div class="cols">' +
+          '<label>' + t("focusSymbols") + '<textarea data-index="' + index + '" data-field="focusSymbolsText">' + escapeHtml((schedule.focusSymbols || []).join("\\n")) + '</textarea><span class="muted">' + t("symbolsHelp") + '</span></label>' +
+          '<label>' + t("positionSymbols") + '<textarea data-index="' + index + '" data-field="positionSymbolsText">' + escapeHtml((schedule.positionSymbols || []).join("\\n")) + '</textarea><span class="muted">' + t("symbolsHelp") + '</span></label>' +
+          '</div>' +
           '<label>' + t("marketHolidayDates") + '<textarea data-index="' + index + '" data-field="marketHolidayDates">' + escapeHtml(schedule.marketHolidayDates.join("\\n")) + '</textarea><span class="muted">' + t("marketHolidayHelp") + '</span></label>' +
-          '<div><h3>' + t("days") + '</h3><div class="days">' + days + '</div></div>' +
+          (schedule.triggerMode === "slots" ? ('<div><h3>' + t("days") + '</h3><div class="days">' + days + '</div></div>') : "") +
           '<div><h3>' + t("targets") + '</h3><div class="target-list">' + targets + '</div></div>' +
           '<label>' + t("scheduleTemplate") + '<textarea data-index="' + index + '" data-field="template">' + escapeHtml(schedule.template) + '</textarea></label>' +
           '<div class="row"><button class="primary" data-action="run" data-index="' + index + '">' + t("testSend") + '</button><button class="danger" data-action="remove" data-index="' + index + '">' + t("remove") + '</button><span class="status" id="scheduleStatus-' + index + '"></span></div>' +
@@ -1404,6 +1496,10 @@ const adminHtml = `<!doctype html>
       });
       state.schedules.forEach((schedule) => {
         schedule.marketHolidayDates = Array.isArray(schedule.marketHolidayDates) ? schedule.marketHolidayDates : parseDates(schedule.marketHolidayDates);
+        schedule.focusSymbols = Array.isArray(schedule.focusSymbols) ? schedule.focusSymbols : parseSymbols(schedule.focusSymbolsText || "");
+        schedule.positionSymbols = Array.isArray(schedule.positionSymbols) ? schedule.positionSymbols : parseSymbols(schedule.positionSymbolsText || "");
+        delete schedule.focusSymbolsText;
+        delete schedule.positionSymbolsText;
       });
       return state;
     }
@@ -1458,7 +1554,8 @@ const adminHtml = `<!doctype html>
     }
 
     function renderPreview(preview) {
-      $("previewStatus").textContent = preview.generatedAt + " · " + preview.sourceUrl;
+      const statusLabel = preview.sourceStatus === "fallback" ? t("sourceStateFallback") : t("sourceStateLive");
+      $("previewStatus").textContent = preview.generatedAt + " · " + statusLabel + " · " + preview.sourceMessage + " · " + preview.sourceUrl;
       $("previewList").innerHTML = preview.deliveries.map((delivery) =>
         '<article class="preview-card"><header><strong>' + escapeHtml(delivery.label) + '</strong><span class="badge">' + escapeHtml(delivery.format) + '</span></header><pre>' + escapeHtml(delivery.content) + '</pre></article>'
       ).join("");
@@ -1477,11 +1574,17 @@ const adminHtml = `<!doctype html>
         id: "schedule-" + Date.now(),
         name: "New Pulse",
         enabled: true,
+        triggerMode: "slots",
+        skipNonTradingInCron: false,
+        cronExpression: "",
         time: "09:00",
         days: [1, 2, 3, 4, 5],
         timezone: state.timezone,
         language: state.language,
         outputFormat: state.outputFormat,
+        reportType: "a_share",
+        focusSymbols: [],
+        positionSymbols: [],
         targets: state.defaultTargets,
         marketCalendar: "a_share",
         tradingDaySource: "external",
@@ -1492,9 +1595,91 @@ const adminHtml = `<!doctype html>
       render();
     }
 
+    function applySlotTemplate() {
+      renderSlotBuilder();
+    }
+
+    function buildSchedulesFromBuilder() {
+      const reportType = $("builderReportType").value || "a_share";
+      const customName = $("builderCustomName").value.trim();
+      const selectedSlots = Array.from(document.querySelectorAll('input[name="builder-slots"]:checked')).map((node) => node.value);
+
+      if (!selectedSlots.length) {
+        $("builderStatus").textContent = uiLanguage === "zh" ? "请至少选择一个时间点" : "Select at least one time slot";
+        return;
+      }
+
+      const calendarByReport = {
+        a_share: "a_share",
+        us_stock: "us_stock",
+        crypto: "crypto",
+        daily_hot: "everyday",
+        custom: "everyday"
+      };
+      const baseName = reportType === "custom" ? (customName || "Custom Report") : reportTypeLabel(reportType);
+
+      selectedSlots.forEach((time, offset) => {
+        state.schedules.push({
+          id: "schedule-" + Date.now() + "-" + offset,
+          name: baseName + " " + time,
+          enabled: true,
+          triggerMode: "slots",
+          skipNonTradingInCron: false,
+          cronExpression: "",
+          time,
+          days: reportType === "crypto" || reportType === "daily_hot" ? [0, 1, 2, 3, 4, 5, 6] : [1, 2, 3, 4, 5],
+          timezone: state.timezone,
+          language: state.language,
+          outputFormat: state.outputFormat,
+          reportType,
+          focusSymbols: [],
+          positionSymbols: [],
+          targets: state.defaultTargets,
+          marketCalendar: calendarByReport[reportType] || "everyday",
+          tradingDaySource: reportType === "a_share" || reportType === "us_stock" ? "external" : "weekday",
+          marketHolidayDates: [],
+          topicQuery: state.topicFocus,
+          template: state.template
+        });
+      });
+
+      $("builderStatus").textContent = uiLanguage === "zh"
+        ? "已生成 " + selectedSlots.length + " 条计划"
+        : "Built " + selectedSlots.length + " schedules";
+      render();
+    }
+
     function parseDates(value) {
       if (Array.isArray(value)) return value;
       return String(value || "").split(/[,\\s]+/).map((date) => date.trim()).filter((date) => /^\\d{4}-\\d{2}-\\d{2}$/.test(date));
+    }
+
+    function parseSymbols(value) {
+      const entries = Array.isArray(value)
+        ? value.map((entry) => String(entry).trim().toUpperCase()).filter(Boolean)
+        : String(value || "")
+          .split(/[\\s,\\n]+/)
+          .map((entry) => entry.trim().toUpperCase())
+          .filter(Boolean);
+
+      return Array.from(new Set(entries));
+    }
+
+    function inferReportType(schedule) {
+      if (schedule.marketCalendar === "a_share") return "a_share";
+      if (schedule.marketCalendar === "us_stock") return "us_stock";
+      if (schedule.marketCalendar === "crypto") return "crypto";
+      const hint = ((schedule.name || "") + " " + (schedule.topicQuery || "")).toLowerCase();
+      if (hint.includes("hot") || hint.includes("热点")) return "daily_hot";
+      return "custom";
+    }
+
+    function reportTypeLabel(reportType) {
+      if (reportType === "a_share") return "A股";
+      if (reportType === "us_stock") return "美股";
+      if (reportType === "crypto") return "加密";
+      if (reportType === "daily_hot") return "每日热点";
+      return "Custom";
     }
 
     function escapeHtml(value) {
@@ -1534,6 +1719,9 @@ const adminHtml = `<!doctype html>
     $("refreshButton").addEventListener("click", loadSettings);
     $("loadLogsButton").addEventListener("click", loadLogs);
     $("addScheduleButton").addEventListener("click", addSchedule);
+    $("builderReportType").addEventListener("change", renderSlotBuilder);
+    $("applySlotTemplateButton").addEventListener("click", applySlotTemplate);
+    $("buildSchedulesButton").addEventListener("click", buildSchedulesFromBuilder);
     $("refreshPreviewButton").addEventListener("click", () => loadPreview().catch((error) => {
       $("previewStatus").textContent = error.message || "Preview failed";
     }));
@@ -1553,9 +1741,12 @@ const adminHtml = `<!doctype html>
       const schedule = state.schedules[Number(index)];
       if (!schedule) return;
       if (fieldName === "enabled") schedule.enabled = event.target.checked;
+      else if (fieldName === "skipNonTradingInCron") schedule.skipNonTradingInCron = event.target.checked;
       else if (fieldName === "days") schedule.days = Array.from(document.querySelectorAll('input[data-index="' + index + '"][data-field="days"]:checked')).map((node) => Number(node.value));
       else if (fieldName === "targets") schedule.targets = Array.from(document.querySelectorAll('input[data-index="' + index + '"][data-field="targets"]:checked')).map((node) => node.value);
       else if (fieldName === "marketHolidayDates") schedule.marketHolidayDates = parseDates(event.target.value);
+      else if (fieldName === "focusSymbolsText") schedule.focusSymbols = parseSymbols(event.target.value);
+      else if (fieldName === "positionSymbolsText") schedule.positionSymbols = parseSymbols(event.target.value);
       else schedule[fieldName] = event.target.value;
     });
     document.addEventListener("click", async (event) => {

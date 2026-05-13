@@ -15,10 +15,14 @@ export const levelColors: Record<PushMessage["level"], number> = {
 };
 
 export function formatPlainText(message: PushMessage): string {
+  const actions = message.actions.length > 0
+    ? message.actions.map((action, index) => `${index + 1}. ${action.label}`).join("\n")
+    : undefined;
   const lines = [
     `[${levelLabels[message.level]}] ${message.title}`,
     message.body,
     message.url ? `Link: ${message.url}` : undefined,
+    actions ? `Sources:\n${actions}` : undefined,
     message.tags.length > 0 ? `Tags: ${message.tags.join(", ")}` : undefined,
   ].filter(Boolean);
 
@@ -26,6 +30,9 @@ export function formatPlainText(message: PushMessage): string {
 }
 
 export function formatMarkdown(message: PushMessage): string {
+  const actions = message.actions.length > 0
+    ? message.actions.map((action) => `[${action.label}](${action.url})`).join(" · ")
+    : undefined;
   const lines = [
     `**${message.title}**`,
     "",
@@ -33,6 +40,7 @@ export function formatMarkdown(message: PushMessage): string {
     "",
     `Level: ${message.level}`,
     message.url ? `[Open link](${message.url})` : undefined,
+    actions ? `Sources: ${actions}` : undefined,
     message.tags.length > 0 ? `Tags: ${message.tags.map((tag) => `\`${tag}\``).join(" ")}` : undefined,
   ].filter(Boolean);
 
