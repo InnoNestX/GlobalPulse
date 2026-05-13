@@ -1408,7 +1408,13 @@ const adminHtml = `<!doctype html>
       if (pendingNode) pendingNode.textContent = t("testing");
       collectSettings();
       await saveSettings();
-      await api("/api/admin/run", { method: "POST", body: JSON.stringify({ scheduleId: state.schedules[index].id }) });
+      await api("/api/admin/run", {
+        method: "POST",
+        body: JSON.stringify({
+          scheduleId: state.schedules[index].id,
+          schedule: state.schedules[index]
+        })
+      });
       const doneNode = $("scheduleStatus-" + index);
       if (doneNode) doneNode.textContent = t("testQueued");
       await loadLogs();
