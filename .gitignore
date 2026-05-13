@@ -1,0 +1,13 @@
+node_modules/
+dist/
+dist-worker/
+.wrangler/
+references/
+deploy/
+wrangler.jsonc
+worker-configuration.d.ts
+.dev.vars
+.env
+coverage/
+npm-debug.log*
+.DS_Store

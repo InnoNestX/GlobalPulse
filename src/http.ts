@@ -1,0 +1,212 @@
+import type { Env } from "./env";
+import { getLogs, getSettings, saveSettings } from "./config";
+import { renderAdminUi } from "./admin-ui";
+import { sendIncomingMessage } from "./delivery";
+import { normalizeCloudflareEvent, normalizeGitHubActionsEvent } from "./events";
+import { getProvider, getProviderStatus } from "./providers";
+import { HttpError, type IncomingMessageBody, normalizeMessage } from "./messages";
+import { runScheduleById } from "./scheduler";
+
+const jsonHeaders = {
+  "Content-Type": "application/json; charset=utf-8",
+};
+
+export async function handleRequest(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+
+  if (request.method === "OPTIONS") {
+    return withCors(new Response(null, { status: 204 }), env);
+  }
+
+  try {
+    if (request.method === "GET" && url.pathname === "/") {
+      return Response.redirect(`${url.origin}/admin`, 302);
+    }
+
+    if (request.method === "GET" && url.pathname === "/admin") {
+      return renderAdminUi();
+    }
+
+    if (request.method === "GET" && url.pathname === "/health") {
+      return json({ ok: true }, env);
+    }
+
+    if (url.pathname.startsWith("/api/admin/")) {
+      return await handleAdminApi(request, env);
+    }
+
+    assertAuthenticated(request, env);
+
+    if (request.method === "GET" && url.pathname === "/v1/providers") {
+      return json({ providers: getProviderStatus(env) }, env);
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/messages") {
+      const rawBody = await readJson(request);
+      const incomingMessage = normalizeMessage(rawBody);
+
+      return await deliverMessage(incomingMessage, env);
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/events/github-actions") {
+      const rawBody = await readJson(request);
+      const incomingMessage = normalizeGitHubActionsEvent(rawBody);
+
+      return await deliverMessage(incomingMessage, env);
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/events/cloudflare") {
+      const rawBody = await readOptionalJson(request);
+      const incomingMessage = normalizeCloudflareEvent(rawBody, request);
+
+      return await deliverMessage(incomingMessage, env);
+    }
+
+    return json({ error: "Not found" }, env, 404);
+  } catch (error) {
+    if (error instanceof HttpError) {
+      return json({ error: error.message, details: error.details }, env, error.status);
+    }
+
+    console.error(error);
+
+    return json({ error: "Internal server error" }, env, 500);
+  }
+}
+
+async function handleAdminApi(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+
+  if (request.method === "POST" && url.pathname === "/api/admin/login") {
+    const body = await readJson(request);
+    const password = isRecord(body) && typeof body.password === "string" ? body.password : getBearerToken(request);
+    assertAdminPassword(password, env);
+
+    return json({ ok: true }, env);
+  }
+
+  assertAdminAuthenticated(request, env);
+
+  if (request.method === "GET" && url.pathname === "/api/admin/settings") {
+    return json({
+      settings: await getSettings(env),
+      providers: getProviderStatus(env),
+    }, env);
+  }
+
+  if (request.method === "PUT" && url.pathname === "/api/admin/settings") {
+    const body = await readJson(request);
+
+    return json({
+      settings: await saveSettings(env, body),
+      providers: getProviderStatus(env),
+    }, env);
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/admin/logs") {
+    return json({ logs: await getLogs(env) }, env);
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/admin/run") {
+    const body = await readJson(request);
+    const scheduleId = isRecord(body) && typeof body.scheduleId === "string" ? body.scheduleId : undefined;
+
+    if (!scheduleId) {
+      throw new HttpError(400, "Field \"scheduleId\" is required");
+    }
+
+    await runScheduleById(env, scheduleId);
+
+    return json({ ok: true }, env, 202);
+  }
+
+  return json({ error: "Not found" }, env, 404);
+}
+
+async function deliverMessage(incomingMessage: IncomingMessageBody, env: Env): Promise<Response> {
+  const summary = await sendIncomingMessage(incomingMessage, env);
+  const status = summary.failed > 0 ? 502 : 202;
+
+  return json(summary, env, status);
+}
+
+function assertAuthenticated(request: Request, env: Env): void {
+  if (!env.API_TOKEN) {
+    throw new HttpError(500, "API_TOKEN is not configured");
+  }
+
+  const apiKey = request.headers.get("X-API-Key");
+  const suppliedToken = getBearerToken(request) || apiKey;
+
+  if (!suppliedToken || suppliedToken !== env.API_TOKEN) {
+    throw new HttpError(401, "Unauthorized");
+  }
+}
+
+function assertAdminAuthenticated(request: Request, env: Env): void {
+  const suppliedPassword = getBearerToken(request) || request.headers.get("X-Admin-Password") || undefined;
+  assertAdminPassword(suppliedPassword, env);
+}
+
+function assertAdminPassword(suppliedPassword: string | undefined, env: Env): void {
+  if (!env.ADMIN_PASSWORD) {
+    throw new HttpError(500, "ADMIN_PASSWORD is not configured");
+  }
+
+  if (!suppliedPassword || suppliedPassword !== env.ADMIN_PASSWORD) {
+    throw new HttpError(401, "Unauthorized");
+  }
+}
+
+function getBearerToken(request: Request): string | undefined {
+  const authorization = request.headers.get("Authorization");
+
+  return authorization?.startsWith("Bearer ") ? authorization.slice("Bearer ".length).trim() : undefined;
+}
+
+async function readJson(request: Request): Promise<unknown> {
+  const contentType = request.headers.get("Content-Type") ?? "";
+
+  if (!contentType.includes("application/json")) {
+    throw new HttpError(415, "Content-Type must be application/json");
+  }
+
+  try {
+    return await request.json();
+  } catch {
+    throw new HttpError(400, "Request body must be valid JSON");
+  }
+}
+
+async function readOptionalJson(request: Request): Promise<unknown> {
+  if (!request.body) {
+    return {};
+  }
+
+  return readJson(request);
+}
+
+function json(body: unknown, env: Env, status = 200): Response {
+  return withCors(new Response(JSON.stringify(body, null, 2), {
+    status,
+    headers: jsonHeaders,
+  }), env);
+}
+
+function withCors(response: Response, env: Env): Response {
+  const headers = new Headers(response.headers);
+  headers.set("Access-Control-Allow-Origin", env.CORS_ORIGIN || "*");
+  headers.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  headers.set("Access-Control-Allow-Headers", "Authorization,Content-Type,X-API-Key");
+  headers.set("Vary", "Origin");
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}

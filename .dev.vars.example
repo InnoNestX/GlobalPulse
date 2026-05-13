@@ -1,0 +1,27 @@
+# Required. Web admin password for /admin.
+ADMIN_PASSWORD=change-me-to-a-long-random-admin-password
+
+# Required for API integrations. Use a long random value.
+API_TOKEN=change-me-to-a-long-random-token
+
+# Optional. Comma-separated provider names used when a request omits `target`.
+# Supported values: feishu, wechat_official_account, wechat_ai_agent
+DEFAULT_TARGETS=feishu
+
+# Optional browser/API CORS origin. Use a specific origin in production when possible.
+CORS_ORIGIN=http://localhost:8787
+
+# Feishu custom bot.
+FEISHU_WEBHOOK_URL=
+FEISHU_SIGNING_SECRET=
+
+# WeChat Official Account customer-service message.
+# Requires the recipient openid to have interacted with the official account recently.
+WECHAT_OFFICIAL_APP_ID=
+WECHAT_OFFICIAL_APP_SECRET=
+WECHAT_OFFICIAL_OPENID=
+
+# WeChat AI Agent / WeCom intelligent bot push webhook.
+# You can provide either the full webhook URL or only the key.
+WECHAT_AI_AGENT_WEBHOOK_URL=
+WECHAT_AI_AGENT_WEBHOOK_KEY=

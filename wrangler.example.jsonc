@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "globalpulse",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-05-13",
+  "workers_dev": true,
+  "kv_namespaces": [
+    {
+      "binding": "APP_KV",
+      "id": "replace-with-your-kv-namespace-id"
+    }
+  ],
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
+  "vars": {
+    "DEFAULT_TARGETS": "feishu"
+  }
+}
