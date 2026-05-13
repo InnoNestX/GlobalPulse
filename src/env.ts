@@ -1,5 +1,6 @@
 export interface Env {
   APP_KV?: KVNamespace;
+  APP_STATE_DO?: DurableObjectNamespace;
   ADMIN_PASSWORD?: string;
   API_TOKEN?: string;
   DEFAULT_TARGETS?: string;

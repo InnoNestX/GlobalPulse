@@ -1,6 +1,9 @@
 import type { Env } from "./env";
 import { handleRequest } from "./http";
 import { runDueSchedules } from "./scheduler";
+import { AppStateDurableObject } from "./app-state-do";
+
+export { AppStateDurableObject };
 
 export default {
   fetch(request: Request, env: Env): Promise<Response> {

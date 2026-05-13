@@ -1,6 +1,7 @@
 import type { Env } from "./env";
 import { type MarketCalendar, type TradingDaySource, parseHolidayDates, readMarketCalendar, readTradingDaySource } from "./market-calendar";
 import { coerceProviderName, type ProviderName } from "./messages";
+import { getStoredJson, getStoredText, putStoredJson, putStoredText } from "./state-store";
 
 export type AppLanguage = "zh" | "en";
 export type OutputFormat = "markdown" | "text" | "json";
@@ -137,46 +138,50 @@ export function createDefaultSettings(): AppSettings {
 }
 
 export async function getSettings(env: Env): Promise<AppSettings> {
-  if (!env.APP_KV) {
-    return createDefaultSettings();
-  }
-  const stored = await env.APP_KV.get<AppSettings>(SETTINGS_KEY, "json");
+  const stored = await getStoredJson<AppSettings>(env, SETTINGS_KEY);
 
   return normalizeSettings(stored);
 }
 
 export async function saveSettings(env: Env, settings: unknown): Promise<AppSettings> {
   const normalizedSettings = normalizeSettings(settings);
-
-  if (!env.APP_KV) {
-    return normalizedSettings;
-  }
-
-  await env.APP_KV.put(SETTINGS_KEY, JSON.stringify(normalizedSettings));
+  await putStoredJson(env, SETTINGS_KEY, normalizedSettings);
 
   return normalizedSettings;
 }
 
 export async function getLogs(env: Env): Promise<DeliveryLog[]> {
-  if (!env.APP_KV) {
+  const logs = await getStoredJson<DeliveryLog[]>(env, LOGS_KEY);
+
+  if (!Array.isArray(logs)) {
     return [];
   }
-  const logs = await env.APP_KV.get<DeliveryLog[]>(LOGS_KEY, "json");
 
-  return Array.isArray(logs) ? logs : [];
+  return logs;
 }
 
 export async function appendLog(env: Env, log: DeliveryLog): Promise<void> {
-  if (!env.APP_KV) {
-    return;
-  }
   const logs = await getLogs(env);
   logs.unshift(log);
-  await env.APP_KV.put(LOGS_KEY, JSON.stringify(logs.slice(0, 50)));
+  await putStoredJson(env, LOGS_KEY, logs.slice(0, 50));
 }
 
 export function getRunMarkerKey(scheduleId: string, localDate: string, localTime: string): string {
   return `runs:v1:${scheduleId}:${localDate}:${localTime}`;
+}
+
+export async function getRunMarker(env: Env, scheduleId: string, localDate: string, localTime: string): Promise<string | null> {
+  return getStoredText(env, getRunMarkerKey(scheduleId, localDate, localTime));
+}
+
+export async function setRunMarker(
+  env: Env,
+  scheduleId: string,
+  localDate: string,
+  localTime: string,
+  value: string,
+): Promise<void> {
+  await putStoredText(env, getRunMarkerKey(scheduleId, localDate, localTime), value, 60 * 60 * 36);
 }
 
 export function requireKV(env: Env): KVNamespace {
