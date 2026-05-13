@@ -32,10 +32,6 @@ export async function createDeliveryEnv(env: Env, settings?: AppSettings): Promi
     return mergeProviderSettings(env, settings);
   }
 
-  if (!env.APP_KV) {
-    return env;
-  }
-
   try {
     return mergeProviderSettings(env, await getSettings(env));
   } catch (error) {
