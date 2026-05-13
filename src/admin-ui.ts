@@ -652,10 +652,7 @@ const adminHtml = `<!doctype html>
       </a>
       <div class="toolbar">
         <a class="button-link secondary" href="https://github.com/InnoNestX/globalpulse/issues/new/choose" target="_blank" rel="noreferrer" data-i18n="feedback">提 Bug / 需求</a>
-        <select id="uiLanguage" aria-label="Language">
-          <option value="zh">中文</option>
-          <option value="en">English</option>
-        </select>
+        <button class="secondary icon-button" id="langButton" title="Toggle language">EN</button>
         <button class="secondary icon-button" id="themeButton" title="Theme">◐</button>
         <button class="secondary hidden" id="logoutButton" data-i18n="logout">退出</button>
       </div>
@@ -1156,7 +1153,8 @@ const adminHtml = `<!doctype html>
 
     function applyI18n() {
       document.documentElement.lang = uiLanguage;
-      $("uiLanguage").value = uiLanguage;
+      const langBtn = $("langButton");
+      if (langBtn) langBtn.textContent = uiLanguage === "zh" ? "EN" : "中";
       document.querySelectorAll("[data-i18n]").forEach((node) => {
         node.textContent = t(node.dataset.i18n);
       });
@@ -1475,8 +1473,8 @@ const adminHtml = `<!doctype html>
       item.classList.add("active");
       section.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-    $("uiLanguage").addEventListener("change", (event) => {
-      uiLanguage = event.target.value;
+    $("langButton").addEventListener("click", () => {
+      uiLanguage = uiLanguage === "zh" ? "en" : "zh";
       localStorage.setItem("globalpulse_ui_language", uiLanguage);
       applyI18n();
     });
