@@ -141,7 +141,7 @@ const adminHtml = `<!doctype html>
     }
     .hero {
       display: grid;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: 1fr;
       gap: 18px;
       align-items: end;
       padding: 22px 0 4px;
@@ -788,10 +788,6 @@ const adminHtml = `<!doctype html>
           <div class="badge">InnoNestX Ops</div>
           <h2 data-i18n="heroTitle">金融与国际热点推送控制台</h2>
           <p class="muted" data-i18n="heroText">管理多市场交易日、内容模板、推送渠道和测试发送。</p>
-        </div>
-        <div class="hero-actions">
-          <a class="button-link secondary" href="https://github.com/InnoNestX/globalpulse" target="_blank" rel="noreferrer">GitHub</a>
-          <a class="button-link primary" href="https://github.com/InnoNestX/globalpulse/issues/new/choose" target="_blank" rel="noreferrer" data-i18n="feedback">提 Bug / 需求</a>
         </div>
       </div>
 
