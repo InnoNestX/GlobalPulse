@@ -5,6 +5,7 @@ import { isTradingDayForSchedule } from "./market-calendar";
 import { getLocalTimeParts } from "./time";
 import { fetchTopicItems } from "./sources";
 import { renderDigest } from "./template";
+import type { DeliverySummary } from "./delivery";
 
 export interface SchedulerRunResult {
   checked: number;
@@ -34,7 +35,7 @@ export async function runDueSchedules(env: Env, now = new Date()): Promise<Sched
   };
 }
 
-export async function runSchedule(env: Env, schedule: PulseSchedule, now = new Date()): Promise<void> {
+export async function runSchedule(env: Env, schedule: PulseSchedule, now = new Date()): Promise<DeliverySummary> {
   const local = getLocalTimeParts(now, schedule.timezone, schedule.language);
   await setRunMarker(env, schedule.id, local.date, schedule.time, now.toISOString());
 
@@ -71,9 +72,10 @@ export async function runSchedule(env: Env, schedule: PulseSchedule, now = new D
       ok: summary.ok,
       delivered: summary.delivered,
       failed: summary.failed,
-      message: summary.ok ? "Delivered" : "Delivery failed",
+      message: summary.ok ? "Delivered" : `Delivery failed: ${summary.results.filter((result) => !result.ok).map((result) => `${result.provider}(${result.status}): ${result.message}`).join("; ")}`,
       createdAt: now.toISOString(),
     });
+    return summary;
   } catch (error) {
     await appendLog(env, {
       id: crypto.randomUUID(),
@@ -90,7 +92,7 @@ export async function runSchedule(env: Env, schedule: PulseSchedule, now = new D
   }
 }
 
-export async function runScheduleById(env: Env, scheduleId: string, now = new Date()): Promise<void> {
+export async function runScheduleById(env: Env, scheduleId: string, now = new Date()): Promise<DeliverySummary> {
   const settings = await getSettings(env);
   const schedule = settings.schedules.find((entry) => entry.id === scheduleId);
 
@@ -98,7 +100,7 @@ export async function runScheduleById(env: Env, scheduleId: string, now = new Da
     throw new Error(`Schedule "${scheduleId}" was not found`);
   }
 
-  await runSchedule(env, schedule, now);
+  return runSchedule(env, schedule, now);
 }
 
 async function shouldRunSchedule(env: Env, schedule: PulseSchedule, now: Date): Promise<boolean> {
