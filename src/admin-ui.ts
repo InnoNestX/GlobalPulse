@@ -15,7 +15,7 @@ const adminHtml = `<!doctype html>
   <title>GlobalPulse Admin</title>
   <link rel="icon" href="https://avatars.githubusercontent.com/u/273979879?v=4" sizes="any" type="image/png">
   <style>
-    :root {
+    :root, html[data-theme="dark"] {
       color-scheme: dark;
       --bg: #070b12;
       --surface: #0f1724;
@@ -44,6 +44,23 @@ const adminHtml = `<!doctype html>
       --ok: #15803d;
       --shadow: 0 18px 45px rgba(15, 23, 42, .08);
       --chip: #e8eef7;
+    }
+    @media (prefers-color-scheme: light) {
+      html[data-theme="system"] {
+        color-scheme: light;
+        --bg: #f5f7fb;
+        --surface: #ffffff;
+        --surface-2: #f1f5f9;
+        --text: #101828;
+        --muted: #64748b;
+        --line: #d7dee8;
+        --accent: #2563eb;
+        --accent-2: #16a34a;
+        --danger: #b42318;
+        --ok: #15803d;
+        --shadow: 0 18px 45px rgba(15, 23, 42, .08);
+        --chip: #e8eef7;
+      }
     }
     * { box-sizing: border-box; }
     body {
@@ -372,10 +389,254 @@ const adminHtml = `<!doctype html>
       max-width: 460px;
       margin: 80px auto;
     }
-    @media (max-width: 920px) {
-      .layout, .hero, .cols, .provider-grid { grid-template-columns: 1fr; }
-      .hero-actions, .toolbar { justify-content: flex-start; }
-      .bar { align-items: flex-start; flex-direction: column; padding: 14px 0; }
+    @media (max-width: 1024px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .sidebar.open { display: flex; }
+    }
+    @media (max-width: 768px) {
+      .hero { grid-template-columns: 1fr; }
+      .hero-actions { justify-content: flex-start; }
+      .cols { grid-template-columns: 1fr; }
+      .provider-grid { grid-template-columns: 1fr; }
+      .mini-grid { grid-template-columns: 1fr; }
+      .bar { flex-wrap: wrap; gap: 10px; }
+    }
+    @media (max-width: 480px) {
+      .bar { flex-direction: column; align-items: stretch; }
+      .toolbar { justify-content: space-between; }
+      .login { margin: 40px auto; }
+      .panel { padding: 12px; }
+    }
+    .code-inline {
+      background: var(--chip);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-family: ui-monospace, monospace;
+      font-size: 12px;
+    }
+    /* Landing page */
+    .landing {
+      display: grid;
+      gap: 48px;
+      padding: 0 0 40px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .hero-landing {
+      padding: 60px 0 20px;
+      text-align: center;
+    }
+    .hero-landing-inner {
+      max-width: 720px;
+      margin: 0 auto;
+      display: grid;
+      gap: 14px;
+    }
+    .hero-badge { justify-self: center; }
+    .hero-title {
+      font-size: clamp(36px, 6vw, 68px);
+      font-weight: 900;
+      letter-spacing: -1px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin: 0;
+    }
+    .hero-tagline {
+      font-size: clamp(16px, 2.5vw, 22px);
+      font-weight: 700;
+      color: var(--text);
+      margin: 0;
+    }
+    .hero-desc {
+      font-size: 15px;
+      max-width: 560px;
+      margin: 0 auto;
+    }
+    .hero-cta {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+    .features { padding: 0 0 20px; }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+    .feature-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface);
+      padding: 20px;
+      display: grid;
+      gap: 10px;
+    }
+    .feature-icon { font-size: 28px; }
+    .feature-card h3 { margin: 0; font-size: 15px; color: var(--text); }
+    .feature-card p { margin: 0; font-size: 13px; color: var(--muted); }
+    .api-docs, .deploy-info, .link-check { padding: 0 0 20px; }
+    .section-title {
+      font-size: 20px;
+      font-weight: 800;
+      margin: 0 0 16px;
+      color: var(--text);
+    }
+    .api-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .api-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      padding: 14px;
+      display: grid;
+      gap: 6px;
+    }
+    .api-method {
+      font-size: 11px;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 4px;
+      width: fit-content;
+    }
+    .api-method.post { background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--accent); }
+    .api-method.get { background: color-mix(in srgb, var(--accent-2) 20%, transparent); color: var(--accent-2); }
+    .api-path { font-family: ui-monospace, monospace; font-size: 13px; font-weight: 600; color: var(--text); }
+    .api-desc { font-size: 12px; }
+    .deploy-steps { display: grid; gap: 14px; }
+    .deploy-step {
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      padding: 14px;
+    }
+    .step-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 800;
+      font-size: 13px;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+    .deploy-step strong { display: block; margin-bottom: 3px; }
+    .deploy-step p { margin: 0; font-size: 13px; }
+    .deploy-step a { color: var(--accent); }
+    .link-table { overflow-x: auto; }
+    .link-table table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .link-table th, .link-table td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .link-table th { font-size: 12px; color: var(--muted); font-weight: 700; }
+    .link-table tr:hover { background: var(--surface-2); }
+    .link-table a { color: var(--accent); }
+    .login-panel { max-width: 460px; margin: 0 auto; width: 100%; }
+    /* Sidebar for admin */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 7px;
+      border: 1px solid transparent;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .sidebar-item:hover, .sidebar-item.active {
+      background: var(--surface-2);
+      border-color: var(--line);
+      color: var(--text);
+    }
+    .sidebar-item.active {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .sidebar-divider {
+      height: 1px;
+      background: var(--line);
+      margin: 6px 0;
+    }
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--line);
+      background: var(--surface);
+      padding: 24px 0;
+      margin-top: 20px;
+    }
+    .footer-inner {
+      width: min(1400px, calc(100vw - 32px));
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 32px;
+      align-items: start;
+      flex-wrap: wrap;
+    }
+    .footer-brand { display: flex; align-items: center; gap: 10px; }
+    .footer-brand-logo {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      object-fit: cover;
+    }
+    .footer-section { display: grid; gap: 8px; }
+    .footer-section h4 {
+      margin: 0;
+      font-size: 12px;
+      font-weight: 760;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+    .footer-section a {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text);
+      padding: 3px 0;
+    }
+    .footer-section a:hover { color: var(--accent); }
+    .footer-copy {
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+      padding-top: 16px;
+      border-top: 1px solid var(--line);
+      grid-column: 1 / -1;
+    }
+    .sidebar-toggle { display: none; }
+    @media (max-width: 1024px) {
+      .sidebar-toggle { display: flex; }
     }
   </style>
 </head>
@@ -401,16 +662,165 @@ const adminHtml = `<!doctype html>
     </div>
   </header>
   <main>
-    <section class="panel stack login" id="loginView">
-      <div class="mark">IN</div>
-      <h2 data-i18n="loginTitle">Admin 登录</h2>
-      <label>
-        <span data-i18n="password">密码</span>
-        <input id="passwordInput" type="password" autocomplete="current-password">
-      </label>
-      <div class="row">
-        <button class="primary" id="loginButton" data-i18n="login">登录</button>
-        <span class="status" id="loginStatus"></span>
+    <section id="loginView">
+      <div class="landing">
+        <section class="hero-landing">
+          <div class="hero-landing-inner">
+            <div class="hero-badge"><span class="badge">🚀 by InnoNestX</span></div>
+            <h1 class="hero-title">GlobalPulse</h1>
+            <p class="hero-tagline">金融与国际热点智能推送平台</p>
+            <p class="hero-desc muted">多市场交易日历 · 多渠道实时推送 · 灵活模板配置 · 定时简报发送</p>
+            <div class="hero-cta">
+              <a class="button-link primary" href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noreferrer">⭐ Star on GitHub</a>
+              <a class="button-link secondary" href="https://github.com/InnoNestX/GlobalPulse/pulls" target="_blank" rel="noreferrer">🔧 Submit PR</a>
+            </div>
+          </div>
+        </section>
+
+        <section class="features">
+          <div class="features-grid">
+            <div class="feature-card">
+              <div class="feature-icon">📡</div>
+              <h3>多平台推送</h3>
+              <p>支持飞书、微信公众号、Telegram、WeChat Clawbot 等多种渠道</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">📅</div>
+              <h3>定时简报</h3>
+              <p>基于 A股/US stock/crypto 交易日历自动发送，不错过任何交易日</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">⚙️</div>
+              <h3>管理后台</h3>
+              <p>可视化配置模板、渠道、日历，一键测试发送</p>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">📊</div>
+              <h3>内容预览</h3>
+              <p>实时预览推送到各渠道的实际内容，确保万无一失</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="api-docs">
+          <h2 class="section-title">API Endpoints</h2>
+          <div class="api-grid">
+            <div class="api-card">
+              <div class="api-method post">POST</div>
+              <div class="api-path">/v1/messages</div>
+              <div class="api-desc muted">发送消息到已配置渠道</div>
+            </div>
+            <div class="api-card">
+              <div class="api-method get">GET</div>
+              <div class="api-path">/v1/health</div>
+              <div class="api-desc muted">健康检查接口</div>
+            </div>
+            <div class="api-card">
+              <div class="api-method post">POST</div>
+              <div class="api-path">/v1/test</div>
+              <div class="api-desc muted">触发测试推送</div>
+            </div>
+            <div class="api-card">
+              <div class="api-method get">GET</div>
+              <div class="api-path">/v1/schedules</div>
+              <div class="api-desc muted">获取推送时间表</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="deploy-info">
+          <h2 class="section-title">快速部署</h2>
+          <div class="deploy-steps">
+            <div class="deploy-step">
+              <div class="step-num">1</div>
+              <div>
+                <strong>Fork 本项目</strong>
+                <p class="muted">Fork <a href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noreferrer">github.com/InnoNestX/GlobalPulse</a> 到你的 GitHub 账户</p>
+              </div>
+            </div>
+            <div class="deploy-step">
+              <div class="step-num">2</div>
+              <div>
+                <strong>部署到 Cloudflare Workers</strong>
+                <p class="muted">使用 Wrangler CLI 部署，或直接 push 到 GitHub 触发 Pages 部署</p>
+              </div>
+            </div>
+            <div class="deploy-step">
+              <div class="step-num">3</div>
+              <div>
+                <strong>配置环境变量</strong>
+                <p class="muted">在 Cloudflare Dashboard 设置 ADMIN_PASSWORD 和各渠道的 WEBHOOK/TOKEN</p>
+              </div>
+            </div>
+            <div class="deploy-step">
+              <div class="step-num">4</div>
+              <div>
+                <strong>访问 Admin 后台</strong>
+                <p class="muted">访问 <span class="code-inline">/admin</span> 路径，输入密码登录并配置推送</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="link-check">
+          <h2 class="section-title">链接校验</h2>
+          <div class="link-table">
+            <table>
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>目标</th>
+                  <th>状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>🐛 Report Bug</td>
+                  <td><a href="https://github.com/InnoNestX/GlobalPulse/issues" target="_blank" rel="noreferrer">github.com/InnoNestX/GlobalPulse/issues</a></td>
+                  <td><span class="badge ok">✅</span></td>
+                </tr>
+                <tr>
+                  <td>🔧 Submit PR</td>
+                  <td><a href="https://github.com/InnoNestX/GlobalPulse/pulls" target="_blank" rel="noreferrer">github.com/InnoNestX/GlobalPulse/pulls</a></td>
+                  <td><span class="badge ok">✅</span></td>
+                </tr>
+                <tr>
+                  <td>⭐ Star Repo</td>
+                  <td><a href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noreferrer">github.com/InnoNestX/GlobalPulse</a></td>
+                  <td><span class="badge ok">✅</span></td>
+                </tr>
+                <tr>
+                  <td>💖 Sponsor</td>
+                  <td><a href="https://github.com/sponsors/InnoNestX" target="_blank" rel="noreferrer">github.com/sponsors/InnoNestX</a></td>
+                  <td><span class="badge ok">✅</span></td>
+                </tr>
+                <tr>
+                  <td>☕ Buy Me a Coffee</td>
+                  <td><a href="https://buymeacoffee.com/xuxuclassmate" target="_blank" rel="noreferrer">buymeacoffee.com/xuxuclassmate</a></td>
+                  <td><span class="badge ok">✅</span></td>
+                </tr>
+                <tr>
+                  <td>💬 Discussions</td>
+                  <td><a href="https://github.com/InnoNestX/GlobalPulse/discussions" target="_blank" rel="noreferrer">github.com/InnoNestX/GlobalPulse/discussions</a></td>
+                  <td><span class="badge ok">✅</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="login-panel panel stack">
+          <div class="mark">IN</div>
+          <h2 data-i18n="loginTitle">Admin 登录</h2>
+          <label>
+            <span data-i18n="password">密码</span>
+            <input id="passwordInput" type="password" autocomplete="current-password">
+          </label>
+          <div class="row">
+            <button class="primary" id="loginButton" data-i18n="login">登录</button>
+            <span class="status" id="loginStatus"></span>
+          </div>
+        </section>
       </div>
     </section>
 
@@ -428,7 +838,35 @@ const adminHtml = `<!doctype html>
       </div>
 
       <section class="layout">
-        <aside class="stack">
+        <nav class="sidebar" id="sidebar">
+          <button class="sidebar-item active" data-section="globalSettings">
+            <span>⚙️</span> <span data-i18n="globalSettings">全局设置</span>
+          </button>
+          <button class="sidebar-item" data-section="schedules">
+            <span>📅</span> <span data-i18n="schedules">推送时间表</span>
+          </button>
+          <button class="sidebar-item" data-section="preview">
+            <span>📊</span> <span data-i18n="previewTitle">推送预览</span>
+          </button>
+          <button class="sidebar-item" data-section="template">
+            <span>📝</span> <span data-i18n="template">全局模板</span>
+          </button>
+          <button class="sidebar-item" data-section="providers">
+            <span>📡</span> <span data-i18n="providers">通知渠道</span>
+          </button>
+          <button class="sidebar-item" data-section="logs">
+            <span>📜</span> <span data-i18n="logs">最近记录</span>
+          </button>
+          <div class="sidebar-divider"></div>
+          <a class="sidebar-item" href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noreferrer">
+            <span>⭐</span> GitHub
+          </a>
+          <a class="sidebar-item" href="https://github.com/InnoNestX/GlobalPulse/issues/new/choose" target="_blank" rel="noreferrer">
+            <span>🐛</span> <span data-i18n="feedback">提 Bug</span>
+          </a>
+        </nav>
+
+        <aside class="stack" id="sidebar-globalSettings">
           <section class="panel stack">
             <div class="section-head">
               <h2 data-i18n="globalSettings">全局设置</h2>
@@ -452,7 +890,7 @@ const adminHtml = `<!doctype html>
             <div class="status" id="saveStatus"></div>
           </section>
 
-          <section class="panel stack">
+          <section class="panel stack" id="section-providers">
             <h2 data-i18n="providers">通知渠道</h2>
             <p class="muted" data-i18n="providerHelp">这里配置的 token / webhook 会存入 KV；Cloudflare secrets 也会继续生效。</p>
             <div class="provider-grid" id="providerStatus"></div>
@@ -461,7 +899,7 @@ const adminHtml = `<!doctype html>
         </aside>
 
         <div class="stack">
-          <section class="panel stack">
+          <section class="panel stack" id="section-schedules">
             <div class="section-head">
               <h2 data-i18n="schedules">推送时间表</h2>
               <button class="secondary" id="addScheduleButton" data-i18n="addSchedule">新增时间点</button>
@@ -469,7 +907,7 @@ const adminHtml = `<!doctype html>
             <div class="stack" id="schedules"></div>
           </section>
 
-          <section class="panel stack">
+          <section class="panel stack" id="section-preview">
             <div class="section-head">
               <div>
                 <h2 data-i18n="previewTitle">推送预览</h2>
@@ -484,13 +922,13 @@ const adminHtml = `<!doctype html>
             <div class="preview-list" id="previewList"></div>
           </section>
 
-          <section class="panel stack">
+          <section class="panel stack" id="section-template">
             <h2 data-i18n="template">全局模板</h2>
             <textarea id="template"></textarea>
             <div class="muted" data-i18n="variables">变量：{{generatedAt}}, {{timezone}}, {{topicQuery}}, {{sourceUrl}}, {{itemsMarkdown}}, {{itemsText}}, {{itemsJson}}</div>
           </section>
 
-          <section class="panel stack">
+          <section class="panel stack" id="section-logs">
             <div class="section-head">
               <h2 data-i18n="logs">最近记录</h2>
               <button class="secondary" id="loadLogsButton" data-i18n="refreshLogs">刷新记录</button>
@@ -501,6 +939,31 @@ const adminHtml = `<!doctype html>
       </section>
     </section>
   </main>
+
+  <footer>
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <img class="footer-brand-logo" src="https://avatars.githubusercontent.com/u/273979879?v=4" alt="InnoNestX">
+        <div>
+          <div style="font-weight:800;font-size:14px;">GlobalPulse</div>
+          <div class="muted" style="font-size:12px;">by InnoNestX</div>
+        </div>
+      </div>
+      <div class="footer-section">
+        <h4>Contribute</h4>
+        <a href="https://github.com/InnoNestX/GlobalPulse/issues" target="_blank" rel="noreferrer">🐛 Report Bug</a>
+        <a href="https://github.com/InnoNestX/GlobalPulse/pulls" target="_blank" rel="noreferrer">🔧 Submit PR</a>
+        <a href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noreferrer">⭐ Star Repo</a>
+      </div>
+      <div class="footer-section">
+        <h4>Support</h4>
+        <a href="https://github.com/sponsors/InnoNestX" target="_blank" rel="noreferrer">💖 Sponsor</a>
+        <a href="https://buymeacoffee.com/xuxuclassmate" target="_blank" rel="noreferrer">☕ Buy Me a Coffee</a>
+        <a href="https://github.com/InnoNestX/GlobalPulse/discussions" target="_blank" rel="noreferrer">💬 Discussions</a>
+      </div>
+      <div class="footer-copy">© 2026 InnoNestX · Built with ❤️ on Cloudflare Workers</div>
+    </div>
+  </footer>
 
   <script>
     const providers = ["feishu", "wechat_official_account", "wechat_clawbot", "telegram"];
@@ -582,7 +1045,8 @@ const adminHtml = `<!doctype html>
         testQueued: "测试已发送",
         loginFailed: "登录失败",
         loginOk: "登录成功",
-        noLogs: "暂无记录"
+        noLogs: "暂无记录",
+        themeToggle: "切换主题"
       },
       en: {
         feedback: "Bug / request",
@@ -648,7 +1112,8 @@ const adminHtml = `<!doctype html>
         testQueued: "Test sent",
         loginFailed: "Login failed",
         loginOk: "Logged in",
-        noLogs: "No logs yet"
+        noLogs: "No logs yet",
+        themeToggle: "Toggle theme"
       }
     };
     const dayLabels = {
@@ -659,7 +1124,7 @@ const adminHtml = `<!doctype html>
     let providerStatus = [];
     let password = localStorage.getItem("globalpulse_admin_password") || "";
     let uiLanguage = localStorage.getItem("globalpulse_ui_language") || "zh";
-    let theme = localStorage.getItem("globalpulse_theme") || "dark";
+    let theme = "";
 
     const $ = (id) => document.getElementById(id);
 
@@ -668,8 +1133,25 @@ const adminHtml = `<!doctype html>
     }
 
     function applyTheme() {
+      const stored = localStorage.getItem("globalpulse_theme");
+      if (!stored) {
+        theme = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      } else {
+        theme = stored;
+      }
       document.documentElement.dataset.theme = theme;
-      $("themeButton").textContent = theme === "dark" ? "☼" : "◐";
+      const icon = theme === "dark" ? "🌙" : theme === "light" ? "☀️" : "💻";
+      $("themeButton").textContent = icon;
+    }
+
+    function cycleTheme() {
+      const order = ["dark", "light", "system"];
+      const stored = localStorage.getItem("globalpulse_theme");
+      const current = stored || (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+      const idx = order.indexOf(current);
+      theme = order[(idx + 1) % order.length];
+      localStorage.setItem("globalpulse_theme", theme);
+      applyTheme();
     }
 
     function applyI18n() {
@@ -981,10 +1463,17 @@ const adminHtml = `<!doctype html>
       localStorage.removeItem("globalpulse_admin_password");
       location.reload();
     });
-    $("themeButton").addEventListener("click", () => {
-      theme = theme === "dark" ? "light" : "dark";
-      localStorage.setItem("globalpulse_theme", theme);
-      applyTheme();
+    $("themeButton").addEventListener("click", cycleTheme);
+    $("themeButton").title = t("themeToggle");
+    $("sidebar").addEventListener("click", (event) => {
+      const item = event.target.closest(".sidebar-item");
+      if (!item || !item.dataset.section) return;
+      const sectionId = "section-" + item.dataset.section;
+      const section = document.getElementById(sectionId);
+      if (!section) return;
+      document.querySelectorAll(".sidebar-item[data-section]").forEach((el) => el.classList.remove("active"));
+      item.classList.add("active");
+      section.scrollIntoView({ behavior: "smooth", block: "start" });
     });
     $("uiLanguage").addEventListener("change", (event) => {
       uiLanguage = event.target.value;
