@@ -150,7 +150,13 @@ const adminHtml = `<!doctype html>
     .hero-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
     .layout {
       display: grid;
-      grid-template-columns: 380px minmax(0, 1fr);
+      grid-template-columns: 220px minmax(0, 1fr);
+      gap: 18px;
+      align-items: start;
+    }
+    .admin-main {
+      display: grid;
+      grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
       gap: 18px;
       align-items: start;
     }
@@ -315,16 +321,44 @@ const adminHtml = `<!doctype html>
       border: 1px solid var(--line);
       border-radius: 8px;
       background: var(--surface);
-      padding: 15px;
-      display: grid;
-      gap: 13px;
+      overflow: hidden;
     }
-    .schedule-title {
+    .schedule-summary {
+      list-style: none;
+      cursor: pointer;
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 12px;
+      padding: 13px 14px;
+      background: color-mix(in srgb, var(--surface-2) 80%, transparent);
+    }
+    .schedule-summary::-webkit-details-marker { display: none; }
+    .schedule-summary-main {
+      min-width: 0;
+      display: grid;
+      gap: 3px;
+    }
+    .schedule-summary-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       flex-wrap: wrap;
+    }
+    .schedule-chevron {
+      color: var(--muted);
+      font-size: 12px;
+      transition: transform .15s ease;
+      transform-origin: center;
+    }
+    details.schedule[open] .schedule-chevron {
+      transform: rotate(180deg);
+    }
+    .schedule-body {
+      padding: 14px;
+      display: grid;
+      gap: 13px;
+      border-top: 1px solid var(--line);
     }
     .days {
       display: grid;
@@ -391,8 +425,12 @@ const adminHtml = `<!doctype html>
     }
     @media (max-width: 1024px) {
       .layout { grid-template-columns: 1fr; }
+      .admin-main { grid-template-columns: 1fr; }
       .sidebar { display: none; }
       .sidebar.open { display: flex; }
+    }
+    @media (max-width: 1260px) {
+      .admin-main { grid-template-columns: 1fr; }
     }
     @media (max-width: 768px) {
       .hero { grid-template-columns: 1fr; }
@@ -787,75 +825,77 @@ const adminHtml = `<!doctype html>
           </a>
         </nav>
 
-        <aside class="stack" id="sidebar-globalSettings">
-          <section class="panel stack">
-            <div class="section-head">
-              <h2 data-i18n="globalSettings">全局设置</h2>
-              <span class="badge" data-i18n="localOnly">配置保存在 KV</span>
-            </div>
-            <label><span data-i18n="appName">应用名称</span><input id="appName"></label>
-            <div class="cols">
-              <label><span data-i18n="contentLanguage">内容语言</span><select id="language"><option value="zh">中文</option><option value="en">English</option></select></label>
-              <label><span data-i18n="format">默认格式</span><select id="outputFormat"><option value="markdown">Markdown</option><option value="text">Text</option><option value="json">JSON</option></select></label>
-            </div>
-            <label><span data-i18n="timezone">时区</span><select id="timezone"></select></label>
-            <label><span data-i18n="topicFocus">关注主题</span><textarea id="topicFocus"></textarea></label>
-            <div>
-              <h3 data-i18n="defaultTargets">默认推送目标</h3>
-              <div class="target-list" id="defaultTargets"></div>
-            </div>
-            <div class="row">
-              <button class="primary" id="saveButton" data-i18n="save">保存</button>
-              <button class="secondary" id="refreshButton" data-i18n="refresh">刷新</button>
-            </div>
-            <div class="status" id="saveStatus"></div>
-          </section>
-
-          <section class="panel stack" id="section-providers">
-            <h2 data-i18n="providers">通知渠道</h2>
-            <p class="muted" data-i18n="providerHelp">这里配置的 token / webhook 会存入 KV；Cloudflare secrets 也会继续生效。</p>
-            <div class="provider-grid" id="providerStatus"></div>
-            <div class="provider-form" id="providerSettingsForm"></div>
-          </section>
-        </aside>
-
-        <div class="stack">
-          <section class="panel stack" id="section-schedules">
-            <div class="section-head">
-              <h2 data-i18n="schedules">推送时间表</h2>
-              <button class="secondary" id="addScheduleButton" data-i18n="addSchedule">新增时间点</button>
-            </div>
-            <div class="stack" id="schedules"></div>
-          </section>
-
-          <section class="panel stack" id="section-preview">
-            <div class="section-head">
+        <div class="admin-main">
+          <aside class="stack" id="sidebar-globalSettings">
+            <section class="panel stack">
+              <div class="section-head">
+                <h2 data-i18n="globalSettings">全局设置</h2>
+                <span class="badge" data-i18n="localOnly">配置保存在 KV</span>
+              </div>
+              <label><span data-i18n="appName">应用名称</span><input id="appName"></label>
+              <div class="cols">
+                <label><span data-i18n="contentLanguage">内容语言</span><select id="language"><option value="zh">中文</option><option value="en">English</option></select></label>
+                <label><span data-i18n="format">默认格式</span><select id="outputFormat"><option value="markdown">Markdown</option><option value="text">Text</option><option value="json">JSON</option></select></label>
+              </div>
+              <label><span data-i18n="timezone">时区</span><select id="timezone"></select></label>
+              <label><span data-i18n="topicFocus">关注主题</span><textarea id="topicFocus"></textarea></label>
               <div>
-                <h2 data-i18n="previewTitle">推送预览</h2>
-                <div class="muted" data-i18n="previewHelp">查看当前配置会发送到各渠道的实际内容。</div>
+                <h3 data-i18n="defaultTargets">默认推送目标</h3>
+                <div class="target-list" id="defaultTargets"></div>
               </div>
               <div class="row">
-                <select id="previewScheduleSelect" aria-label="Preview schedule"></select>
-                <button class="secondary" id="refreshPreviewButton" data-i18n="refreshPreview">刷新预览</button>
+                <button class="primary" id="saveButton" data-i18n="save">保存</button>
+                <button class="secondary" id="refreshButton" data-i18n="refresh">刷新</button>
               </div>
-            </div>
-            <div class="status" id="previewStatus"></div>
-            <div class="preview-list" id="previewList"></div>
-          </section>
+              <div class="status" id="saveStatus"></div>
+            </section>
 
-          <section class="panel stack" id="section-template">
-            <h2 data-i18n="template">全局模板</h2>
-            <textarea id="template"></textarea>
-            <div class="muted" data-i18n="variables">变量：{{generatedAt}}, {{timezone}}, {{topicQuery}}, {{sourceUrl}}, {{itemsMarkdown}}, {{itemsText}}, {{itemsJson}}</div>
-          </section>
+            <section class="panel stack" id="section-providers">
+              <h2 data-i18n="providers">通知渠道</h2>
+              <p class="muted" data-i18n="providerHelp">这里配置的 token / webhook 会存入 KV；Cloudflare secrets 也会继续生效。</p>
+              <div class="provider-grid" id="providerStatus"></div>
+              <div class="provider-form" id="providerSettingsForm"></div>
+            </section>
+          </aside>
 
-          <section class="panel stack" id="section-logs">
-            <div class="section-head">
-              <h2 data-i18n="logs">最近记录</h2>
-              <button class="secondary" id="loadLogsButton" data-i18n="refreshLogs">刷新记录</button>
-            </div>
-            <div class="logs" id="logs"></div>
-          </section>
+          <div class="stack">
+            <section class="panel stack" id="section-schedules">
+              <div class="section-head">
+                <h2 data-i18n="schedules">推送时间表</h2>
+                <button class="secondary" id="addScheduleButton" data-i18n="addSchedule">新增时间点</button>
+              </div>
+              <div class="stack" id="schedules"></div>
+            </section>
+
+            <section class="panel stack" id="section-preview">
+              <div class="section-head">
+                <div>
+                  <h2 data-i18n="previewTitle">推送预览</h2>
+                  <div class="muted" data-i18n="previewHelp">查看当前配置会发送到各渠道的实际内容。</div>
+                </div>
+                <div class="row">
+                  <select id="previewScheduleSelect" aria-label="Preview schedule"></select>
+                  <button class="secondary" id="refreshPreviewButton" data-i18n="refreshPreview">刷新预览</button>
+                </div>
+              </div>
+              <div class="status" id="previewStatus"></div>
+              <div class="preview-list" id="previewList"></div>
+            </section>
+
+            <section class="panel stack" id="section-template">
+              <h2 data-i18n="template">全局模板</h2>
+              <textarea id="template"></textarea>
+              <div class="muted" data-i18n="variables">变量：{{generatedAt}}, {{timezone}}, {{topicQuery}}, {{sourceUrl}}, {{itemsMarkdown}}, {{itemsText}}, {{itemsJson}}</div>
+            </section>
+
+            <section class="panel stack" id="section-logs">
+              <div class="section-head">
+                <h2 data-i18n="logs">最近记录</h2>
+                <button class="secondary" id="loadLogsButton" data-i18n="refreshLogs">刷新记录</button>
+              </div>
+              <div class="logs" id="logs"></div>
+            </section>
+          </div>
         </div>
       </section>
     </section>
@@ -946,6 +986,7 @@ const adminHtml = `<!doctype html>
         refreshLogs: "刷新记录",
         name: "名称",
         enabled: "启用",
+        disabled: "停用",
         time: "时间",
         days: "星期",
         targets: "推送目标",
@@ -1048,6 +1089,7 @@ const adminHtml = `<!doctype html>
         refreshLogs: "Refresh logs",
         name: "Name",
         enabled: "Enabled",
+        disabled: "Disabled",
         time: "Time",
         days: "Days",
         targets: "Targets",
@@ -1286,8 +1328,16 @@ const adminHtml = `<!doctype html>
           const checked = schedule.targets.includes(provider) ? "checked" : "";
           return '<label><input type="checkbox" data-index="' + index + '" data-field="targets" value="' + provider + '" ' + checked + '><span>' + providerLabels[provider] + '</span></label>';
         }).join("");
-        return '<div class="schedule" data-index="' + index + '">' +
-          '<div class="schedule-title"><div><h3>' + escapeHtml(schedule.name) + '</h3><div class="muted">' + escapeHtml(schedule.timezone) + ' · ' + escapeHtml(schedule.marketCalendar) + '</div></div><label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" data-index="' + index + '" data-field="enabled" ' + (schedule.enabled ? "checked" : "") + '>' + t("enabled") + '</label></div>' +
+        return '<details class="schedule" data-index="' + index + '"' + (index === 0 ? " open" : "") + '>' +
+          '<summary class="schedule-summary">' +
+          '<div class="schedule-summary-main">' +
+          '<div class="schedule-summary-row"><h3>' + escapeHtml(schedule.name) + '</h3><span class="badge">' + escapeHtml(schedule.time) + '</span></div>' +
+          '<div class="muted">' + escapeHtml(schedule.timezone) + ' · ' + escapeHtml(schedule.marketCalendar) + ' · ' + (schedule.enabled ? t("enabled") : t("disabled")) + '</div>' +
+          '</div>' +
+          '<span class="schedule-chevron">▾</span>' +
+          '</summary>' +
+          '<div class="schedule-body">' +
+          '<div class="schedule-summary-row"><label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" data-index="' + index + '" data-field="enabled" ' + (schedule.enabled ? "checked" : "") + '>' + t("enabled") + '</label></div>' +
           '<div class="cols">' +
           field(t("name"), "name", schedule.name, index) +
           field(t("time"), "time", schedule.time, index, "time") +
@@ -1306,7 +1356,8 @@ const adminHtml = `<!doctype html>
           '<div><h3>' + t("targets") + '</h3><div class="target-list">' + targets + '</div></div>' +
           '<label>' + t("scheduleTemplate") + '<textarea data-index="' + index + '" data-field="template">' + escapeHtml(schedule.template) + '</textarea></label>' +
           '<div class="row"><button class="primary" data-action="run" data-index="' + index + '">' + t("testSend") + '</button><button class="danger" data-action="remove" data-index="' + index + '">' + t("remove") + '</button><span class="status" id="scheduleStatus-' + index + '"></span></div>' +
-          '</div>';
+          '</div>' +
+          '</details>';
       }).join("");
     }
 
