@@ -53,6 +53,10 @@ async function fetchItemsWithFallback(schedule: PulseSchedule): Promise<{
   try {
     const topicData = await fetchTopicItems(schedule.topicQuery, schedule.language, schedule.sourceUrl);
 
+    if (!topicData.items.length) {
+      throw new Error("all live sources returned empty items");
+    }
+
     return {
       status: "live",
       message: schedule.language === "zh" ? "实时抓取成功" : "Live fetch succeeded",
