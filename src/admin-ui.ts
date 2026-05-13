@@ -480,7 +480,7 @@ const adminHtml = `<!doctype html>
     .feature-icon { font-size: 28px; }
     .feature-card h3 { margin: 0; font-size: 15px; color: var(--text); }
     .feature-card p { margin: 0; font-size: 13px; color: var(--muted); }
-    .api-docs, .deploy-info, .link-check { padding: 0 0 20px; }
+    .api-docs, .deploy-info { padding: 0 0 20px; }
     .section-title {
       font-size: 20px;
       font-weight: 800;
@@ -759,54 +759,7 @@ const adminHtml = `<!doctype html>
           </div>
         </section>
 
-        <section class="link-check">
-          <h2 class="section-title" data-i18n="linkCheckTitle">链接校验</h2>
-          <div class="link-table">
-            <table>
-              <thead>
-                <tr>
-                  <th data-i18n="linkCheckCol1"></th>
-                  <th data-i18n="linkCheckCol2">目标</th>
-                  <th data-i18n="linkCheckCol3">状态</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td data-i18n="linkBug">🐛 Report Bug</td>
-                  <td><a href="https://github.com/InnoNestX/GlobalPulse/issues" target="_blank" rel="noreferrer">github.com/InnoNestX/GlobalPulse/issues</a></td>
-                  <td><span class="badge ok">✅</span></td>
-                </tr>
-                <tr>
-                  <td data-i18n="linkPR">🔧 Submit PR</td>
-                  <td><a href="https://github.com/InnoNestX/GlobalPulse/pulls" target="_blank" rel="noreferrer">github.com/InnoNestX/GlobalPulse/pulls</a></td>
-                  <td><span class="badge ok">✅</span></td>
-                </tr>
-                <tr>
-                  <td data-i18n="linkStar">⭐ Star Repo</td>
-                  <td><a href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noreferrer">github.com/InnoNestX/GlobalPulse</a></td>
-                  <td><span class="badge ok">✅</span></td>
-                </tr>
-                <tr>
-                  <td data-i18n="linkSponsor">💖 Sponsor</td>
-                  <td><a href="https://github.com/sponsors/InnoNestX" target="_blank" rel="noreferrer">github.com/sponsors/InnoNestX</a></td>
-                  <td><span class="badge ok">✅</span></td>
-                </tr>
-                <tr>
-                  <td data-i18n="linkCoffee">☕ Buy Me a Coffee</td>
-                  <td><a href="https://buymeacoffee.com/xuxuclassmate" target="_blank" rel="noreferrer">buymeacoffee.com/xuxuclassmate</a></td>
-                  <td><span class="badge ok">✅</span></td>
-                </tr>
-                <tr>
-                  <td data-i18n="linkDiscussions">💬 Discussions</td>
-                  <td><a href="https://github.com/InnoNestX/GlobalPulse/discussions" target="_blank" rel="noreferrer">github.com/InnoNestX/GlobalPulse/discussions</a></td>
-                  <td><span class="badge ok">✅</span></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section class="login-panel panel stack">
+        <section class="login-panel">
           <div class="mark">IN</div>
           <h2 data-i18n="loginTitle">Admin 登录</h2>
           <label>
@@ -1071,16 +1024,6 @@ const adminHtml = `<!doctype html>
         step3Desc: "在 Cloudflare Dashboard 设置 ADMIN_PASSWORD 和各渠道的 WEBHOOK/TOKEN",
         step4Title: "访问 Admin 后台",
         step4Desc: "访问 /admin 路径，输入密码登录并配置推送",
-        linkCheckTitle: "链接校验",
-        linkCheckCol1: "",
-        linkCheckCol2: "目标",
-        linkCheckCol3: "状态",
-        linkBug: "🐛 Report Bug",
-        linkPR: "🔧 Submit PR",
-        linkStar: "⭐ Star Repo",
-        linkSponsor: "💖 Sponsor",
-        linkCoffee: "☕ Buy Me a Coffee",
-        linkDiscussions: "💬 Discussions",
         footerContribute: "Contribute",
         footerSupport: "Support",
         footerBug: "🐛 Report Bug",
@@ -1183,16 +1126,6 @@ const adminHtml = `<!doctype html>
         step3Desc: "Set ADMIN_PASSWORD and channel WEBHOOK/TOKEN in Cloudflare Dashboard",
         step4Title: "Access Admin panel",
         step4Desc: "Visit /admin, enter password to login and configure push",
-        linkCheckTitle: "Link Checker",
-        linkCheckCol1: "",
-        linkCheckCol2: "Target",
-        linkCheckCol3: "Status",
-        linkBug: "🐛 Report Bug",
-        linkPR: "🔧 Submit PR",
-        linkStar: "⭐ Star Repo",
-        linkSponsor: "💖 Sponsor",
-        linkCoffee: "☕ Buy Me a Coffee",
-        linkDiscussions: "💬 Discussions",
         footerContribute: "Contribute",
         footerSupport: "Support",
         footerBug: "🐛 Report Bug",
