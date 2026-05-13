@@ -393,8 +393,21 @@ function sanitizeId(value: string): string {
       result += "-";
     }
   }
-  result = result.replace(/-+/g, "-").replace(/^-+|-+$/g, "");
-  return result || crypto.randomUUID();
+  // Manually collapse runs of '-' to a single '-', then trim leading/trailing '-'
+  let collapsed = "";
+  let lastDash = false;
+  for (const char of result) {
+    if (char === "-") {
+      if (!lastDash) { collapsed += char; lastDash = true; }
+    } else {
+      collapsed += char; lastDash = false;
+    }
+  }
+  // Trim leading and trailing dashes without regex
+  let start = 0, end = collapsed.length - 1;
+  while (start < collapsed.length && collapsed[start] === "-") start++;
+  while (end >= start && collapsed[end] === "-") end--;
+  return (collapsed.slice(start, end + 1) || crypto.randomUUID());
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
