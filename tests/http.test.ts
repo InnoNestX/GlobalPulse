@@ -174,7 +174,7 @@ describe("handleRequest", () => {
 
     expect(payload.content.text).toContain("Edge check");
     expect(payload.content.text).toContain("HKG");
-    expect(payload.content.text).toContain("cloudflare");
+    expect(payload.content.text).toContain("HTTP/3");
   });
 
   it("sends messages to the wechat clawbot webhook", async () => {
