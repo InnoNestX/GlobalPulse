@@ -384,7 +384,8 @@ function readOptionalUrl(value: unknown): string | undefined {
 }
 
 function sanitizeId(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64) || crypto.randomUUID();
+  const sanitized = value.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+/, "").replace(/-+$/, "").slice(0, 64);
+  return sanitized.length > 0 ? sanitized : crypto.randomUUID();
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

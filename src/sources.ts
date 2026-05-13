@@ -343,18 +343,23 @@ function readTag(xml: string, tagName: string): string | undefined {
 
 function decodeXml(value: string): string {
   return value
-    .replaceAll("<![CDATA[", "")
-    .replaceAll("]]>", "")
-    .replaceAll("&amp;", "&")
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&quot;", "\"")
-    .replaceAll("&#39;", "'");
+    .replace(/<!\[CDATA\[/gi, "")
+    .replace(/\]\]>/gi, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/gi, "'")
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(dec))
+    .replace(/&#x([0-9a-fA-F]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
 }
 
 function cleanText(value: string): string {
   return decodeXml(value)
-    .replace(/<[^>]+>/g, "")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&[a-z]+;/gi, "")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 240);
