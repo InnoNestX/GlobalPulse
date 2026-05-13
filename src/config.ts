@@ -2,19 +2,28 @@ import type { Env } from "./env";
 import { type MarketCalendar, type TradingDaySource, parseHolidayDates, readMarketCalendar, readTradingDaySource } from "./market-calendar";
 import { coerceProviderName, type ProviderName } from "./messages";
 import { getStoredJson, getStoredText, putStoredJson, putStoredText } from "./state-store";
+import { isCronExpressionFiveMinuteCompatible, validateCronExpression } from "./cron";
 
 export type AppLanguage = "zh" | "en";
 export type OutputFormat = "markdown" | "text" | "json";
+export type TriggerMode = "slots" | "cron";
+export type ReportType = "a_share" | "us_stock" | "crypto" | "daily_hot" | "custom";
 
 export interface PulseSchedule {
   id: string;
   name: string;
   enabled: boolean;
+  triggerMode: TriggerMode;
+  skipNonTradingInCron: boolean;
+  cronExpression?: string;
   time: string;
   days: number[];
   timezone: string;
   language: AppLanguage;
   outputFormat: OutputFormat;
+  reportType: ReportType;
+  focusSymbols: string[];
+  positionSymbols: string[];
   targets: ProviderName[];
   marketCalendar: MarketCalendar;
   tradingDaySource: TradingDaySource;
@@ -105,11 +114,16 @@ export function createDefaultSettings(): AppSettings {
         id: "asia-morning",
         name: "Asia Morning Pulse",
         enabled: true,
+        triggerMode: "slots",
+        skipNonTradingInCron: false,
         time: "08:30",
         days: [1, 2, 3, 4, 5],
         timezone: "Asia/Hong_Kong",
         language: "zh",
         outputFormat: "markdown",
+        reportType: "a_share",
+        focusSymbols: [],
+        positionSymbols: [],
         targets: ["feishu"],
         marketCalendar: "a_share",
         tradingDaySource: "external",
@@ -121,11 +135,16 @@ export function createDefaultSettings(): AppSettings {
         id: "us-evening",
         name: "US Close Pulse",
         enabled: true,
+        triggerMode: "slots",
+        skipNonTradingInCron: false,
         time: "21:30",
         days: [1, 2, 3, 4, 5],
         timezone: "Asia/Hong_Kong",
         language: "en",
         outputFormat: "markdown",
+        reportType: "us_stock",
+        focusSymbols: [],
+        positionSymbols: [],
         targets: ["feishu"],
         marketCalendar: "us_stock",
         tradingDaySource: "external",
@@ -144,6 +163,7 @@ export async function getSettings(env: Env): Promise<AppSettings> {
 }
 
 export async function saveSettings(env: Env, settings: unknown): Promise<AppSettings> {
+  validateStrictSchedulesForSave(settings);
   const normalizedSettings = normalizeSettings(settings);
   await putStoredJson(env, SETTINGS_KEY, normalizedSettings);
 
@@ -241,15 +261,21 @@ function readSchedules(value: unknown, fallback: PulseSchedule[]): PulseSchedule
       return [];
     }
 
-    const schedule: PulseSchedule = {
+    const cronExpression = readCronExpression(entry.cronExpression);
+    const scheduleBase = {
       id: sanitizeId(readString(entry.id, `schedule-${index + 1}`)),
       name: readString(entry.name, `Schedule ${index + 1}`).slice(0, 100),
       enabled: typeof entry.enabled === "boolean" ? entry.enabled : true,
+      triggerMode: readTriggerMode(entry.triggerMode, typeof entry.cronExpression === "string" ? "cron" : "slots"),
+      skipNonTradingInCron: typeof entry.skipNonTradingInCron === "boolean" ? entry.skipNonTradingInCron : false,
       time: readTime(entry.time, "09:00"),
       days: readDays(entry.days),
       timezone: readString(entry.timezone, "Asia/Hong_Kong"),
       language: readLanguage(entry.language, "zh"),
       outputFormat: readOutputFormat(entry.outputFormat, "markdown"),
+      reportType: readReportType(entry.reportType, inferReportType(entry)),
+      focusSymbols: readSymbols(entry.focusSymbols),
+      positionSymbols: readSymbols(entry.positionSymbols),
       targets: readTargets(entry.targets, ["feishu"]),
       marketCalendar: readMarketCalendar(entry.marketCalendar, inferMarketCalendar(entry)),
       tradingDaySource: readTradingDaySource(entry.tradingDaySource, inferTradingDaySource(entry)),
@@ -257,10 +283,19 @@ function readSchedules(value: unknown, fallback: PulseSchedule[]): PulseSchedule
       topicQuery: readString(entry.topicQuery, "global finance international news").slice(0, 300),
       template: readString(entry.template, readLanguage(entry.language, "zh") === "zh" ? zhTemplate : enTemplate).slice(0, 8000),
     };
+    const schedule: PulseSchedule = cronExpression
+      ? { ...scheduleBase, cronExpression }
+      : scheduleBase;
     const sourceUrl = readOptionalUrl(entry.sourceUrl);
 
     if (sourceUrl) {
       schedule.sourceUrl = sourceUrl;
+    }
+
+    if (schedule.triggerMode === "slots") {
+      delete schedule.cronExpression;
+    } else if (!schedule.cronExpression) {
+      schedule.triggerMode = "slots";
     }
 
     return [schedule];
@@ -317,6 +352,19 @@ function inferTradingDaySource(entry: Record<string, unknown>): TradingDaySource
   return calendar === "a_share" || calendar === "us_stock" ? "external" : "weekday";
 }
 
+function inferReportType(entry: Record<string, unknown>): ReportType {
+  const calendar = readMarketCalendar(entry.marketCalendar, inferMarketCalendar(entry));
+
+  if (calendar === "a_share") return "a_share";
+  if (calendar === "us_stock") return "us_stock";
+  if (calendar === "crypto") return "crypto";
+
+  const hint = `${typeof entry.id === "string" ? entry.id : ""} ${typeof entry.name === "string" ? entry.name : ""} ${typeof entry.topicQuery === "string" ? entry.topicQuery : ""}`.toLowerCase();
+  if (hint.includes("hot") || hint.includes("热点")) return "daily_hot";
+
+  return "custom";
+}
+
 function readString(value: unknown, fallback: string): string {
   if (typeof value !== "string") {
     return fallback;
@@ -333,6 +381,20 @@ function readLanguage(value: unknown, fallback: AppLanguage): AppLanguage {
 
 function readOutputFormat(value: unknown, fallback: OutputFormat): OutputFormat {
   return value === "markdown" || value === "text" || value === "json" ? value : fallback;
+}
+
+function readTriggerMode(value: unknown, fallback: TriggerMode): TriggerMode {
+  return value === "slots" || value === "cron" ? value : fallback;
+}
+
+function readReportType(value: unknown, fallback: ReportType): ReportType {
+  return value === "a_share"
+    || value === "us_stock"
+    || value === "crypto"
+    || value === "daily_hot"
+    || value === "custom"
+    ? value
+    : fallback;
 }
 
 function readTargets(value: unknown, fallback: ProviderName[]): ProviderName[] {
@@ -354,6 +416,22 @@ function readOptionalSecret(value: unknown, key: keyof ProviderSettings, maxLeng
   const trimmedValue = value.trim();
 
   return trimmedValue ? { [key]: trimmedValue.slice(0, maxLength) } : {};
+}
+
+function readCronExpression(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const cron = value.trim();
+
+  if (!cron) {
+    return undefined;
+  }
+
+  const validation = validateCronExpression(cron);
+
+  return validation.ok ? cron : undefined;
 }
 
 function readOptionalUrlSetting(value: unknown, key: keyof ProviderSettings): Partial<ProviderSettings> {
@@ -398,6 +476,32 @@ function readOptionalUrl(value: unknown): string | undefined {
   }
 }
 
+function readSymbols(value: unknown): string[] {
+  const rawEntries = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/[\s,\n]+/)
+      : [];
+
+  const symbols = rawEntries.flatMap((entry) => {
+    if (typeof entry !== "string") {
+      return [];
+    }
+
+    const normalized = entry.trim().toUpperCase();
+
+    if (!normalized) {
+      return [];
+    }
+
+    const cleaned = normalized.replace(/[^A-Z0-9._:-]/g, "");
+
+    return cleaned ? [cleaned.slice(0, 20)] : [];
+  });
+
+  return [...new Set(symbols)].slice(0, 80);
+}
+
 function sanitizeId(value: string): string {
   let result = "";
   for (const char of value.toLowerCase()) {
@@ -427,4 +531,50 @@ function sanitizeId(value: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function validateStrictSchedulesForSave(settings: unknown): void {
+  if (!isRecord(settings)) {
+    return;
+  }
+
+  const schedules = settings.schedules;
+
+  if (!Array.isArray(schedules)) {
+    return;
+  }
+
+  for (let index = 0; index < schedules.length; index += 1) {
+    const schedule = schedules[index];
+
+    if (!isRecord(schedule)) {
+      continue;
+    }
+
+    const triggerModeValue = schedule.triggerMode;
+    const triggerMode = triggerModeValue === "cron" || triggerModeValue === "slots"
+      ? triggerModeValue
+      : typeof schedule.cronExpression === "string"
+        ? "cron"
+        : "slots";
+
+    if (triggerMode !== "cron") {
+      continue;
+    }
+
+    if (typeof schedule.cronExpression !== "string" || schedule.cronExpression.trim().length === 0) {
+      throw new Error(`Schedule #${index + 1}: cronExpression is required when triggerMode is cron`);
+    }
+
+    const cron = schedule.cronExpression.trim();
+    const validation = validateCronExpression(cron);
+
+    if (!validation.ok) {
+      throw new Error(`Schedule #${index + 1}: invalid cron expression (${validation.error ?? "invalid format"})`);
+    }
+
+    if (!isCronExpressionFiveMinuteCompatible(cron)) {
+      throw new Error(`Schedule #${index + 1}: cron minute field must be compatible with 5-minute worker polling`);
+    }
+  }
 }

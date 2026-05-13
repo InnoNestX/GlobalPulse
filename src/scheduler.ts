@@ -1,10 +1,10 @@
 import { appendLog, getRunMarker, getSettings, setRunMarker, type PulseSchedule } from "./config";
 import { sendIncomingMessage } from "./delivery";
 import type { Env } from "./env";
+import { matchCronExpression } from "./cron";
 import { isTradingDayForSchedule } from "./market-calendar";
+import { buildScheduleReport } from "./report";
 import { getLocalTimeParts } from "./time";
-import { fetchTopicItems } from "./sources";
-import { renderDigest } from "./template";
 import type { DeliverySummary } from "./delivery";
 
 export interface SchedulerRunResult {
@@ -37,31 +37,28 @@ export async function runDueSchedules(env: Env, now = new Date()): Promise<Sched
 
 export async function runSchedule(env: Env, schedule: PulseSchedule, now = new Date()): Promise<DeliverySummary> {
   const local = getLocalTimeParts(now, schedule.timezone, schedule.language);
-  await setRunMarker(env, schedule.id, local.date, schedule.time, now.toISOString());
+  const markerTime = schedule.triggerMode === "cron" ? local.time : schedule.time;
+  await setRunMarker(env, schedule.id, local.date, markerTime, now.toISOString());
 
   try {
-    const topicData = await fetchTopicItems(schedule.topicQuery, schedule.language, schedule.sourceUrl);
-    const rendered = renderDigest(schedule, {
-      generatedAt: local.label,
-      timezone: schedule.timezone,
-      topicQuery: schedule.topicQuery,
-      sourceUrl: topicData.sourceUrl,
-      items: topicData.items,
-      format: schedule.outputFormat,
-    });
+    const report = await buildScheduleReport(env, schedule, now);
     const summary = await sendIncomingMessage({
       target: schedule.targets,
-      title: rendered.title,
-      body: rendered.body,
-      level: summaryLevel(topicData.items.length),
+      title: report.title,
+      body: report.body,
+      actions: report.actions,
+      level: summaryLevel(report.items.length),
       tags: ["globalpulse", "scheduled", schedule.id],
       metadata: {
         schedule_id: schedule.id,
         schedule_name: schedule.name,
+        report_type: schedule.reportType,
+        source_status: report.sourceStatus,
+        source_message: report.sourceMessage,
         market_calendar: schedule.marketCalendar,
         trading_day_source: schedule.tradingDaySource,
         timezone: schedule.timezone,
-        topic_count: topicData.items.length,
+        topic_count: report.items.length,
       },
     }, env);
 
@@ -105,16 +102,32 @@ export async function runScheduleById(env: Env, scheduleId: string, now = new Da
 
 async function shouldRunSchedule(env: Env, schedule: PulseSchedule, now: Date): Promise<boolean> {
   const local = getLocalTimeParts(now, schedule.timezone, schedule.language);
+  const markerTime = schedule.triggerMode === "cron" ? local.time : schedule.time;
 
-  if (local.time !== schedule.time || !schedule.days.includes(local.weekday)) {
+  if (schedule.triggerMode === "cron") {
+    if (!schedule.cronExpression || !matchCronExpression(schedule.cronExpression, now, schedule.timezone)) {
+      return false;
+    }
+  } else {
+    if (local.time !== schedule.time || !schedule.days.includes(local.weekday)) {
+      return false;
+    }
+  }
+
+  const shouldCheckTradingDay = schedule.triggerMode !== "cron" || schedule.skipNonTradingInCron;
+
+  if (shouldCheckTradingDay && !await isTradingDayForSchedule(
+    env,
+    local.date,
+    local.weekday,
+    schedule.marketCalendar,
+    schedule.marketHolidayDates,
+    schedule.tradingDaySource,
+  )) {
     return false;
   }
 
-  if (!await isTradingDayForSchedule(env, local.date, local.weekday, schedule.marketCalendar, schedule.marketHolidayDates, schedule.tradingDaySource)) {
-    return false;
-  }
-
-  const existingMarker = await getRunMarker(env, schedule.id, local.date, schedule.time);
+  const existingMarker = await getRunMarker(env, schedule.id, local.date, markerTime);
 
   return existingMarker === null;
 }
