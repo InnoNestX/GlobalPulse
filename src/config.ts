@@ -298,6 +298,11 @@ function readSchedules(value: unknown, fallback: PulseSchedule[]): PulseSchedule
       schedule.triggerMode = "slots";
     }
 
+    if (schedule.marketCalendar === "a_share" || schedule.marketCalendar === "us_stock") {
+      schedule.tradingDaySource = "external";
+      schedule.marketHolidayDates = [];
+    }
+
     return [schedule];
   });
 

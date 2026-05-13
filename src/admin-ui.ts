@@ -1021,6 +1021,8 @@ const adminHtml = `<!doctype html>
         focusSymbols: "特别关注代码",
         positionSymbols: "持仓代码",
         symbolsHelp: "支持逗号/空格/换行，自动去重。",
+        autoMarketSourceExternal: "交易日来源：第三方交易日历（自动）",
+        autoMarketSourceAlwaysOpen: "交易日来源：自然日/7x24（自动）",
         sourceStateLive: "实时数据",
         sourceStateFallback: "回退预览",
         previewTitle: "推送预览",
@@ -1142,6 +1144,8 @@ const adminHtml = `<!doctype html>
         focusSymbols: "Focus symbols",
         positionSymbols: "Position symbols",
         symbolsHelp: "Comma/space/newline supported, auto-deduped.",
+        autoMarketSourceExternal: "Trading-day source: third-party market calendar (auto)",
+        autoMarketSourceAlwaysOpen: "Trading-day source: natural day / 7x24 (auto)",
         sourceStateLive: "Live data",
         sourceStateFallback: "Fallback preview",
         previewTitle: "Push preview",
@@ -1397,8 +1401,11 @@ const adminHtml = `<!doctype html>
         schedule.skipNonTradingInCron = Boolean(schedule.skipNonTradingInCron);
         schedule.cronExpression = schedule.cronExpression || "";
         schedule.marketCalendar = schedule.marketCalendar || "everyday";
-        schedule.tradingDaySource = schedule.tradingDaySource || (schedule.marketCalendar === "a_share" || schedule.marketCalendar === "us_stock" ? "external" : "weekday");
+        schedule.tradingDaySource = (schedule.marketCalendar === "a_share" || schedule.marketCalendar === "us_stock") ? "external" : "weekday";
         schedule.marketHolidayDates = schedule.marketHolidayDates || [];
+        if (schedule.tradingDaySource === "external") {
+          schedule.marketHolidayDates = [];
+        }
         schedule.reportType = schedule.reportType || inferReportType(schedule);
         schedule.focusSymbols = Array.isArray(schedule.focusSymbols) ? schedule.focusSymbols : parseSymbols(schedule.focusSymbols);
         schedule.positionSymbols = Array.isArray(schedule.positionSymbols) ? schedule.positionSymbols : parseSymbols(schedule.positionSymbols);
@@ -1434,8 +1441,8 @@ const adminHtml = `<!doctype html>
           '<div class="cols">' +
           '<label>' + t("timezone") + '<select data-index="' + index + '" data-field="timezone">' + timezones.map((zone) => '<option value="' + zone + '"' + (zone === schedule.timezone ? " selected" : "") + '>' + zone + '</option>').join("") + '</select></label>' +
           selectField(t("marketCalendar"), "marketCalendar", schedule.marketCalendar, index, marketOptions) +
-          selectField(t("tradingDaySource"), "tradingDaySource", schedule.tradingDaySource, index, localizedTradingDayOptions()) +
           '</div>' +
+          '<div class="muted">' + ((schedule.marketCalendar === "a_share" || schedule.marketCalendar === "us_stock") ? t("autoMarketSourceExternal") : t("autoMarketSourceAlwaysOpen")) + '</div>' +
           '<label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" data-index="' + index + '" data-field="skipNonTradingInCron" ' + (schedule.skipNonTradingInCron ? "checked" : "") + '><span>' + t("skipNonTradingInCron") + '</span></label>' +
           '<label>' + t("topicQuery") + '<input data-index="' + index + '" data-field="topicQuery" value="' + escapeAttr(schedule.topicQuery) + '"></label>' +
           '<label>' + t("sourceUrl") + '<input data-index="' + index + '" data-field="sourceUrl" value="' + escapeAttr(schedule.sourceUrl || "") + '"></label>' +
@@ -1443,7 +1450,6 @@ const adminHtml = `<!doctype html>
           '<label>' + t("focusSymbols") + '<textarea data-index="' + index + '" data-field="focusSymbolsText">' + escapeHtml((schedule.focusSymbols || []).join("\\n")) + '</textarea><span class="muted">' + t("symbolsHelp") + '</span></label>' +
           '<label>' + t("positionSymbols") + '<textarea data-index="' + index + '" data-field="positionSymbolsText">' + escapeHtml((schedule.positionSymbols || []).join("\\n")) + '</textarea><span class="muted">' + t("symbolsHelp") + '</span></label>' +
           '</div>' +
-          '<label>' + t("marketHolidayDates") + '<textarea data-index="' + index + '" data-field="marketHolidayDates">' + escapeHtml(schedule.marketHolidayDates.join("\\n")) + '</textarea><span class="muted">' + t("marketHolidayHelp") + '</span></label>' +
           (schedule.triggerMode === "slots" ? ('<div><h3>' + t("days") + '</h3><div class="days">' + days + '</div></div>') : "") +
           '<div><h3>' + t("targets") + '</h3><div class="target-list">' + targets + '</div></div>' +
           '<label>' + t("scheduleTemplate") + '<textarea data-index="' + index + '" data-field="template">' + escapeHtml(schedule.template) + '</textarea></label>' +
@@ -1744,10 +1750,17 @@ const adminHtml = `<!doctype html>
       else if (fieldName === "skipNonTradingInCron") schedule.skipNonTradingInCron = event.target.checked;
       else if (fieldName === "days") schedule.days = Array.from(document.querySelectorAll('input[data-index="' + index + '"][data-field="days"]:checked')).map((node) => Number(node.value));
       else if (fieldName === "targets") schedule.targets = Array.from(document.querySelectorAll('input[data-index="' + index + '"][data-field="targets"]:checked')).map((node) => node.value);
-      else if (fieldName === "marketHolidayDates") schedule.marketHolidayDates = parseDates(event.target.value);
       else if (fieldName === "focusSymbolsText") schedule.focusSymbols = parseSymbols(event.target.value);
       else if (fieldName === "positionSymbolsText") schedule.positionSymbols = parseSymbols(event.target.value);
-      else schedule[fieldName] = event.target.value;
+      else {
+        schedule[fieldName] = event.target.value;
+        if (fieldName === "marketCalendar") {
+          schedule.tradingDaySource = (schedule.marketCalendar === "a_share" || schedule.marketCalendar === "us_stock") ? "external" : "weekday";
+          if (schedule.tradingDaySource === "external") {
+            schedule.marketHolidayDates = [];
+          }
+        }
+      }
     });
     document.addEventListener("click", async (event) => {
       const action = event.target.dataset && event.target.dataset.action;
