@@ -341,11 +341,9 @@ function readTag(xml: string, tagName: string): string | undefined {
   return match?.[1]?.trim();
 }
 
+// Decodes XML/HTML entities only. Does NOT strip HTML — use cleanText() for that.
 function decodeXml(value: string): string {
   return value
-    .replace(/<!\[CDATA\[/gi, "")
-    .replace(/\]\]>/gi, "")
-    .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
@@ -357,13 +355,23 @@ function decodeXml(value: string): string {
 }
 
 function cleanText(value: string): string {
-  // First decode entities so encoded HTML (e.g. &lt;script&gt;) is visible as tags,
-  // then strip all HTML tags/comments in a single pass to avoid double-processing
-  const decoded = decodeXml(value);
-  return decoded
+  // 1. Decode entities so encoded HTML becomes visible as tags/comments
+  // 2. Strip HTML comments first (covers both raw <!-- and entity-decoded <!--)
+  // 3. Strip CDATA sections
+  // 4. Strip all remaining HTML tags
+  // 5. Normalize whitespace and cap length
+  return value
     .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, "$1")
+    .replace(/<!\[CDATA\[([\s\S]*?)\]>/gi, "$1")
     .replace(/<[^>]*>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/gi, "'")
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(dec))
+    .replace(/&#x([0-9a-fA-F]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 240);
