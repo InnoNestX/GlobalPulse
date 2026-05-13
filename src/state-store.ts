@@ -25,8 +25,14 @@ export async function getStoredText(env: Env, key: string): Promise<string | nul
       return null;
     }
 
-    const body = await response.json<{ value?: string | null }>().catch(() => ({}));
-    return typeof body.value === "string" ? body.value : null;
+    const body = await response.json().catch(() => undefined) as unknown;
+
+    if (!isRecord(body)) {
+      return null;
+    }
+
+    const value = body.value;
+    return typeof value === "string" ? value : null;
   } catch (error) {
     console.warn("Durable Object get failed", { key, error: normalizeError(error) });
     return null;
@@ -89,4 +95,8 @@ async function fetchFromStateObject(env: Env, pathname: string, body: unknown): 
 
 function normalizeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
