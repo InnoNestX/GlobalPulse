@@ -6,7 +6,7 @@ import { normalizeCloudflareEvent, normalizeGitHubActionsEvent } from "./events"
 import { getProviderStatus } from "./providers";
 import { HttpError, type IncomingMessageBody, normalizeMessage } from "./messages";
 import { createSchedulePreview } from "./preview";
-import { runScheduleById } from "./scheduler";
+import { runSchedule, runScheduleById } from "./scheduler";
 
 const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
@@ -131,10 +131,23 @@ async function handleAdminApi(request: Request, env: Env): Promise<Response> {
 
   if (request.method === "POST" && url.pathname === "/api/admin/run") {
     const body = await readJson(request);
+    const scheduleInput = isRecord(body) ? body.schedule : undefined;
     const scheduleId = isRecord(body) && typeof body.scheduleId === "string" ? body.scheduleId : undefined;
 
+    if (scheduleInput) {
+      const normalized = normalizeSettings({ schedules: [scheduleInput] });
+      const schedule = normalized.schedules[0];
+
+      if (!schedule) {
+        throw new HttpError(400, "Field \"schedule\" must be an object");
+      }
+
+      await runSchedule(env, schedule);
+      return json({ ok: true }, env, 202);
+    }
+
     if (!scheduleId) {
-      throw new HttpError(400, "Field \"scheduleId\" is required");
+      throw new HttpError(400, "Field \"scheduleId\" is required when \"schedule\" is not provided");
     }
 
     await runScheduleById(env, scheduleId);

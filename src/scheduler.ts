@@ -36,9 +36,10 @@ export async function runDueSchedules(env: Env, now = new Date()): Promise<Sched
 
 export async function runSchedule(env: Env, schedule: PulseSchedule, now = new Date()): Promise<void> {
   const local = getLocalTimeParts(now, schedule.timezone, schedule.language);
-  const markerKey = getRunMarkerKey(schedule.id, local.date, schedule.time);
-
-  await requireKV(env).put(markerKey, now.toISOString(), { expirationTtl: 60 * 60 * 36 });
+  if (env.APP_KV) {
+    const markerKey = getRunMarkerKey(schedule.id, local.date, schedule.time);
+    await requireKV(env).put(markerKey, now.toISOString(), { expirationTtl: 60 * 60 * 36 });
+  }
 
   try {
     const topicData = await fetchTopicItems(schedule.topicQuery, schedule.language, schedule.sourceUrl);
@@ -112,6 +113,10 @@ async function shouldRunSchedule(env: Env, schedule: PulseSchedule, now: Date): 
 
   if (!await isTradingDayForSchedule(env, local.date, local.weekday, schedule.marketCalendar, schedule.marketHolidayDates, schedule.tradingDaySource)) {
     return false;
+  }
+
+  if (!env.APP_KV) {
+    return true;
   }
 
   const markerKey = getRunMarkerKey(schedule.id, local.date, schedule.time);

@@ -137,32 +137,42 @@ export function createDefaultSettings(): AppSettings {
 }
 
 export async function getSettings(env: Env): Promise<AppSettings> {
-  const kv = requireKV(env);
-  const stored = await kv.get<AppSettings>(SETTINGS_KEY, "json");
+  if (!env.APP_KV) {
+    return createDefaultSettings();
+  }
+  const stored = await env.APP_KV.get<AppSettings>(SETTINGS_KEY, "json");
 
   return normalizeSettings(stored);
 }
 
 export async function saveSettings(env: Env, settings: unknown): Promise<AppSettings> {
-  const kv = requireKV(env);
   const normalizedSettings = normalizeSettings(settings);
-  await kv.put(SETTINGS_KEY, JSON.stringify(normalizedSettings));
+
+  if (!env.APP_KV) {
+    return normalizedSettings;
+  }
+
+  await env.APP_KV.put(SETTINGS_KEY, JSON.stringify(normalizedSettings));
 
   return normalizedSettings;
 }
 
 export async function getLogs(env: Env): Promise<DeliveryLog[]> {
-  const kv = requireKV(env);
-  const logs = await kv.get<DeliveryLog[]>(LOGS_KEY, "json");
+  if (!env.APP_KV) {
+    return [];
+  }
+  const logs = await env.APP_KV.get<DeliveryLog[]>(LOGS_KEY, "json");
 
   return Array.isArray(logs) ? logs : [];
 }
 
 export async function appendLog(env: Env, log: DeliveryLog): Promise<void> {
-  const kv = requireKV(env);
+  if (!env.APP_KV) {
+    return;
+  }
   const logs = await getLogs(env);
   logs.unshift(log);
-  await kv.put(LOGS_KEY, JSON.stringify(logs.slice(0, 50)));
+  await env.APP_KV.put(LOGS_KEY, JSON.stringify(logs.slice(0, 50)));
 }
 
 export function getRunMarkerKey(scheduleId: string, localDate: string, localTime: string): string {

@@ -331,6 +331,35 @@ describe("handleRequest", () => {
     });
   });
 
+  it("serves admin settings without KV binding", async () => {
+    const appEnv: Env = {
+      ...env,
+      ADMIN_PASSWORD: "admin-pass",
+    };
+
+    const login = await handleRequest(new Request("https://worker.example/api/admin/login", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer admin-pass",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ password: "admin-pass" }),
+    }), appEnv);
+    const settings = await handleRequest(new Request("https://worker.example/api/admin/settings", {
+      headers: {
+        Authorization: "Bearer admin-pass",
+      },
+    }), appEnv);
+
+    expect(login.status).toBe(200);
+    expect(settings.status).toBe(200);
+    await expect(settings.json()).resolves.toMatchObject({
+      settings: {
+        appName: "GlobalPulse",
+      },
+    });
+  });
+
   it("uses provider settings saved in KV for Telegram delivery", async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true, result: { message_id: 7 } }), { status: 200 }));
     const appEnv: Env = {
@@ -421,6 +450,61 @@ describe("handleRequest", () => {
     expect(telegramPreview).toMatchObject({ label: "Telegram", format: "text" });
     expect(clawbotPreview).toMatchObject({ label: "wechat clawbot", format: "markdown" });
     expect(telegramPreview?.content).toContain("美联储");
+  });
+
+  it("runs admin test send without KV when schedule payload is provided", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+
+      if (url === "https://example.com/custom-rss.xml") {
+        return new Response([
+          "<rss><channel><item>",
+          "<title>Custom topic headline</title>",
+          "<link>https://example.com/topic</link>",
+          "</item></channel></rss>",
+        ].join(""), { status: 200 });
+      }
+
+      return new Response(JSON.stringify({ code: 0, msg: "ok" }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const appEnv: Env = {
+      ...env,
+      ADMIN_PASSWORD: "admin-pass",
+    };
+
+    const response = await handleRequest(new Request("https://worker.example/api/admin/run", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer admin-pass",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        schedule: {
+          id: "manual-run",
+          name: "Manual Run",
+          enabled: true,
+          time: "09:00",
+          days: [1, 2, 3, 4, 5],
+          timezone: "UTC",
+          language: "en",
+          outputFormat: "markdown",
+          targets: ["feishu"],
+          marketCalendar: "everyday",
+          tradingDaySource: "weekday",
+          marketHolidayDates: [],
+          topicQuery: "markets",
+          sourceUrl: "https://example.com/custom-rss.xml",
+          template: "# Brief\\n\\n{{itemsMarkdown}}",
+        },
+      }),
+    }), appEnv);
+
+    expect(response.status).toBe(202);
+    expect(fetchMock).toHaveBeenCalledWith("https://open.feishu.cn/open-apis/bot/v2/hook/test-token", expect.objectContaining({
+      method: "POST",
+    }));
   });
 
   it("runs due schedules using the saved timezone and pushes a digest", async () => {
