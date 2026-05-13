@@ -142,17 +142,16 @@ async function handleAdminApi(request: Request, env: Env): Promise<Response> {
         throw new HttpError(400, "Field \"schedule\" must be an object");
       }
 
-      await runSchedule(env, schedule);
-      return json({ ok: true }, env, 202);
+      const summary = await runSchedule(env, schedule);
+      return json({ ok: summary.ok, summary }, env, 202);
     }
 
     if (!scheduleId) {
       throw new HttpError(400, "Field \"scheduleId\" is required when \"schedule\" is not provided");
     }
 
-    await runScheduleById(env, scheduleId);
-
-    return json({ ok: true }, env, 202);
+    const summary = await runScheduleById(env, scheduleId);
+    return json({ ok: summary.ok, summary }, env, 202);
   }
 
   return json({ error: "Not found" }, env, 404);
