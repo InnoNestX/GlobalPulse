@@ -14,6 +14,8 @@ When a schedule does not specify a custom RSS source URL, GlobalPulse builds a c
 
 If a user provides `sourceUrl` in the Admin UI, GlobalPulse uses that custom RSS feed only.
 
+Trading-day filtering happens before source collection. A-share and US stock schedules can use separate third-party holiday checks, so a weekday holiday for one market does not automatically affect the other.
+
 ## Reference Concepts From claw-auto
 
 Useful concepts already reflected or planned:

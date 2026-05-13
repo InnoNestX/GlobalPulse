@@ -1,7 +1,7 @@
 import { appendLog, getRunMarkerKey, getSettings, requireKV, type PulseSchedule } from "./config";
 import { sendIncomingMessage } from "./delivery";
 import type { Env } from "./env";
-import { isTradingDay } from "./market-calendar";
+import { isTradingDayForSchedule } from "./market-calendar";
 import { getLocalTimeParts } from "./time";
 import { fetchTopicItems } from "./sources";
 import { renderDigest } from "./template";
@@ -60,6 +60,7 @@ export async function runSchedule(env: Env, schedule: PulseSchedule, now = new D
         schedule_id: schedule.id,
         schedule_name: schedule.name,
         market_calendar: schedule.marketCalendar,
+        trading_day_source: schedule.tradingDaySource,
         timezone: schedule.timezone,
         topic_count: topicData.items.length,
       },
@@ -109,7 +110,7 @@ async function shouldRunSchedule(env: Env, schedule: PulseSchedule, now: Date): 
     return false;
   }
 
-  if (!isTradingDay(local.date, local.weekday, schedule.marketCalendar, schedule.marketHolidayDates)) {
+  if (!await isTradingDayForSchedule(env, local.date, local.weekday, schedule.marketCalendar, schedule.marketHolidayDates, schedule.tradingDaySource)) {
     return false;
   }
 

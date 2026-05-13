@@ -1,3 +1,4 @@
+import { getSettings, mergeProviderSettings, type AppSettings } from "./config";
 import type { Env } from "./env";
 import { getProvider } from "./providers";
 import type { ProviderResult } from "./providers/types";
@@ -10,10 +11,11 @@ export interface DeliverySummary {
   results: ProviderResult[];
 }
 
-export async function sendIncomingMessage(incomingMessage: IncomingMessageBody, env: Env): Promise<DeliverySummary> {
-  const targets = normalizeTargets(incomingMessage.target, parseDefaultTargets(env.DEFAULT_TARGETS));
+export async function sendIncomingMessage(incomingMessage: IncomingMessageBody, env: Env, settings?: AppSettings): Promise<DeliverySummary> {
+  const deliveryEnv = await createDeliveryEnv(env, settings);
+  const targets = normalizeTargets(incomingMessage.target, parseDefaultTargets(deliveryEnv.DEFAULT_TARGETS));
   const message = toPushMessage(incomingMessage);
-  const results = await Promise.all(targets.map((target) => getProvider(target).send(message, env)));
+  const results = await Promise.all(targets.map((target) => getProvider(target).send(message, deliveryEnv)));
   const delivered = results.filter((result) => result.ok).length;
   const failed = results.length - delivered;
 
@@ -23,4 +25,22 @@ export async function sendIncomingMessage(incomingMessage: IncomingMessageBody, 
     failed,
     results,
   };
+}
+
+export async function createDeliveryEnv(env: Env, settings?: AppSettings): Promise<Env> {
+  if (settings) {
+    return mergeProviderSettings(env, settings);
+  }
+
+  if (!env.APP_KV) {
+    return env;
+  }
+
+  try {
+    return mergeProviderSettings(env, await getSettings(env));
+  } catch (error) {
+    console.warn("Failed to load provider settings from KV", error);
+
+    return env;
+  }
 }

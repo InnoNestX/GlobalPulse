@@ -1,6 +1,12 @@
-export const providerNames = ["feishu", "wechat_official_account", "wechat_ai_agent", "telegram"] as const;
+export const providerNames = ["feishu", "wechat_official_account", "wechat_clawbot", "telegram"] as const;
 
 export type ProviderName = (typeof providerNames)[number];
+
+const providerAliases: Record<string, ProviderName> = {
+  wechat_ai_agent: "wechat_clawbot",
+  wechat_ai: "wechat_clawbot",
+  wechat_oa: "wechat_official_account",
+};
 
 export const messageLevels = ["info", "success", "warning", "error"] as const;
 
@@ -36,13 +42,29 @@ export class HttpError extends Error {
 }
 
 export function parseProviderName(value: unknown): ProviderName {
-  if (typeof value === "string" && providerNames.includes(value as ProviderName)) {
-    return value as ProviderName;
+  const providerName = coerceProviderName(value);
+
+  if (providerName) {
+    return providerName;
   }
 
   throw new HttpError(400, "Unsupported provider target", {
     supportedTargets: providerNames,
   });
+}
+
+export function coerceProviderName(value: unknown): ProviderName | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalizedValue = value.trim();
+
+  if (providerNames.includes(normalizedValue as ProviderName)) {
+    return normalizedValue as ProviderName;
+  }
+
+  return providerAliases[normalizedValue];
 }
 
 export function normalizeTargets(value: unknown, fallbackTargets: ProviderName[]): ProviderName[] {

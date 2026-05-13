@@ -1,20 +1,21 @@
 # GlobalPulse
 
-GlobalPulse is a Cloudflare Workers app for scheduled finance and global hotspot briefings. It includes a password-protected Admin Web UI, KV-backed configuration, cron execution, and push providers for Feishu and WeChat.
+GlobalPulse is a Cloudflare Workers app for scheduled finance and global hotspot briefings. It includes a password-protected Admin Web UI, KV-backed configuration, cron execution, message previews, and push providers for Feishu, WeChat, and Telegram.
 
 ## What It Does
 
 - Serves an Admin UI at `/admin`.
 - Stores user settings in Cloudflare Workers KV.
-- Lets users edit briefing language, timezone, output format, content template, topic query, RSS source, push targets, and push times.
+- Lets users edit briefing language, timezone, output format, content template, topic query, RSS source, push targets, provider parameters, and push times.
 - Runs every 5 minutes through Cloudflare Cron Triggers and checks the user's configured schedule in their chosen timezone.
 - Generates default briefings from a composite source set inspired by a separate market-briefing reference implementation.
 - Pushes generated briefings to:
   - `feishu`
   - `wechat_official_account`
-  - `wechat_ai_agent`
+  - `wechat_clawbot`
   - `telegram`
-- Supports schedule-level market calendars for everyday, A-share, US stock, and crypto workflows.
+- Shows a provider-specific demo of the message each channel will receive before sending.
+- Supports schedule-level market calendars for everyday, A-share, US stock, and crypto workflows, including third-party holiday checks for A-share and US stock schedules.
 - Links directly to InnoNestX issue templates for bug reports and feature requests.
 - Keeps API endpoints for direct push and event ingestion:
   - `POST /v1/messages`
@@ -46,7 +47,7 @@ Every self-hosted user must configure these values for their own Cloudflare acco
 - API token for external calls: `API_TOKEN`
 - Cloudflare KV namespace bound as `APP_KV`
 - Domain or subdomain in a local `wrangler.jsonc` file or in the Cloudflare dashboard
-- At least one push provider secret
+- At least one push provider secret, either in Cloudflare secrets or in the Admin UI's KV-backed provider settings
 
 Do not commit local deployment files or secrets. This repository intentionally ships only `wrangler.example.jsonc`; each deployer keeps their real `wrangler.jsonc`, domain, KV namespace id, API tokens, and webhook URLs outside git.
 
@@ -62,9 +63,12 @@ The Admin UI lets users configure:
 - Content template with variables such as `{{itemsMarkdown}}` and `{{generatedAt}}`
 - Push time points and weekdays
 - Market calendar: every day, A-share, US stock, or crypto
-- Extra market closed dates for exchange holidays
+- Trading-day check: local weekday/manual dates, or third-party automatic holiday lookup
+- Extra market closed dates for exchange holidays and one-off skips
 - Topic query and optional RSS source URL
 - Push targets
+- Push provider parameters for Feishu, 微信公众号, wechat clawbot, and Telegram
+- Message preview for the currently configured schedule and targets
 
 See [Admin guide](docs/admin-guide.md) for template variables and schedule behavior.
 

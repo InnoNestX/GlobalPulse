@@ -1,10 +1,11 @@
 import type { Env } from "./env";
-import { getLogs, getSettings, saveSettings } from "./config";
+import { getLogs, getSettings, mergeProviderSettings, normalizeSettings, saveSettings } from "./config";
 import { renderAdminUi } from "./admin-ui";
-import { sendIncomingMessage } from "./delivery";
+import { createDeliveryEnv, sendIncomingMessage } from "./delivery";
 import { normalizeCloudflareEvent, normalizeGitHubActionsEvent } from "./events";
-import { getProvider, getProviderStatus } from "./providers";
+import { getProviderStatus } from "./providers";
 import { HttpError, type IncomingMessageBody, normalizeMessage } from "./messages";
+import { createSchedulePreview } from "./preview";
 import { runScheduleById } from "./scheduler";
 
 const jsonHeaders = {
@@ -38,7 +39,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     assertAuthenticated(request, env);
 
     if (request.method === "GET" && url.pathname === "/v1/providers") {
-      return json({ providers: getProviderStatus(env) }, env);
+      return json({ providers: getProviderStatus(await createDeliveryEnv(env)) }, env);
     }
 
     if (request.method === "POST" && url.pathname === "/v1/messages") {
@@ -88,19 +89,40 @@ async function handleAdminApi(request: Request, env: Env): Promise<Response> {
   assertAdminAuthenticated(request, env);
 
   if (request.method === "GET" && url.pathname === "/api/admin/settings") {
+    const settings = await getSettings(env);
+
     return json({
-      settings: await getSettings(env),
-      providers: getProviderStatus(env),
+      settings,
+      providers: getProviderStatus(mergeProviderSettings(env, settings)),
     }, env);
   }
 
   if (request.method === "PUT" && url.pathname === "/api/admin/settings") {
     const body = await readJson(request);
+    const settings = await saveSettings(env, body);
 
     return json({
-      settings: await saveSettings(env, body),
-      providers: getProviderStatus(env),
+      settings,
+      providers: getProviderStatus(mergeProviderSettings(env, settings)),
     }, env);
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/admin/preview") {
+    const body = await readJson(request);
+    const scheduleInput = isRecord(body) ? body.schedule : undefined;
+
+    if (!scheduleInput) {
+      throw new HttpError(400, "Field \"schedule\" is required");
+    }
+
+    const normalized = normalizeSettings({ schedules: [scheduleInput] });
+    const schedule = normalized.schedules[0];
+
+    if (!schedule) {
+      throw new HttpError(400, "Field \"schedule\" must be an object");
+    }
+
+    return json({ preview: createSchedulePreview(schedule) }, env);
   }
 
   if (request.method === "GET" && url.pathname === "/api/admin/logs") {
@@ -196,7 +218,7 @@ function json(body: unknown, env: Env, status = 200): Response {
 function withCors(response: Response, env: Env): Response {
   const headers = new Headers(response.headers);
   headers.set("Access-Control-Allow-Origin", env.CORS_ORIGIN || "*");
-  headers.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,OPTIONS");
   headers.set("Access-Control-Allow-Headers", "Authorization,Content-Type,X-API-Key");
   headers.set("Vary", "Origin");
 
