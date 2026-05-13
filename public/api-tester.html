@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="GlobalPulse API Tester - Test message push and event webhook endpoints interactively.">
+<meta name="theme-color" content="#0F172A">
+<meta property="og:title" content="GlobalPulse API Tester">
+<meta property="og:description" content="Interactive API tester for GlobalPulse message push and event webhooks.">
+<meta property="og:type" content="website">
+<link rel="icon" href="https://avatars.githubusercontent.com/u/273979879?v=4" sizes="any" type="image/png">
+<title>GlobalPulse API Tester</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+(function(){
+  const saved=localStorage.getItem('theme')||'system';
+  if(saved==='system'){
+    document.documentElement.setAttribute('data-theme', window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+  } else {
+    document.documentElement.setAttribute('data-theme', saved);
+  }
+})();
+</script>
+<style>
+:root{--bg:#0a0a0a;--surface:#111;--border:#222;--text:#fff;--text-dim:#888;--accent:#3b82f6;--success:#22c55e;--error:#ef4444;--warning:#f59e0b;--code-bg:#1a1a1a}
+[data-theme="light"]{--bg:#ffffff;--surface:#f6f8fa;--border:#d0d7de;--text:#1f2328;--text-dim:#656d76;--accent:#0969da;--success:#1a7f37;--code-bg:#f6f8fa}
+*{box-sizing:border-box;margin:0;padding:0}
+html{overflow-x:hidden}
+body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;max-width:100vw;overflow-x:hidden}
+.container{max-width:1200px;margin:0 auto;padding:0 24px}
+header{border-bottom:1px solid var(--border);padding:16px 0;position:sticky;top:0;background:rgba(10,10,10,0.8);backdrop-filter:blur(12px);z-index:100}
+.header-inner{display:flex;justify-content:space-between;align-items:center}
+.logo{font-size:1.25rem;font-weight:700;letter-spacing:-0.5px}.logo span{color:var(--accent)}
+.header-links{display:flex;gap:24px;align-items:center}
+.header-link{color:var(--text-dim);text-decoration:none;font-size:0.875rem;transition:color 0.2s;display:flex;align-items:center;gap:6px}
+.header-link:hover{color:var(--text)}
+.header-link.active{color:var(--accent)}
+.lang-switch{display:flex;gap:8px;align-items:center}
+.menu-toggle{display:none;background:transparent;border:none;color:var(--text);font-size:1.5rem;cursor:pointer;padding:8px}
+.lang-btn{background:transparent;border:1px solid var(--border);color:var(--text-dim);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:0.875rem;transition:all 0.2s}
+.lang-btn:hover{border-color:var(--text-dim);color:var(--text)}
+.lang-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.theme-switch{display:flex;gap:4px;align-items:center}
+.theme-btn{background:transparent;border:1px solid var(--border);color:var(--text-dim);padding:6px 10px;border-radius:6px;cursor:pointer;font-size:0.875rem;transition:all 0.2s}
+.theme-btn:hover{border-color:var(--text-dim);color:var(--text)}
+.theme-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.page-title{padding:48px 0 32px;border-bottom:1px solid var(--border);margin-bottom:32px}
+.page-title h1{font-size:2rem;font-weight:700;letter-spacing:-0.5px;margin-bottom:8px}
+.page-title p{color:var(--text-dim);font-size:1rem}
+.endpoint-selector{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+.method{font-family:'JetBrains Mono',monospace;font-size:0.75rem;font-weight:600;padding:4px 10px;border-radius:6px;text-transform:uppercase}
+.method.post{background:rgba(59,130,246,0.15);color:var(--accent)}
+.path{font-family:'JetBrains Mono',monospace;font-size:1rem;color:var(--text)}
+.tester-grid{display:grid;grid-template-columns:420px 1fr;gap:32px;padding-bottom:64px}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.panel-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+.panel-title{font-size:0.875rem;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-dim)}
+.panel-body{padding:20px}
+.form-group{margin-bottom:20px}
+.form-group:last-child{margin-bottom:0}
+.form-label{display:block;font-size:0.75rem;font-weight:500;color:var(--text-dim);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px}
+.form-label .required{color:var(--error);margin-left:4px}
+.form-input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 14px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:0.875rem;transition:border-color 0.2s;resize:vertical}
+.form-input:focus{outline:none;border-color:var(--accent)}
+.form-input::placeholder{color:var(--text-dim);opacity:0.6}
+.form-select{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 14px;color:var(--text);font-family:inherit;font-size:0.875rem;transition:border-color 0.2s;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
+.form-select:focus{outline:none;border-color:var(--accent)}
+.send-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px 20px;background:var(--accent);border:none;border-radius:8px;color:#fff;font-size:0.875rem;font-weight:600;cursor:pointer;transition:all 0.2s}
+.send-btn:hover{opacity:0.9;transform:translateY(-1px)}
+.send-btn:active{transform:translateY(0)}
+.send-btn:disabled{opacity:0.5;cursor:not-allowed;transform:none}
+.send-btn.loading{position:relative;color:transparent}
+.send-btn.loading::after{content:'';position:absolute;width:16px;height:16px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.response-section{min-height:400px;display:flex;flex-direction:column}
+.response-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.response-meta{display:flex;align-items:center;gap:16px}
+.status-badge{padding:4px 12px;border-radius:6px;font-size:0.75rem;font-weight:600}
+.status-badge.success{background:rgba(34,197,94,0.15);color:var(--success)}
+.status-badge.error{background:rgba(239,68,68,0.15);color:var(--error)}
+.status-badge.pending{background:rgba(245,158,11,0.15);color:var(--warning)}
+.response-time{font-size:0.75rem;color:var(--text-dim);font-family:'JetBrains Mono',monospace}
+.response-body{flex:1;padding:20px;overflow:auto}
+.response-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;min-height:300px;color:var(--text-dim);text-align:center}
+.response-placeholder .icon{font-size:3rem;margin-bottom:16px;opacity:0.5}
+.response-content{font-family:'JetBrains Mono',monospace;font-size:0.8rem;line-height:1.7;white-space:pre-wrap;word-break:break-all}
+.response-content.error{color:var(--error)}
+.copy-btn{background:transparent;border:1px solid var(--border);color:var(--text-dim);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:0.75rem;transition:all 0.2s}
+.copy-btn:hover{border-color:var(--text-dim);color:var(--text)}
+.copy-btn.copied{background:var(--success);border-color:var(--success);color:#fff}
+.site-footer{background:var(--surface);border-top:1px solid var(--border);padding:48px 24px 24px;margin-top:64px}
+.footer-content{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:repeat(2,1fr);gap:32px;margin-bottom:32px}
+.footer-section h4{color:var(--text);font-size:0.9rem;font-weight:600;margin-bottom:8px}
+.footer-section p{color:var(--text-dim);font-size:0.8rem;margin-bottom:16px}
+.footer-links{display:flex;flex-direction:column;gap:8px}
+.footer-links a{color:var(--text-dim);text-decoration:none;font-size:0.85rem;display:flex;align-items:center;gap:8px;transition:color 0.2s}
+.footer-links a:hover{color:var(--accent)}
+.footer-links .icon{font-size:1rem}
+.footer-bottom{max-width:1200px;margin:0 auto;padding-top:24px;border-top:1px solid var(--border);text-align:center;color:var(--text-dim);font-size:0.8rem}
+@media(max-width:1024px){.tester-grid{grid-template-columns:1fr}}
+@media(max-width:768px){.container{padding:0 16px}.menu-toggle{display:block}.header-links{display:none}}
+@media(max-width:480px){.endpoint-selector{flex-wrap:wrap}}
+</style>
+</head>
+<body>
+<header><div class="container header-inner">
+  <a href="index.html" class="logo" style="display:flex;align-items:center;gap:10px;text-decoration:none">
+    <img src="https://avatars.githubusercontent.com/u/273979879?v=4" alt="InnoNest" style="width:32px;height:32px;border-radius:8px">
+    <span style="font-size:1.25rem;font-weight:700;letter-spacing:-0.5px">Global<span>Pulse</span></span>
+  </a>
+  <div class="header-links">
+    <a href="index.html" class="header-link">
+      <span>📖</span> <span data-i18n="nav-docs">Documentation</span>
+    </a>
+    <a href="api-tester.html" class="header-link active">
+      <span>🧪</span> <span data-i18n="nav-tester">API Tester</span>
+    </a>
+  </div>
+  <div class="lang-switch">
+    <div class="theme-switch">
+      <button class="theme-btn" data-theme="light" title="Light">☀️</button>
+      <button class="theme-btn" data-theme="dark" title="Dark">🌙</button>
+      <button class="theme-btn" data-theme="system" title="System">💻</button>
+    </div>
+    <button class="lang-btn active" onclick="setLang('en')">EN</button>
+    <button class="lang-btn" onclick="setLang('zh')">中文</button>
+  </div>
+</div></header>
+<main>
+<div class="container">
+<div class="page-title">
+  <h1 data-i18n="page-title">API Tester</h1>
+  <p data-i18n="page-desc">Test GlobalPulse message push and event webhook endpoints interactively.</p>
+</div>
+<div class="tester-grid">
+<div class="request-panel">
+<div class="endpoint-selector">
+  <span class="method post">POST</span>
+  <select id="endpoint" class="form-select" style="flex:1" onchange="updateEndpoint()">
+    <option value="/v1/messages" data-i18n="ep-messages">Direct Push Message</option>
+    <option value="/v1/events/github-actions" data-i18n="ep-github">GitHub Actions Event</option>
+    <option value="/v1/events/cloudflare" data-i18n="ep-cloudflare">Cloudflare Event</option>
+  </select>
+</div>
+<div class="panel">
+  <div class="panel-header">
+    <span class="panel-title" data-i18n="request-title">Request</span>
+  </div>
+  <div class="panel-body">
+    <div class="form-group">
+      <label class="form-label" data-i18n="label-base-url">Base URL</label>
+      <input type="text" id="baseUrl" class="form-input" value="https://globalpulse.workers.dev" placeholder="https://your-worker.workers.dev">
+    </div>
+    <div class="form-group">
+      <label class="form-label" data-i18n="label-auth">Authorization <span class="required">*</span></label>
+      <input type="text" id="auth" class="form-input" placeholder="Bearer YOUR_API_TOKEN">
+    </div>
+    <div class="form-group" id="contentGroup">
+      <label class="form-label" data-i18n="label-content">Content <span class="required">*</span></label>
+      <textarea id="content" class="form-input" style="min-height:120px" placeholder='{"content": "Hello World", "targets": "feishu,telegram"}'></textarea>
+    </div>
+    <div class="form-group" id="eventGroup" style="display:none">
+      <label class="form-label" data-i18n="label-event">Event Payload</label>
+      <textarea id="eventPayload" class="form-input" style="min-height:120px" placeholder='{"action": "completed", "workflow": "ci"}'></textarea>
+    </div>
+    <button class="send-btn" id="sendBtn" onclick="sendRequest()">
+      <span data-i18n="btn-send">Send Request</span>
+    </button>
+  </div>
+</div>
+</div>
+<div class="response-section">
+<div class="panel" style="height:100%;display:flex;flex-direction:column">
+  <div class="response-header">
+    <span class="panel-title" data-i18n="response-title">Response</span>
+    <div class="response-meta">
+      <span class="status-badge pending" id="statusBadge" style="display:none"></span>
+      <span class="response-time" id="responseTime"></span>
+      <button class="copy-btn" id="copyBtn" onclick="copyResponse()" style="display:none" data-i18n="btn-copy">Copy</button>
+    </div>
+  </div>
+  <div class="response-body">
+    <div class="response-placeholder" id="placeholder">
+      <span class="icon">📡</span>
+      <p data-i18n="placeholder-text">Enter your request details and click Send to see the response.</p>
+    </div>
+    <pre class="response-content" id="responseContent" style="display:none"></pre>
+  </div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<footer class="site-footer">
+<div class="footer-content">
+<div class="footer-section">
+  <h4 data-i18n="footer-contribute">Contribute</h4>
+  <p data-i18n="footer-contribute-desc">Found a bug or want to contribute?</p>
+  <div class="footer-links">
+    <a href="https://github.com/InnoNestX/GlobalPulse/issues" target="_blank" rel="noopener">
+      <span class="icon">🐛</span> <span data-i18n="footer-report-bug">Report Bug</span>
+    </a>
+    <a href="https://github.com/InnoNestX/GlobalPulse/pulls" target="_blank" rel="noopener">
+      <span class="icon">🔧</span> <span data-i18n="footer-submit-pr">Submit PR</span>
+    </a>
+    <a href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noopener">
+      <span class="icon">⭐</span> <span data-i18n="footer-star-repo">Star Repo</span>
+    </a>
+  </div>
+</div>
+<div class="footer-section">
+  <h4 data-i18n="footer-support">Support</h4>
+  <p data-i18n="footer-support-desc">Enjoy the project? Support it!</p>
+  <div class="footer-links">
+    <a href="https://github.com/sponsors/InnoNestX" target="_blank" rel="noopener">
+      <span class="icon">💖</span> <span data-i18n="footer-sponsor">Sponsor</span>
+    </a>
+    <a href="https://www.buymeacoffee.com/xuxuclassmate" target="_blank" rel="noopener">
+      <span class="icon">☕</span> <span data-i18n="footer-coffee">Buy Me a Coffee</span>
+    </a>
+    <a href="https://github.com/InnoNestX/GlobalPulse/discussions" target="_blank" rel="noopener">
+      <span class="icon">💬</span> <span data-i18n="footer-discussions">Discussions</span>
+    </a>
+  </div>
+</div>
+</div>
+<div class="footer-bottom">
+  <p>© 2026 InnoNestX. <span data-i18n="footer-made-with">Made with</span> ❤️ <span data-i18n="footer-for-community">for the community</span>.</p>
+</div>
+</footer>
+<script>
+const translations={
+  en:{
+    'nav-docs':'Documentation','nav-tester':'API Tester',
+    'page-title':'API Tester','page-desc':'Test GlobalPulse message push and event webhook endpoints interactively.',
+    'ep-messages':'Direct Push Message','ep-github':'GitHub Actions Event','ep-cloudflare':'Cloudflare Event',
+    'request-title':'Request','response-title':'Response',
+    'label-base-url':'Base URL','label-auth':'Authorization *','label-content':'Content *','label-event':'Event Payload',
+    'btn-send':'Send Request','btn-copy':'Copy',
+    'placeholder-text':'Enter your request details and click Send to see the response.',
+    'footer-contribute':'Contribute','footer-contribute-desc':'Found a bug or want to contribute?',
+    'footer-report-bug':'Report Bug','footer-submit-pr':'Submit PR','footer-star-repo':'Star Repo',
+    'footer-support':'Support','footer-support-desc':'Enjoy the project? Support it!',
+    'footer-sponsor':'Sponsor','footer-coffee':'Buy Me a Coffee','footer-discussions':'Discussions',
+    'footer-made-with':'Made with','footer-for-community':'for the community'
+  },
+  zh:{
+    'nav-docs':'文档','nav-tester':'API 测试',
+    'page-title':'API 测试','page-desc':'交互式测试 GlobalPulse 消息推送和事件 Webhook 接口。',
+    'ep-messages':'直接推送消息','ep-github':'GitHub Actions 事件','ep-cloudflare':'Cloudflare 事件',
+    'request-title':'请求','response-title':'响应',
+    'label-base-url':'基础 URL','label-auth':'授权 *','label-content':'内容 *','label-event':'事件载荷',
+    'btn-send':'发送请求','btn-copy':'复制',
+    'placeholder-text':'输入请求详情后点击发送查看响应。',
+    'footer-contribute':'贡献','footer-contribute-desc':'发现 Bug 或想贡献代码？',
+    'footer-report-bug':'报告 Bug','footer-submit-pr':'提交 PR','footer-star-repo':'Star 仓库',
+    'footer-support':'支持','footer-support-desc':'喜欢这个项目？支持一下！',
+    'footer-sponsor':'赞助','footer-coffee':'请我喝咖啡','footer-discussions':'讨论区',
+    'footer-made-with':'用','footer-for-community':'为社区制作'
+  }
+};
+let lang='en';
+function setLang(l){
+  lang=l;
+  document.querySelectorAll('.lang-btn').forEach((b,i)=>b.classList.toggle('active',(l==='en'&&i===0)||(l==='zh'&&i===1)));
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const k=el.dataset.i18n;
+    if(translations[lang][k])el.textContent=translations[lang][k];
+  });
+  localStorage.setItem('lang',l);
+}
+document.querySelectorAll('.theme-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const theme=btn.dataset.theme;
+    document.querySelectorAll('.theme-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.documentElement.setAttribute('data-theme',theme==='system'?(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):theme);
+    localStorage.setItem('theme',theme);
+  });
+});
+(function(){
+  const saved=localStorage.getItem('theme')||'system';
+  document.querySelectorAll('.theme-btn').forEach(b=>b.classList.toggle('active',b.dataset.theme===saved));
+})();
+function updateEndpoint(){
+  const ep=document.getElementById('endpoint').value;
+  document.getElementById('contentGroup').style.display=ep.includes('events')?'none':'block';
+  document.getElementById('eventGroup').style.display=ep.includes('events')?'block':'none';
+}
+async function sendRequest(){
+  const btn=document.getElementById('sendBtn');
+  const badge=document.getElementById('statusBadge');
+  const timeEl=document.getElementById('responseTime');
+  const placeholder=document.getElementById('placeholder');
+  const content=document.getElementById('responseContent');
+  const copyBtn=document.getElementById('copyBtn');
+  const baseUrl=document.getElementById('baseUrl').value.trim();
+  const auth=document.getElementById('auth').value.trim();
+  const endpoint=document.getElementById('endpoint').value;
+  btn.classList.add('loading');
+  btn.disabled=true;
+  badge.style.display='none';
+  placeholder.style.display='none';
+  content.style.display='none';
+  copyBtn.style.display='none';
+  const start=Date.now();
+  try {
+    let body;
+    if(endpoint.includes('events')){
+      body=document.getElementById('eventPayload').value||'{}';
+    } else {
+      body=document.getElementById('content').value||'{}';
+    }
+    const headers={'Content-Type':'application/json'};
+    if(auth) headers['Authorization']=auth;
+    const res=await fetch(baseUrl+endpoint,{method:'POST',headers,body});
+    const data=await res.text();
+    const elapsed=Date.now()-start;
+    badge.style.display='inline-block';
+    badge.className='status-badge '+(res.ok?'success':'error');
+    badge.textContent=(res.ok?translations[lang].success:translations[lang].error)+' '+res.status;
+    timeEl.textContent=elapsed+'ms';
+    content.style.display='block';
+    content.className='response-content'+(res.ok?'':' error');
+    try {content.textContent=JSON.stringify(JSON.parse(data),null,2);} catch {content.textContent=data;}
+    copyBtn.style.display='inline-block';
+  } catch(e){
+    const elapsed=Date.now()-start;
+    badge.style.display='inline-block';
+    badge.className='status-badge error';
+    badge.textContent=translations[lang].error;
+    timeEl.textContent=elapsed+'ms';
+    content.style.display='block';
+    content.className='response-content error';
+    content.textContent=e.message;
+    copyBtn.style.display='inline-block';
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled=false;
+  }
+}
+function copyResponse(){
+  const content=document.getElementById('responseContent').textContent;
+  navigator.clipboard.writeText(content).then(()=>{
+    const btn=document.getElementById('copyBtn');
+    btn.textContent='Copied';
+    btn.classList.add('copied');
+    setTimeout(()=>{btn.textContent=translations[lang]['btn-copy'];btn.classList.remove('copied');},1500);
+  });
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  const savedLang=localStorage.getItem('lang')||'en';
+  setLang(savedLang);
+  updateEndpoint();
+});
+</script>
+</body>
+</html>
