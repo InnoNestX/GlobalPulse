@@ -97,6 +97,15 @@ Or only the webhook key:
 printf 'xxx' | npx wrangler secret put WECHAT_AI_AGENT_WEBHOOK_KEY
 ```
 
+### Telegram
+
+Create a Telegram bot with BotFather, then store the bot token and target chat id as secrets.
+
+```bash
+printf 'your-telegram-bot-token' | npx wrangler secret put TELEGRAM_BOT_TOKEN
+printf 'your-telegram-chat-id' | npx wrangler secret put TELEGRAM_CHAT_ID
+```
+
 ## 6. Deploy
 
 ```bash

@@ -1,6 +1,7 @@
 import type { Env } from "../env";
 import type { ProviderName } from "../messages";
 import { feishuProvider } from "./feishu";
+import { telegramProvider } from "./telegram";
 import type { Provider } from "./types";
 import { wechatAiAgentProvider } from "./wechat-ai-agent";
 import { wechatOfficialAccountProvider } from "./wechat-official-account";
@@ -9,6 +10,7 @@ export const providers = [
   feishuProvider,
   wechatOfficialAccountProvider,
   wechatAiAgentProvider,
+  telegramProvider,
 ] satisfies Provider[];
 
 export function getProvider(name: ProviderName): Provider {

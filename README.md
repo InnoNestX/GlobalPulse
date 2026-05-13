@@ -13,6 +13,9 @@ GlobalPulse is a Cloudflare Workers app for scheduled finance and global hotspot
   - `feishu`
   - `wechat_official_account`
   - `wechat_ai_agent`
+  - `telegram`
+- Supports schedule-level market calendars for everyday, A-share, US stock, and crypto workflows.
+- Links directly to InnoNestX issue templates for bug reports and feature requests.
 - Keeps API endpoints for direct push and event ingestion:
   - `POST /v1/messages`
   - `POST /v1/events/github-actions`
@@ -58,6 +61,8 @@ The Admin UI lets users configure:
 - Output format: `markdown` by default, with `text` and `json` also available
 - Content template with variables such as `{{itemsMarkdown}}` and `{{generatedAt}}`
 - Push time points and weekdays
+- Market calendar: every day, A-share, US stock, or crypto
+- Extra market closed dates for exchange holidays
 - Topic query and optional RSS source URL
 - Push targets
 

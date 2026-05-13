@@ -1,0 +1,42 @@
+name: Bug report
+description: Report a reproducible problem in GlobalPulse.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve GlobalPulse.
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: commit SHA, release tag, or deployment date
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Runtime
+      options:
+        - Cloudflare Workers
+        - Local wrangler dev
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: Tell us exactly what happened.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Remove secrets, tokens, webhook URLs, domain-specific ids, and personal data before posting.
+      render: shell

@@ -22,10 +22,17 @@ Each schedule controls one push time point.
 - Timezone: Local timezone for the schedule.
 - Language: Language used for labels and source query defaults.
 - Format: Message format for that schedule.
+- Market calendar: `everyday`, `a_share`, `us_stock`, or `crypto`.
+- Extra closed dates: optional exchange holidays in `YYYY-MM-DD` format. A-share and US stock calendars skip weekends automatically; crypto runs every day unless an extra closed date is entered.
 - Topic query: Search query used when no RSS source URL is set.
 - RSS source URL: Optional custom RSS feed.
 - Targets: Push providers for this schedule.
 - Schedule template: Message body template.
+- Test send: saves the current settings, collects fresh topic data, and pushes the selected schedule immediately.
+
+## Feedback Links
+
+The Admin UI links to the InnoNestX GitHub issue chooser. The repository includes templates for bug reports and feature requests.
 
 ## Template Variables
 

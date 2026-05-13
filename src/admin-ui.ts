@@ -16,146 +16,241 @@ const adminHtml = `<!doctype html>
   <style>
     :root {
       color-scheme: light;
-      --bg: #f6f7f9;
-      --panel: #ffffff;
-      --text: #18202c;
-      --muted: #657184;
-      --line: #d9dee7;
+      --bg: #f4f1eb;
+      --surface: #fffdf8;
+      --surface-2: #f8f4ed;
+      --text: #151515;
+      --muted: #6f6b63;
+      --line: #ddd5ca;
       --accent: #0f766e;
-      --accent-strong: #115e59;
+      --accent-2: #d97706;
       --danger: #b42318;
-      --shadow: 0 12px 30px rgba(22, 34, 51, .08);
+      --ok: #15803d;
+      --shadow: 0 18px 45px rgba(45, 40, 32, .1);
+      --chip: #ede7dc;
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #101112;
+      --surface: #181a1d;
+      --surface-2: #202327;
+      --text: #f5f2ec;
+      --muted: #b9b2a6;
+      --line: #34383d;
+      --accent: #32c4b4;
+      --accent-2: #f59e0b;
+      --danger: #fb7185;
+      --ok: #4ade80;
+      --shadow: 0 18px 45px rgba(0, 0, 0, .28);
+      --chip: #252a2f;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font: 14px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: var(--bg);
+      min-height: 100vh;
+      background:
+        linear-gradient(180deg, rgba(15, 118, 110, .12), transparent 290px),
+        var(--bg);
       color: var(--text);
+      font: 14px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
+    a { color: inherit; text-decoration: none; }
     header {
       position: sticky;
       top: 0;
-      z-index: 3;
-      background: rgba(255,255,255,.92);
+      z-index: 5;
       border-bottom: 1px solid var(--line);
-      backdrop-filter: blur(14px);
+      background: color-mix(in srgb, var(--surface) 90%, transparent);
+      backdrop-filter: blur(18px);
     }
     .bar, main {
-      max-width: 1160px;
+      width: min(1280px, calc(100vw - 32px));
       margin: 0 auto;
-      padding: 18px 20px;
     }
     .bar {
+      min-height: 76px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 16px;
+      gap: 18px;
     }
-    h1, h2, h3 { margin: 0; line-height: 1.2; }
-    h1 { font-size: 22px; }
-    h2 { font-size: 18px; }
-    h3 { font-size: 15px; }
-    .muted { color: var(--muted); }
-    .grid {
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      min-width: 0;
+    }
+    .mark {
+      width: 42px;
+      height: 42px;
       display: grid;
-      grid-template-columns: 280px 1fr;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background:
+        linear-gradient(135deg, var(--text), var(--accent)),
+        var(--surface);
+      color: var(--surface);
+      font-weight: 850;
+      letter-spacing: 0;
+      box-shadow: var(--shadow);
+    }
+    .brand-title { display: grid; gap: 1px; }
+    h1, h2, h3 { margin: 0; line-height: 1.15; letter-spacing: 0; }
+    h1 { font-size: 20px; }
+    h2 { font-size: 17px; }
+    h3 { font-size: 14px; }
+    .muted { color: var(--muted); }
+    .toolbar, .row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .toolbar { justify-content: flex-end; }
+    main {
+      padding: 22px 0 40px;
+      display: grid;
+      gap: 18px;
+    }
+    .hero {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      align-items: end;
+      padding: 22px 0 4px;
+    }
+    .hero h2 { font-size: clamp(28px, 3vw, 44px); max-width: 820px; }
+    .hero-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+    .layout {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr);
       gap: 18px;
       align-items: start;
     }
     .panel {
-      background: var(--panel);
+      background: var(--surface);
       border: 1px solid var(--line);
       border-radius: 8px;
       box-shadow: var(--shadow);
       padding: 18px;
     }
+    .panel.tight { padding: 14px; }
     .stack { display: grid; gap: 14px; }
-    .row {
+    .section-head {
       display: flex;
-      gap: 10px;
       align-items: center;
-      flex-wrap: wrap;
-    }
-    label {
-      display: grid;
-      gap: 6px;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 650;
-      letter-spacing: 0;
-    }
-    input, select, textarea, button {
-      font: inherit;
-      border-radius: 6px;
-    }
-    input, select, textarea {
-      width: 100%;
-      border: 1px solid var(--line);
-      background: #fff;
-      color: var(--text);
-      padding: 10px 11px;
-      outline: none;
-    }
-    textarea {
-      min-height: 180px;
-      resize: vertical;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 13px;
-    }
-    input:focus, select:focus, textarea:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(15, 118, 110, .12);
-    }
-    button {
-      border: 0;
-      background: var(--accent);
-      color: #fff;
-      padding: 10px 13px;
-      font-weight: 700;
-      cursor: pointer;
-      min-height: 40px;
-    }
-    button:hover { background: var(--accent-strong); }
-    button.secondary {
-      color: var(--text);
-      background: #eef2f6;
-      border: 1px solid var(--line);
-    }
-    button.secondary:hover { background: #e5ebf2; }
-    button.danger { background: var(--danger); }
-    .hidden { display: none !important; }
-    .status {
-      min-height: 24px;
-      color: var(--muted);
-    }
-    .schedule {
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 14px;
-      display: grid;
+      justify-content: space-between;
       gap: 12px;
+      flex-wrap: wrap;
     }
     .cols {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 12px;
     }
-    .days {
+    label {
       display: grid;
-      grid-template-columns: repeat(7, minmax(36px, 1fr));
       gap: 6px;
-    }
-    .days label {
-      place-items: center;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      padding: 8px 4px;
-      color: var(--text);
+      color: var(--muted);
       font-size: 12px;
-      cursor: pointer;
+      font-weight: 700;
     }
-    .days input { width: auto; }
+    input, select, textarea, button {
+      font: inherit;
+      border-radius: 7px;
+    }
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: var(--surface-2);
+      color: var(--text);
+      padding: 10px 11px;
+      outline: none;
+    }
+    textarea {
+      min-height: 150px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+    }
+    button, .button-link {
+      min-height: 38px;
+      border: 1px solid transparent;
+      background: var(--text);
+      color: var(--surface);
+      padding: 9px 12px;
+      font-weight: 760;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      white-space: nowrap;
+    }
+    button:hover, .button-link:hover { filter: brightness(.95); }
+    button.primary { background: var(--accent); color: #fff; }
+    button.secondary, .button-link.secondary {
+      color: var(--text);
+      background: var(--surface-2);
+      border-color: var(--line);
+    }
+    button.danger { background: var(--danger); color: #fff; }
+    .icon-button {
+      width: 38px;
+      padding: 0;
+      font-size: 16px;
+    }
+    .hidden { display: none !important; }
+    .status { min-height: 22px; color: var(--muted); }
+    .mini-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface-2);
+      padding: 11px;
+    }
+    .metric strong {
+      display: block;
+      font-size: 17px;
+      color: var(--text);
+    }
+    .provider-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .provider-card {
+      border: 1px solid var(--line);
+      background: var(--surface-2);
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: var(--chip);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 760;
+    }
+    .badge.ok { color: var(--ok); }
+    .badge.warn { color: var(--accent-2); }
     .target-list {
       display: grid;
       gap: 8px;
@@ -164,137 +259,202 @@ const adminHtml = `<!doctype html>
       grid-template-columns: 18px 1fr;
       align-items: center;
       color: var(--text);
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 9px;
       font-size: 13px;
-      font-weight: 500;
+      font-weight: 600;
     }
-    .target-list input { width: auto; }
+    .target-list input, .days input { width: auto; }
+    .schedule {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      padding: 15px;
+      display: grid;
+      gap: 13px;
+    }
+    .schedule-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .days {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(38px, 1fr));
+      gap: 7px;
+    }
+    .days label {
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 7px 4px;
+      color: var(--text);
+      background: var(--surface-2);
+      font-size: 12px;
+      cursor: pointer;
+    }
     .logs {
       display: grid;
       gap: 8px;
-      max-height: 360px;
+      max-height: 370px;
       overflow: auto;
     }
     .log {
+      border: 1px solid var(--line);
       border-left: 4px solid var(--line);
-      padding: 8px 10px;
-      background: #f8fafc;
-      border-radius: 6px;
+      padding: 10px;
+      background: var(--surface-2);
+      border-radius: 7px;
     }
-    .log.ok { border-left-color: var(--accent); }
+    .log.ok { border-left-color: var(--ok); }
     .log.fail { border-left-color: var(--danger); }
-    @media (max-width: 860px) {
-      .grid, .cols { grid-template-columns: 1fr; }
-      .bar { align-items: flex-start; flex-direction: column; }
+    .login {
+      max-width: 460px;
+      margin: 80px auto;
+    }
+    @media (max-width: 920px) {
+      .layout, .hero, .cols, .provider-grid { grid-template-columns: 1fr; }
+      .hero-actions, .toolbar { justify-content: flex-start; }
+      .bar { align-items: flex-start; flex-direction: column; padding: 14px 0; }
     }
   </style>
 </head>
 <body>
   <header>
     <div class="bar">
-      <div>
-        <h1>GlobalPulse</h1>
-        <div class="muted" data-i18n="subtitle">金融与国际热点定时推送</div>
-      </div>
-      <div class="row">
+      <a class="brand" href="https://github.com/InnoNestX" target="_blank" rel="noreferrer">
+        <div class="mark">IN</div>
+        <div class="brand-title">
+          <h1>GlobalPulse</h1>
+          <div class="muted">by InnoNestX</div>
+        </div>
+      </a>
+      <div class="toolbar">
+        <a class="button-link secondary" href="https://github.com/InnoNestX/globalpulse/issues/new/choose" target="_blank" rel="noreferrer" data-i18n="feedback">提 Bug / 需求</a>
         <select id="uiLanguage" aria-label="Language">
           <option value="zh">中文</option>
           <option value="en">English</option>
         </select>
+        <button class="secondary icon-button" id="themeButton" title="Theme">◐</button>
         <button class="secondary hidden" id="logoutButton" data-i18n="logout">退出</button>
       </div>
     </div>
   </header>
   <main>
-    <section class="panel stack" id="loginView">
+    <section class="panel stack login" id="loginView">
+      <div class="mark">IN</div>
       <h2 data-i18n="loginTitle">Admin 登录</h2>
       <label>
         <span data-i18n="password">密码</span>
         <input id="passwordInput" type="password" autocomplete="current-password">
       </label>
       <div class="row">
-        <button id="loginButton" data-i18n="login">登录</button>
+        <button class="primary" id="loginButton" data-i18n="login">登录</button>
         <span class="status" id="loginStatus"></span>
       </div>
     </section>
 
-    <section class="grid hidden" id="adminView">
-      <aside class="panel stack">
-        <h2 data-i18n="globalSettings">全局设置</h2>
-        <label>
-          <span data-i18n="appName">应用名称</span>
-          <input id="appName">
-        </label>
-        <label>
-          <span data-i18n="contentLanguage">内容语言</span>
-          <select id="language">
-            <option value="zh">中文</option>
-            <option value="en">English</option>
-          </select>
-        </label>
-        <label>
-          <span data-i18n="timezone">时区</span>
-          <select id="timezone"></select>
-        </label>
-        <label>
-          <span data-i18n="format">默认格式</span>
-          <select id="outputFormat">
-            <option value="markdown">Markdown</option>
-            <option value="text">Text</option>
-            <option value="json">JSON</option>
-          </select>
-        </label>
-        <label>
-          <span data-i18n="topicFocus">关注主题</span>
-          <textarea id="topicFocus"></textarea>
-        </label>
+    <section class="hidden" id="adminView">
+      <div class="hero">
         <div>
-          <h3 data-i18n="defaultTargets">默认推送目标</h3>
-          <div class="target-list" id="defaultTargets"></div>
+          <div class="badge">InnoNestX Ops</div>
+          <h2 data-i18n="heroTitle">金融与国际热点推送控制台</h2>
+          <p class="muted" data-i18n="heroText">管理多市场交易日、内容模板、推送渠道和测试发送。</p>
         </div>
-        <div class="row">
-          <button id="saveButton" data-i18n="save">保存</button>
-          <button class="secondary" id="refreshButton" data-i18n="refresh">刷新</button>
+        <div class="hero-actions">
+          <a class="button-link secondary" href="https://github.com/InnoNestX/globalpulse" target="_blank" rel="noreferrer">GitHub</a>
+          <a class="button-link primary" href="https://github.com/InnoNestX/globalpulse/issues/new/choose" target="_blank" rel="noreferrer" data-i18n="feedback">提 Bug / 需求</a>
         </div>
-        <div class="status" id="saveStatus"></div>
-      </aside>
-
-      <div class="stack">
-        <section class="panel stack">
-          <div class="row" style="justify-content: space-between;">
-            <h2 data-i18n="schedules">推送时间表</h2>
-            <button class="secondary" id="addScheduleButton" data-i18n="addSchedule">新增时间点</button>
-          </div>
-          <div id="schedules"></div>
-        </section>
-
-        <section class="panel stack">
-          <h2 data-i18n="template">全局模板</h2>
-          <textarea id="template"></textarea>
-          <div class="muted" data-i18n="variables">变量：{{generatedAt}}, {{timezone}}, {{topicQuery}}, {{sourceUrl}}, {{itemsMarkdown}}, {{itemsText}}, {{itemsJson}}</div>
-        </section>
-
-        <section class="panel stack">
-          <div class="row" style="justify-content: space-between;">
-            <h2 data-i18n="logs">最近记录</h2>
-            <button class="secondary" id="loadLogsButton" data-i18n="refreshLogs">刷新记录</button>
-          </div>
-          <div class="logs" id="logs"></div>
-        </section>
       </div>
+
+      <section class="layout">
+        <aside class="stack">
+          <section class="panel stack">
+            <div class="section-head">
+              <h2 data-i18n="globalSettings">全局设置</h2>
+              <span class="badge" data-i18n="localOnly">配置保存在 KV</span>
+            </div>
+            <label><span data-i18n="appName">应用名称</span><input id="appName"></label>
+            <div class="cols">
+              <label><span data-i18n="contentLanguage">内容语言</span><select id="language"><option value="zh">中文</option><option value="en">English</option></select></label>
+              <label><span data-i18n="format">默认格式</span><select id="outputFormat"><option value="markdown">Markdown</option><option value="text">Text</option><option value="json">JSON</option></select></label>
+            </div>
+            <label><span data-i18n="timezone">时区</span><select id="timezone"></select></label>
+            <label><span data-i18n="topicFocus">关注主题</span><textarea id="topicFocus"></textarea></label>
+            <div>
+              <h3 data-i18n="defaultTargets">默认推送目标</h3>
+              <div class="target-list" id="defaultTargets"></div>
+            </div>
+            <div class="row">
+              <button class="primary" id="saveButton" data-i18n="save">保存</button>
+              <button class="secondary" id="refreshButton" data-i18n="refresh">刷新</button>
+            </div>
+            <div class="status" id="saveStatus"></div>
+          </section>
+
+          <section class="panel stack">
+            <h2 data-i18n="providers">通知渠道</h2>
+            <div class="provider-grid" id="providerStatus"></div>
+          </section>
+        </aside>
+
+        <div class="stack">
+          <section class="panel stack">
+            <div class="section-head">
+              <h2 data-i18n="schedules">推送时间表</h2>
+              <button class="secondary" id="addScheduleButton" data-i18n="addSchedule">新增时间点</button>
+            </div>
+            <div class="stack" id="schedules"></div>
+          </section>
+
+          <section class="panel stack">
+            <h2 data-i18n="template">全局模板</h2>
+            <textarea id="template"></textarea>
+            <div class="muted" data-i18n="variables">变量：{{generatedAt}}, {{timezone}}, {{topicQuery}}, {{sourceUrl}}, {{itemsMarkdown}}, {{itemsText}}, {{itemsJson}}</div>
+          </section>
+
+          <section class="panel stack">
+            <div class="section-head">
+              <h2 data-i18n="logs">最近记录</h2>
+              <button class="secondary" id="loadLogsButton" data-i18n="refreshLogs">刷新记录</button>
+            </div>
+            <div class="logs" id="logs"></div>
+          </section>
+        </div>
+      </section>
     </section>
   </main>
 
   <script>
-    const providers = ["feishu", "wechat_official_account", "wechat_ai_agent"];
+    const providers = ["feishu", "wechat_official_account", "wechat_ai_agent", "telegram"];
+    const providerLabels = {
+      feishu: "Feishu",
+      wechat_official_account: "WeChat OA",
+      wechat_ai_agent: "WeChat AI",
+      telegram: "Telegram"
+    };
+    const marketOptions = [
+      ["everyday", "Every day"],
+      ["a_share", "A-share"],
+      ["us_stock", "US stock"],
+      ["crypto", "Crypto"]
+    ];
     const timezones = ["Asia/Hong_Kong", "Asia/Shanghai", "UTC", "America/New_York", "Europe/London", "Europe/Paris", "Asia/Tokyo", "Asia/Singapore"];
     const dict = {
       zh: {
-        subtitle: "金融与国际热点定时推送",
+        feedback: "提 Bug / 需求",
         logout: "退出",
         loginTitle: "Admin 登录",
         password: "密码",
         login: "登录",
+        heroTitle: "金融与国际热点推送控制台",
+        heroText: "管理多市场交易日、内容模板、推送渠道和测试发送。",
         globalSettings: "全局设置",
+        localOnly: "配置保存在 KV",
         appName: "应用名称",
         contentLanguage: "内容语言",
         timezone: "时区",
@@ -303,6 +463,9 @@ const adminHtml = `<!doctype html>
         defaultTargets: "默认推送目标",
         save: "保存",
         refresh: "刷新",
+        providers: "通知渠道",
+        configured: "已配置",
+        notConfigured: "未配置",
         schedules: "推送时间表",
         addSchedule: "新增时间点",
         template: "全局模板",
@@ -317,21 +480,29 @@ const adminHtml = `<!doctype html>
         topicQuery: "热点查询",
         sourceUrl: "RSS 来源 URL",
         scheduleTemplate: "时间点模板",
-        runNow: "立即运行",
+        marketCalendar: "交易日历",
+        marketHolidayDates: "额外休市日",
+        marketHolidayHelp: "多个日期用逗号、空格或换行分隔，例如 2026-01-01。",
+        testSend: "测试发送",
         remove: "删除",
         saved: "已保存",
         loaded: "已加载",
+        testing: "正在收集并推送...",
+        testQueued: "测试已发送",
         loginFailed: "登录失败",
         loginOk: "登录成功",
         noLogs: "暂无记录"
       },
       en: {
-        subtitle: "Scheduled finance and global hotspot briefings",
+        feedback: "Bug / request",
         logout: "Log out",
         loginTitle: "Admin Login",
         password: "Password",
         login: "Login",
+        heroTitle: "Finance and global hotspot control center",
+        heroText: "Manage market calendars, templates, providers, and test sends.",
         globalSettings: "Global Settings",
+        localOnly: "Stored in KV",
         appName: "App name",
         contentLanguage: "Content language",
         timezone: "Timezone",
@@ -340,6 +511,9 @@ const adminHtml = `<!doctype html>
         defaultTargets: "Default targets",
         save: "Save",
         refresh: "Refresh",
+        providers: "Providers",
+        configured: "Configured",
+        notConfigured: "Not configured",
         schedules: "Schedules",
         addSchedule: "Add time",
         template: "Global template",
@@ -354,10 +528,15 @@ const adminHtml = `<!doctype html>
         topicQuery: "Topic query",
         sourceUrl: "RSS source URL",
         scheduleTemplate: "Schedule template",
-        runNow: "Run now",
+        marketCalendar: "Market calendar",
+        marketHolidayDates: "Extra closed dates",
+        marketHolidayHelp: "Separate dates with commas, spaces, or line breaks, for example 2026-01-01.",
+        testSend: "Test send",
         remove: "Remove",
         saved: "Saved",
         loaded: "Loaded",
+        testing: "Collecting and sending...",
+        testQueued: "Test sent",
         loginFailed: "Login failed",
         loginOk: "Logged in",
         noLogs: "No logs yet"
@@ -368,13 +547,20 @@ const adminHtml = `<!doctype html>
       en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
     };
     let state = null;
+    let providerStatus = [];
     let password = localStorage.getItem("globalpulse_admin_password") || "";
     let uiLanguage = localStorage.getItem("globalpulse_ui_language") || "zh";
+    let theme = localStorage.getItem("globalpulse_theme") || "light";
 
     const $ = (id) => document.getElementById(id);
 
     function t(key) {
       return (dict[uiLanguage] && dict[uiLanguage][key]) || dict.zh[key] || key;
+    }
+
+    function applyTheme() {
+      document.documentElement.dataset.theme = theme;
+      $("themeButton").textContent = theme === "dark" ? "☼" : "◐";
     }
 
     function applyI18n() {
@@ -416,6 +602,7 @@ const adminHtml = `<!doctype html>
     async function loadSettings() {
       const body = await api("/api/admin/settings");
       state = body.settings;
+      providerStatus = body.providers || [];
       $("loginView").classList.add("hidden");
       $("adminView").classList.remove("hidden");
       $("logoutButton").classList.remove("hidden");
@@ -431,7 +618,16 @@ const adminHtml = `<!doctype html>
       $("template").value = state.template;
       renderTimezoneSelect($("timezone"), state.timezone);
       renderTargetList($("defaultTargets"), state.defaultTargets, "default");
+      renderProviderStatus();
       renderSchedules();
+    }
+
+    function renderProviderStatus() {
+      $("providerStatus").innerHTML = providers.map((provider) => {
+        const status = providerStatus.find((entry) => entry.name === provider);
+        const ok = status && status.configured;
+        return '<div class="provider-card"><strong>' + providerLabels[provider] + '</strong><span class="badge ' + (ok ? "ok" : "warn") + '">' + (ok ? t("configured") : t("notConfigured")) + '</span></div>';
+      }).join("");
     }
 
     function renderTimezoneSelect(select, value) {
@@ -442,35 +638,41 @@ const adminHtml = `<!doctype html>
     function renderTargetList(container, selected, name) {
       container.innerHTML = providers.map((provider) => {
         const checked = selected.includes(provider) ? "checked" : "";
-        return '<label><input type="checkbox" name="' + name + '" value="' + provider + '" ' + checked + '><span>' + provider + '</span></label>';
+        return '<label><input type="checkbox" name="' + name + '" value="' + provider + '" ' + checked + '><span>' + providerLabels[provider] + '</span></label>';
       }).join("");
     }
 
     function renderSchedules() {
       $("schedules").innerHTML = state.schedules.map((schedule, index) => {
+        schedule.marketCalendar = schedule.marketCalendar || "everyday";
+        schedule.marketHolidayDates = schedule.marketHolidayDates || [];
         const days = dayLabels[uiLanguage].map((label, day) => {
           const checked = schedule.days.includes(day) ? "checked" : "";
           return '<label><input type="checkbox" data-index="' + index + '" data-field="days" value="' + day + '" ' + checked + '><span>' + label + '</span></label>';
         }).join("");
         const targets = providers.map((provider) => {
           const checked = schedule.targets.includes(provider) ? "checked" : "";
-          return '<label><input type="checkbox" data-index="' + index + '" data-field="targets" value="' + provider + '" ' + checked + '><span>' + provider + '</span></label>';
+          return '<label><input type="checkbox" data-index="' + index + '" data-field="targets" value="' + provider + '" ' + checked + '><span>' + providerLabels[provider] + '</span></label>';
         }).join("");
         return '<div class="schedule" data-index="' + index + '">' +
-          '<div class="row" style="justify-content: space-between;"><h3>' + escapeHtml(schedule.name) + '</h3><label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" data-index="' + index + '" data-field="enabled" ' + (schedule.enabled ? "checked" : "") + '>' + t("enabled") + '</label></div>' +
+          '<div class="schedule-title"><div><h3>' + escapeHtml(schedule.name) + '</h3><div class="muted">' + escapeHtml(schedule.timezone) + ' · ' + escapeHtml(schedule.marketCalendar) + '</div></div><label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" data-index="' + index + '" data-field="enabled" ' + (schedule.enabled ? "checked" : "") + '>' + t("enabled") + '</label></div>' +
           '<div class="cols">' +
           field(t("name"), "name", schedule.name, index) +
           field(t("time"), "time", schedule.time, index, "time") +
           selectField(t("contentLanguage"), "language", schedule.language, index, [["zh", "中文"], ["en", "English"]]) +
           selectField(t("format"), "outputFormat", schedule.outputFormat, index, [["markdown", "Markdown"], ["text", "Text"], ["json", "JSON"]]) +
           '</div>' +
+          '<div class="cols">' +
           '<label>' + t("timezone") + '<select data-index="' + index + '" data-field="timezone">' + timezones.map((zone) => '<option value="' + zone + '"' + (zone === schedule.timezone ? " selected" : "") + '>' + zone + '</option>').join("") + '</select></label>' +
+          selectField(t("marketCalendar"), "marketCalendar", schedule.marketCalendar, index, marketOptions) +
+          '</div>' +
           '<label>' + t("topicQuery") + '<input data-index="' + index + '" data-field="topicQuery" value="' + escapeAttr(schedule.topicQuery) + '"></label>' +
           '<label>' + t("sourceUrl") + '<input data-index="' + index + '" data-field="sourceUrl" value="' + escapeAttr(schedule.sourceUrl || "") + '"></label>' +
+          '<label>' + t("marketHolidayDates") + '<textarea data-index="' + index + '" data-field="marketHolidayDates">' + escapeHtml(schedule.marketHolidayDates.join("\\n")) + '</textarea><span class="muted">' + t("marketHolidayHelp") + '</span></label>' +
           '<div><h3>' + t("days") + '</h3><div class="days">' + days + '</div></div>' +
           '<div><h3>' + t("targets") + '</h3><div class="target-list">' + targets + '</div></div>' +
           '<label>' + t("scheduleTemplate") + '<textarea data-index="' + index + '" data-field="template">' + escapeHtml(schedule.template) + '</textarea></label>' +
-          '<div class="row"><button class="secondary" data-action="run" data-index="' + index + '">' + t("runNow") + '</button><button class="danger" data-action="remove" data-index="' + index + '">' + t("remove") + '</button></div>' +
+          '<div class="row"><button class="primary" data-action="run" data-index="' + index + '">' + t("testSend") + '</button><button class="danger" data-action="remove" data-index="' + index + '">' + t("remove") + '</button><span class="status" id="scheduleStatus-' + index + '"></span></div>' +
           '</div>';
       }).join("");
     }
@@ -491,6 +693,9 @@ const adminHtml = `<!doctype html>
       state.topicFocus = $("topicFocus").value;
       state.template = $("template").value;
       state.defaultTargets = checkedValues("default");
+      state.schedules.forEach((schedule) => {
+        schedule.marketHolidayDates = Array.isArray(schedule.marketHolidayDates) ? schedule.marketHolidayDates : parseDates(schedule.marketHolidayDates);
+      });
       return state;
     }
 
@@ -503,14 +708,19 @@ const adminHtml = `<!doctype html>
       $("saveStatus").textContent = "";
       const body = await api("/api/admin/settings", { method: "PUT", body: JSON.stringify(state) });
       state = body.settings;
+      providerStatus = body.providers || providerStatus;
       $("saveStatus").textContent = t("saved");
       render();
     }
 
     async function runSchedule(index) {
+      const pendingNode = $("scheduleStatus-" + index);
+      if (pendingNode) pendingNode.textContent = t("testing");
       collectSettings();
       await saveSettings();
       await api("/api/admin/run", { method: "POST", body: JSON.stringify({ scheduleId: state.schedules[index].id }) });
+      const doneNode = $("scheduleStatus-" + index);
+      if (doneNode) doneNode.textContent = t("testQueued");
       await loadLogs();
     }
 
@@ -533,10 +743,17 @@ const adminHtml = `<!doctype html>
         language: state.language,
         outputFormat: state.outputFormat,
         targets: state.defaultTargets,
+        marketCalendar: "a_share",
+        marketHolidayDates: [],
         topicQuery: state.topicFocus,
         template: state.template
       });
       renderSchedules();
+    }
+
+    function parseDates(value) {
+      if (Array.isArray(value)) return value;
+      return String(value || "").split(/[,\\s]+/).map((date) => date.trim()).filter((date) => /^\\d{4}-\\d{2}-\\d{2}$/.test(date));
     }
 
     function escapeHtml(value) {
@@ -554,6 +771,11 @@ const adminHtml = `<!doctype html>
     $("logoutButton").addEventListener("click", () => {
       localStorage.removeItem("globalpulse_admin_password");
       location.reload();
+    });
+    $("themeButton").addEventListener("click", () => {
+      theme = theme === "dark" ? "light" : "dark";
+      localStorage.setItem("globalpulse_theme", theme);
+      applyTheme();
     });
     $("uiLanguage").addEventListener("change", (event) => {
       uiLanguage = event.target.value;
@@ -573,6 +795,7 @@ const adminHtml = `<!doctype html>
       if (fieldName === "enabled") schedule.enabled = event.target.checked;
       else if (fieldName === "days") schedule.days = Array.from(document.querySelectorAll('input[data-index="' + index + '"][data-field="days"]:checked')).map((node) => Number(node.value));
       else if (fieldName === "targets") schedule.targets = Array.from(document.querySelectorAll('input[data-index="' + index + '"][data-field="targets"]:checked')).map((node) => node.value);
+      else if (fieldName === "marketHolidayDates") schedule.marketHolidayDates = parseDates(event.target.value);
       else schedule[fieldName] = event.target.value;
     });
     document.addEventListener("click", async (event) => {
@@ -583,10 +806,16 @@ const adminHtml = `<!doctype html>
         renderSchedules();
       }
       if (action === "run") {
-        await runSchedule(index);
+        try {
+          await runSchedule(index);
+        } catch (error) {
+          const node = $("scheduleStatus-" + index);
+          if (node) node.textContent = error.message || "Failed";
+        }
       }
     });
 
+    applyTheme();
     applyI18n();
     if (password) {
       $("passwordInput").value = password;

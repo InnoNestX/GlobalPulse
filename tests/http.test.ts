@@ -206,6 +206,36 @@ describe("handleRequest", () => {
     expect(payload.markdown.content).toContain("AI Agent check");
   });
 
+  it("sends messages to Telegram", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true, result: { message_id: 1 } }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await handleRequest(new Request("https://worker.example/v1/messages", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-token",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        target: "telegram",
+        title: "Telegram check",
+        body: "Bot delivery works",
+      }),
+    }), {
+      ...env,
+      TELEGRAM_BOT_TOKEN: "telegram-token",
+      TELEGRAM_CHAT_ID: "-100123456",
+    });
+
+    expect(response.status).toBe(202);
+    const [url, init] = getFetchCall(fetchMock, 0);
+    const payload = JSON.parse(String(init.body));
+
+    expect(url).toBe("https://api.telegram.org/bottelegram-token/sendMessage");
+    expect(payload.chat_id).toBe("-100123456");
+    expect(payload.text).toContain("Telegram check");
+  });
+
   it("sends customer-service messages through WeChat Official Account", async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
@@ -329,5 +359,43 @@ describe("handleRequest", () => {
     const payload = JSON.parse(String(init.body));
 
     expect(payload.content.text).toContain("Markets rally");
+  });
+
+  it("skips A-share schedules on non-trading weekends", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ code: 0, msg: "ok" }), { status: 200 }));
+    const appEnv: Env = {
+      ...env,
+      APP_KV: createMemoryKV(),
+    };
+    vi.stubGlobal("fetch", fetchMock);
+    await saveSettings(appEnv, {
+      appName: "GlobalPulse",
+      language: "zh",
+      timezone: "Asia/Hong_Kong",
+      defaultTargets: ["feishu"],
+      outputFormat: "markdown",
+      topicFocus: "markets",
+      template: "# Brief\n\n{{itemsMarkdown}}",
+      schedules: [{
+        id: "a-share-weekend",
+        name: "A-share Weekend",
+        enabled: true,
+        time: "10:00",
+        days: [6],
+        timezone: "Asia/Hong_Kong",
+        language: "zh",
+        outputFormat: "markdown",
+        targets: ["feishu"],
+        marketCalendar: "a_share",
+        marketHolidayDates: [],
+        topicQuery: "markets",
+        template: "# Brief\n\n{{itemsMarkdown}}",
+      }],
+    });
+
+    const result = await runDueSchedules(appEnv, new Date("2026-05-16T02:00:00Z"));
+
+    expect(result).toMatchObject({ checked: 1, executed: 0, skipped: 1 });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,5 @@
 import type { Env } from "./env";
+import { type MarketCalendar, parseHolidayDates, readMarketCalendar } from "./market-calendar";
 import { type ProviderName, providerNames } from "./messages";
 
 export type AppLanguage = "zh" | "en";
@@ -14,6 +15,8 @@ export interface PulseSchedule {
   language: AppLanguage;
   outputFormat: OutputFormat;
   targets: ProviderName[];
+  marketCalendar: MarketCalendar;
+  marketHolidayDates: string[];
   topicQuery: string;
   sourceUrl?: string;
   template: string;
@@ -88,6 +91,8 @@ export function createDefaultSettings(): AppSettings {
         language: "zh",
         outputFormat: "markdown",
         targets: ["feishu"],
+        marketCalendar: "a_share",
+        marketHolidayDates: [],
         topicQuery: "global markets OR finance OR geopolitics",
         template: zhTemplate,
       },
@@ -101,6 +106,8 @@ export function createDefaultSettings(): AppSettings {
         language: "en",
         outputFormat: "markdown",
         targets: ["feishu"],
+        marketCalendar: "us_stock",
+        marketHolidayDates: [],
         topicQuery: "markets central banks geopolitics global economy",
         template: enTemplate,
       },
@@ -190,6 +197,8 @@ function readSchedules(value: unknown, fallback: PulseSchedule[]): PulseSchedule
       language: readLanguage(entry.language, "zh"),
       outputFormat: readOutputFormat(entry.outputFormat, "markdown"),
       targets: readTargets(entry.targets, ["feishu"]),
+      marketCalendar: readMarketCalendar(entry.marketCalendar, "everyday"),
+      marketHolidayDates: parseHolidayDates(entry.marketHolidayDates),
       topicQuery: readString(entry.topicQuery, "global finance international news").slice(0, 300),
       template: readString(entry.template, readLanguage(entry.language, "zh") === "zh" ? zhTemplate : enTemplate).slice(0, 8000),
     };

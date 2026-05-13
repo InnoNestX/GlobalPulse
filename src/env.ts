@@ -11,4 +11,6 @@ export interface Env {
   WECHAT_OFFICIAL_OPENID?: string;
   WECHAT_AI_AGENT_WEBHOOK_URL?: string;
   WECHAT_AI_AGENT_WEBHOOK_KEY?: string;
+  TELEGRAM_BOT_TOKEN?: string;
+  TELEGRAM_CHAT_ID?: string;
 }
