@@ -1,0 +1,79 @@
+name: Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto-label issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { github, context } = require('@actions/github');
+            const issue = context.payload.issue;
+            if (!issue) return;
+
+            const title = (issue.title || '').toLowerCase();
+            const body = (issue.body || '').toLowerCase();
+            const content = title + ' ' + body;
+
+            const labelsToAdd = [];
+
+            // Security — never auto-label security issues; alert maintainers
+            if (/vulnerability|security|xss|injection|csrf|bypass|rce/.test(content)) {
+              labelsToAdd.push('security');
+              // Create a maintainer alert
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: '⚠️ **Security-related issue detected.** @ou_865735076f08eaa37a21e9d93494f296 Please review this issue through the private [Security Advisories](https://github.com/InnoNestX/GlobalPulse/security/advisories/new) channel instead of here.'
+              });
+              return; // Don't add more labels — handled privately
+            }
+
+            // Bug
+            if (/bug|broken|error|crash|fail|wrong/.test(content)) {
+              labelsToAdd.push('bug');
+            }
+
+            // Enhancement
+            if (/feature|enhancement|improve|optimize|add.*support/.test(content)) {
+              labelsToAdd.push('enhancement');
+            }
+
+            // Documentation
+            if (/docs?|readme|comment|typo/.test(content)) {
+              labelsToAdd.push('docs');
+            }
+
+            // Cloudflare / deployment
+            if (/cloudflare|worker|deploy|wrangler|kv|env.*variable/.test(content)) {
+              labelsToAdd.push('infra');
+            }
+
+            // Provider issues (Feishu, WeChat, Telegram)
+            if (/feishu|飞书|wechat|telegram|webhook|provider/.test(content)) {
+              labelsToAdd.push('provider');
+            }
+
+            // Good first issue for newcomers
+            if (/good first issue|beginner|starter|help wanted/.test(content)) {
+              labelsToAdd.push('good first issue');
+            }
+
+            if (labelsToAdd.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: labelsToAdd
+              });
+            }

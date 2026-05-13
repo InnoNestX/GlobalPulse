@@ -1,0 +1,64 @@
+name: Auto Assign
+
+on:
+  issues:
+    types: [opened]
+  pull_request:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  assign:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assign based on labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { issue, github, context } = require('@actions/github');
+            const payload = context.payload;
+
+            const issueOrPR = payload.issue || payload.pull_request;
+            if (!issueOrPR) return;
+
+            const body = (issueOrPR.body || '').toLowerCase();
+            const title = (issueOrPR.title || '').toLowerCase();
+            const labels = payload.issue ? payload.issue.labels.map(l => l.name) : payload.pull_request.labels.map(l => l.name);
+
+            // Label → assignee mapping for GlobalPulse
+            const assignments = {
+              'bug': ['ou_865735076f08eaa37a21e9d93494f296'], // XuXuClassMate
+              'enhancement': ['ou_865735076f08eaa37a21e9d93494f296'],
+              'security': ['ou_865735076f08eaa37a21e9d93494f296'],
+              'docs': ['ou_960d9eaded30c7ef5794621e34da72bb'], // OpenClaw
+              'question': ['ou_865735076f08eaa37a21e9d93494f296'],
+            };
+
+            const toAssign = labels
+              .filter(l => assignments[l])
+              .flatMap(l => assignments[l])
+              .filter((v, i, a) => a.indexOf(v) === i);
+
+            if (toAssign.length > 0) {
+              await github.rest.issues.addAssignees({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueOrPR.number,
+                assignees: toAssign
+              });
+
+              // Add a welcome comment for new issues
+              if (payload.issue && !payload.pull_request) {
+                const lang = labels.includes('question') ? 'en' : (labels.includes('bug') ? 'en' : 'en');
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueOrPR.number,
+                  body: `Thanks for opening this issue! @${toAssign.join(', @')} has been assigned to look into it. We'll respond as soon as possible.\n\nIf this is urgent, feel free to reach out directly.`
+                });
+              }
+            }
