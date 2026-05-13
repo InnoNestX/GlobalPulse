@@ -10,6 +10,7 @@ Open `/admin` and log in with `ADMIN_PASSWORD`.
 - Default format: `markdown`, `text`, or `json`. Markdown is the default.
 - Topic focus: Default topic query for new schedules.
 - Default targets: One or more push providers.
+- Provider parameters: optional KV-stored webhook/token fields for Feishu, 微信公众号, wechat clawbot, and Telegram. Cloudflare secrets still work and take precedence when set.
 - Global template: Default message body template.
 
 ## Schedule Settings
@@ -23,12 +24,27 @@ Each schedule controls one push time point.
 - Language: Language used for labels and source query defaults.
 - Format: Message format for that schedule.
 - Market calendar: `everyday`, `a_share`, `us_stock`, or `crypto`.
-- Extra closed dates: optional exchange holidays in `YYYY-MM-DD` format. A-share and US stock calendars skip weekends automatically; crypto runs every day unless an extra closed date is entered.
+- Trading-day check: `weekday` uses local weekday plus manual closed dates. `external` uses a third-party holiday lookup for A-share or US stock schedules, then falls back to local rules if the lookup fails.
+- Extra closed dates: optional exchange holidays or one-off skips in `YYYY-MM-DD` format. A-share and US stock calendars skip weekends automatically; crypto runs every day unless an extra closed date is entered.
 - Topic query: Search query used when no RSS source URL is set.
 - RSS source URL: Optional custom RSS feed.
 - Targets: Push providers for this schedule.
 - Schedule template: Message body template.
+- Push preview: renders a sample message for the selected schedule and shows what each selected provider will receive.
 - Test send: saves the current settings, collects fresh topic data, and pushes the selected schedule immediately.
+
+## Provider Names
+
+Use these target names in API requests and schedules:
+
+```text
+feishu
+wechat_official_account
+wechat_clawbot
+telegram
+```
+
+`wechat_ai_agent` is still accepted as a legacy alias for `wechat_clawbot`, but new configs should use `wechat_clawbot`.
 
 ## Feedback Links
 

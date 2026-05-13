@@ -13,43 +13,44 @@ const adminHtml = `<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>GlobalPulse Admin</title>
+  <link rel="icon" href="https://avatars.githubusercontent.com/u/273979879?v=4" sizes="any" type="image/png">
   <style>
     :root {
-      color-scheme: light;
-      --bg: #f4f1eb;
-      --surface: #fffdf8;
-      --surface-2: #f8f4ed;
-      --text: #151515;
-      --muted: #6f6b63;
-      --line: #ddd5ca;
-      --accent: #0f766e;
-      --accent-2: #d97706;
-      --danger: #b42318;
-      --ok: #15803d;
-      --shadow: 0 18px 45px rgba(45, 40, 32, .1);
-      --chip: #ede7dc;
-    }
-    html[data-theme="dark"] {
       color-scheme: dark;
-      --bg: #101112;
-      --surface: #181a1d;
-      --surface-2: #202327;
-      --text: #f5f2ec;
-      --muted: #b9b2a6;
-      --line: #34383d;
-      --accent: #32c4b4;
-      --accent-2: #f59e0b;
+      --bg: #070b12;
+      --surface: #0f1724;
+      --surface-2: #141f2e;
+      --text: #f4f7fb;
+      --muted: #94a3b8;
+      --line: #263548;
+      --accent: #4f9cf9;
+      --accent-2: #22c55e;
       --danger: #fb7185;
       --ok: #4ade80;
-      --shadow: 0 18px 45px rgba(0, 0, 0, .28);
-      --chip: #252a2f;
+      --shadow: 0 18px 60px rgba(0, 0, 0, .25);
+      --chip: #1d2a3b;
+    }
+    html[data-theme="light"] {
+      color-scheme: light;
+      --bg: #f5f7fb;
+      --surface: #ffffff;
+      --surface-2: #f1f5f9;
+      --text: #101828;
+      --muted: #64748b;
+      --line: #d7dee8;
+      --accent: #2563eb;
+      --accent-2: #16a34a;
+      --danger: #b42318;
+      --ok: #15803d;
+      --shadow: 0 18px 45px rgba(15, 23, 42, .08);
+      --chip: #e8eef7;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       min-height: 100vh;
       background:
-        linear-gradient(180deg, rgba(15, 118, 110, .12), transparent 290px),
+        linear-gradient(180deg, rgba(79, 156, 249, .14), rgba(34, 197, 94, .05) 360px, transparent 620px),
         var(--bg);
       color: var(--text);
       font: 14px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -64,7 +65,7 @@ const adminHtml = `<!doctype html>
       backdrop-filter: blur(18px);
     }
     .bar, main {
-      width: min(1280px, calc(100vw - 32px));
+      width: min(1400px, calc(100vw - 32px));
       margin: 0 auto;
     }
     .bar {
@@ -95,6 +96,14 @@ const adminHtml = `<!doctype html>
       letter-spacing: 0;
       box-shadow: var(--shadow);
     }
+    .brand-logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--surface-2);
+      object-fit: cover;
+    }
     .brand-title { display: grid; gap: 1px; }
     h1, h2, h3 { margin: 0; line-height: 1.15; letter-spacing: 0; }
     h1 { font-size: 20px; }
@@ -124,7 +133,7 @@ const adminHtml = `<!doctype html>
     .hero-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
     .layout {
       display: grid;
-      grid-template-columns: 320px minmax(0, 1fr);
+      grid-template-columns: 380px minmax(0, 1fr);
       gap: 18px;
       align-items: start;
     }
@@ -228,6 +237,24 @@ const adminHtml = `<!doctype html>
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 8px;
     }
+    .provider-form {
+      display: grid;
+      gap: 12px;
+    }
+    .provider-config {
+      border: 1px solid var(--line);
+      background: var(--surface-2);
+      border-radius: 8px;
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+    .provider-config h3 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
     .provider-card {
       border: 1px solid var(--line);
       background: var(--surface-2);
@@ -312,6 +339,35 @@ const adminHtml = `<!doctype html>
     }
     .log.ok { border-left-color: var(--ok); }
     .log.fail { border-left-color: var(--danger); }
+    .preview-list {
+      display: grid;
+      gap: 12px;
+    }
+    .preview-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface-2);
+      overflow: hidden;
+    }
+    .preview-card header {
+      position: static;
+      border-bottom: 1px solid var(--line);
+      background: transparent;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .preview-card pre {
+      margin: 0;
+      padding: 13px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: var(--text);
+    }
     .login {
       max-width: 460px;
       margin: 80px auto;
@@ -327,7 +383,7 @@ const adminHtml = `<!doctype html>
   <header>
     <div class="bar">
       <a class="brand" href="https://github.com/InnoNestX" target="_blank" rel="noreferrer">
-        <div class="mark">IN</div>
+        <img class="brand-logo" src="https://avatars.githubusercontent.com/u/273979879?v=4" alt="InnoNestX">
         <div class="brand-title">
           <h1>GlobalPulse</h1>
           <div class="muted">by InnoNestX</div>
@@ -398,7 +454,9 @@ const adminHtml = `<!doctype html>
 
           <section class="panel stack">
             <h2 data-i18n="providers">通知渠道</h2>
+            <p class="muted" data-i18n="providerHelp">这里配置的 token / webhook 会存入 KV；Cloudflare secrets 也会继续生效。</p>
             <div class="provider-grid" id="providerStatus"></div>
+            <div class="provider-form" id="providerSettingsForm"></div>
           </section>
         </aside>
 
@@ -409,6 +467,21 @@ const adminHtml = `<!doctype html>
               <button class="secondary" id="addScheduleButton" data-i18n="addSchedule">新增时间点</button>
             </div>
             <div class="stack" id="schedules"></div>
+          </section>
+
+          <section class="panel stack">
+            <div class="section-head">
+              <div>
+                <h2 data-i18n="previewTitle">推送预览</h2>
+                <div class="muted" data-i18n="previewHelp">查看当前配置会发送到各渠道的实际内容。</div>
+              </div>
+              <div class="row">
+                <select id="previewScheduleSelect" aria-label="Preview schedule"></select>
+                <button class="secondary" id="refreshPreviewButton" data-i18n="refreshPreview">刷新预览</button>
+              </div>
+            </div>
+            <div class="status" id="previewStatus"></div>
+            <div class="preview-list" id="previewList"></div>
           </section>
 
           <section class="panel stack">
@@ -430,11 +503,11 @@ const adminHtml = `<!doctype html>
   </main>
 
   <script>
-    const providers = ["feishu", "wechat_official_account", "wechat_ai_agent", "telegram"];
+    const providers = ["feishu", "wechat_official_account", "wechat_clawbot", "telegram"];
     const providerLabels = {
       feishu: "Feishu",
-      wechat_official_account: "WeChat OA",
-      wechat_ai_agent: "WeChat AI",
+      wechat_official_account: "微信公众号",
+      wechat_clawbot: "wechat clawbot",
       telegram: "Telegram"
     };
     const marketOptions = [
@@ -464,10 +537,25 @@ const adminHtml = `<!doctype html>
         save: "保存",
         refresh: "刷新",
         providers: "通知渠道",
+        providerHelp: "这里配置的 token / webhook 会存入 KV；Cloudflare secrets 也会继续生效。",
         configured: "已配置",
         notConfigured: "未配置",
+        providerConfig: "渠道参数",
+        feishuWebhookUrl: "飞书 Webhook URL",
+        feishuSigningSecret: "飞书签名密钥",
+        wechatOfficialAppId: "微信公众号 App ID",
+        wechatOfficialAppSecret: "微信公众号 App Secret",
+        wechatOfficialOpenId: "微信公众号 OpenID",
+        wechatClawbotWebhookUrl: "wechat clawbot Webhook URL",
+        wechatClawbotWebhookKey: "wechat clawbot Webhook Key",
+        telegramBotToken: "Telegram Bot Token",
+        telegramChatId: "Telegram Chat ID",
         schedules: "推送时间表",
         addSchedule: "新增时间点",
+        previewTitle: "推送预览",
+        previewHelp: "查看当前配置会发送到各渠道的实际内容。",
+        refreshPreview: "刷新预览",
+        previewEmpty: "选择一个时间表后查看预览。",
         template: "全局模板",
         variables: "变量：{{generatedAt}}, {{timezone}}, {{topicQuery}}, {{sourceUrl}}, {{itemsMarkdown}}, {{itemsText}}, {{itemsJson}}",
         logs: "最近记录",
@@ -481,6 +569,9 @@ const adminHtml = `<!doctype html>
         sourceUrl: "RSS 来源 URL",
         scheduleTemplate: "时间点模板",
         marketCalendar: "交易日历",
+        tradingDaySource: "交易日判断",
+        weekdayManual: "工作日 + 手工休市日",
+        externalCalendar: "第三方自动获取",
         marketHolidayDates: "额外休市日",
         marketHolidayHelp: "多个日期用逗号、空格或换行分隔，例如 2026-01-01。",
         testSend: "测试发送",
@@ -512,10 +603,25 @@ const adminHtml = `<!doctype html>
         save: "Save",
         refresh: "Refresh",
         providers: "Providers",
+        providerHelp: "Tokens and webhooks saved here are stored in KV; Cloudflare secrets still work.",
         configured: "Configured",
         notConfigured: "Not configured",
+        providerConfig: "Provider parameters",
+        feishuWebhookUrl: "Feishu webhook URL",
+        feishuSigningSecret: "Feishu signing secret",
+        wechatOfficialAppId: "WeChat Official Account App ID",
+        wechatOfficialAppSecret: "WeChat Official Account App Secret",
+        wechatOfficialOpenId: "WeChat Official Account OpenID",
+        wechatClawbotWebhookUrl: "wechat clawbot webhook URL",
+        wechatClawbotWebhookKey: "wechat clawbot webhook key",
+        telegramBotToken: "Telegram bot token",
+        telegramChatId: "Telegram chat ID",
         schedules: "Schedules",
         addSchedule: "Add time",
+        previewTitle: "Push preview",
+        previewHelp: "See the exact payload each selected provider will receive.",
+        refreshPreview: "Refresh preview",
+        previewEmpty: "Select a schedule to preview.",
         template: "Global template",
         variables: "Variables: {{generatedAt}}, {{timezone}}, {{topicQuery}}, {{sourceUrl}}, {{itemsMarkdown}}, {{itemsText}}, {{itemsJson}}",
         logs: "Recent logs",
@@ -529,6 +635,9 @@ const adminHtml = `<!doctype html>
         sourceUrl: "RSS source URL",
         scheduleTemplate: "Schedule template",
         marketCalendar: "Market calendar",
+        tradingDaySource: "Trading-day check",
+        weekdayManual: "Weekday + manual closed dates",
+        externalCalendar: "Auto third-party",
         marketHolidayDates: "Extra closed dates",
         marketHolidayHelp: "Separate dates with commas, spaces, or line breaks, for example 2026-01-01.",
         testSend: "Test send",
@@ -550,7 +659,7 @@ const adminHtml = `<!doctype html>
     let providerStatus = [];
     let password = localStorage.getItem("globalpulse_admin_password") || "";
     let uiLanguage = localStorage.getItem("globalpulse_ui_language") || "zh";
-    let theme = localStorage.getItem("globalpulse_theme") || "light";
+    let theme = localStorage.getItem("globalpulse_theme") || "dark";
 
     const $ = (id) => document.getElementById(id);
 
@@ -608,9 +717,13 @@ const adminHtml = `<!doctype html>
       $("logoutButton").classList.remove("hidden");
       render();
       await loadLogs();
+      await loadPreview().catch((error) => {
+        $("previewStatus").textContent = error.message || "Preview failed";
+      });
     }
 
     function render() {
+      state.providerSettings = state.providerSettings || {};
       $("appName").value = state.appName;
       $("language").value = state.language;
       $("outputFormat").value = state.outputFormat;
@@ -619,7 +732,9 @@ const adminHtml = `<!doctype html>
       renderTimezoneSelect($("timezone"), state.timezone);
       renderTargetList($("defaultTargets"), state.defaultTargets, "default");
       renderProviderStatus();
+      renderProviderSettings();
       renderSchedules();
+      renderPreviewSelect();
     }
 
     function renderProviderStatus() {
@@ -628,6 +743,47 @@ const adminHtml = `<!doctype html>
         const ok = status && status.configured;
         return '<div class="provider-card"><strong>' + providerLabels[provider] + '</strong><span class="badge ' + (ok ? "ok" : "warn") + '">' + (ok ? t("configured") : t("notConfigured")) + '</span></div>';
       }).join("");
+    }
+
+    function renderProviderSettings() {
+      const values = state.providerSettings || {};
+      const groups = [
+        {
+          name: "Feishu",
+          fields: [
+            ["feishuWebhookUrl", t("feishuWebhookUrl"), "url"],
+            ["feishuSigningSecret", t("feishuSigningSecret"), "password"]
+          ]
+        },
+        {
+          name: "微信公众号",
+          fields: [
+            ["wechatOfficialAppId", t("wechatOfficialAppId"), "password"],
+            ["wechatOfficialAppSecret", t("wechatOfficialAppSecret"), "password"],
+            ["wechatOfficialOpenId", t("wechatOfficialOpenId"), "password"]
+          ]
+        },
+        {
+          name: "wechat clawbot",
+          fields: [
+            ["wechatClawbotWebhookUrl", t("wechatClawbotWebhookUrl"), "url"],
+            ["wechatClawbotWebhookKey", t("wechatClawbotWebhookKey"), "password"]
+          ]
+        },
+        {
+          name: "Telegram",
+          fields: [
+            ["telegramBotToken", t("telegramBotToken"), "password"],
+            ["telegramChatId", t("telegramChatId"), "text"]
+          ]
+        }
+      ];
+      $("providerSettingsForm").innerHTML = groups.map((group) =>
+        '<div class="provider-config"><h3><span>' + group.name + '</span><span class="badge">' + t("providerConfig") + '</span></h3>' +
+        group.fields.map(([key, label, type]) =>
+          '<label>' + label + '<input type="' + type + '" autocomplete="off" spellcheck="false" data-provider-setting="' + key + '" value="' + escapeAttr(values[key] || "") + '"></label>'
+        ).join("") + '</div>'
+      ).join("");
     }
 
     function renderTimezoneSelect(select, value) {
@@ -645,6 +801,7 @@ const adminHtml = `<!doctype html>
     function renderSchedules() {
       $("schedules").innerHTML = state.schedules.map((schedule, index) => {
         schedule.marketCalendar = schedule.marketCalendar || "everyday";
+        schedule.tradingDaySource = schedule.tradingDaySource || (schedule.marketCalendar === "a_share" || schedule.marketCalendar === "us_stock" ? "external" : "weekday");
         schedule.marketHolidayDates = schedule.marketHolidayDates || [];
         const days = dayLabels[uiLanguage].map((label, day) => {
           const checked = schedule.days.includes(day) ? "checked" : "";
@@ -665,6 +822,7 @@ const adminHtml = `<!doctype html>
           '<div class="cols">' +
           '<label>' + t("timezone") + '<select data-index="' + index + '" data-field="timezone">' + timezones.map((zone) => '<option value="' + zone + '"' + (zone === schedule.timezone ? " selected" : "") + '>' + zone + '</option>').join("") + '</select></label>' +
           selectField(t("marketCalendar"), "marketCalendar", schedule.marketCalendar, index, marketOptions) +
+          selectField(t("tradingDaySource"), "tradingDaySource", schedule.tradingDaySource, index, localizedTradingDayOptions()) +
           '</div>' +
           '<label>' + t("topicQuery") + '<input data-index="' + index + '" data-field="topicQuery" value="' + escapeAttr(schedule.topicQuery) + '"></label>' +
           '<label>' + t("sourceUrl") + '<input data-index="' + index + '" data-field="sourceUrl" value="' + escapeAttr(schedule.sourceUrl || "") + '"></label>' +
@@ -685,6 +843,27 @@ const adminHtml = `<!doctype html>
       return '<label>' + label + '<select data-index="' + index + '" data-field="' + fieldName + '">' + options.map(([key, text]) => '<option value="' + key + '"' + (key === value ? " selected" : "") + '>' + text + '</option>').join("") + '</select></label>';
     }
 
+    function localizedTradingDayOptions() {
+      return [
+        ["weekday", t("weekdayManual")],
+        ["external", t("externalCalendar")]
+      ];
+    }
+
+    function renderPreviewSelect() {
+      const select = $("previewScheduleSelect");
+      const previousValue = select.value;
+      select.innerHTML = state.schedules.map((schedule, index) =>
+        '<option value="' + index + '">' + escapeHtml(schedule.name || ("Schedule " + (index + 1))) + '</option>'
+      ).join("");
+      if (previousValue && state.schedules[Number(previousValue)]) {
+        select.value = previousValue;
+      }
+      if (!state.schedules.length) {
+        $("previewList").innerHTML = '<div class="muted">' + t("previewEmpty") + '</div>';
+      }
+    }
+
     function collectSettings() {
       state.appName = $("appName").value;
       state.language = $("language").value;
@@ -693,6 +872,10 @@ const adminHtml = `<!doctype html>
       state.topicFocus = $("topicFocus").value;
       state.template = $("template").value;
       state.defaultTargets = checkedValues("default");
+      state.providerSettings = state.providerSettings || {};
+      document.querySelectorAll("[data-provider-setting]").forEach((node) => {
+        state.providerSettings[node.dataset.providerSetting] = node.value;
+      });
       state.schedules.forEach((schedule) => {
         schedule.marketHolidayDates = Array.isArray(schedule.marketHolidayDates) ? schedule.marketHolidayDates : parseDates(schedule.marketHolidayDates);
       });
@@ -711,6 +894,9 @@ const adminHtml = `<!doctype html>
       providerStatus = body.providers || providerStatus;
       $("saveStatus").textContent = t("saved");
       render();
+      await loadPreview().catch((error) => {
+        $("previewStatus").textContent = error.message || "Preview failed";
+      });
     }
 
     async function runSchedule(index) {
@@ -722,6 +908,28 @@ const adminHtml = `<!doctype html>
       const doneNode = $("scheduleStatus-" + index);
       if (doneNode) doneNode.textContent = t("testQueued");
       await loadLogs();
+    }
+
+    async function loadPreview() {
+      collectSettings();
+      const index = Number($("previewScheduleSelect").value || 0);
+      const schedule = state.schedules[index];
+
+      if (!schedule) {
+        $("previewList").innerHTML = '<div class="muted">' + t("previewEmpty") + '</div>';
+        return;
+      }
+
+      $("previewStatus").textContent = "";
+      const body = await api("/api/admin/preview", { method: "POST", body: JSON.stringify({ schedule }) });
+      renderPreview(body.preview);
+    }
+
+    function renderPreview(preview) {
+      $("previewStatus").textContent = preview.generatedAt + " · " + preview.sourceUrl;
+      $("previewList").innerHTML = preview.deliveries.map((delivery) =>
+        '<article class="preview-card"><header><strong>' + escapeHtml(delivery.label) + '</strong><span class="badge">' + escapeHtml(delivery.format) + '</span></header><pre>' + escapeHtml(delivery.content) + '</pre></article>'
+      ).join("");
     }
 
     async function loadLogs() {
@@ -744,11 +952,12 @@ const adminHtml = `<!doctype html>
         outputFormat: state.outputFormat,
         targets: state.defaultTargets,
         marketCalendar: "a_share",
+        tradingDaySource: "external",
         marketHolidayDates: [],
         topicQuery: state.topicFocus,
         template: state.template
       });
-      renderSchedules();
+      render();
     }
 
     function parseDates(value) {
@@ -786,7 +995,19 @@ const adminHtml = `<!doctype html>
     $("refreshButton").addEventListener("click", loadSettings);
     $("loadLogsButton").addEventListener("click", loadLogs);
     $("addScheduleButton").addEventListener("click", addSchedule);
+    $("refreshPreviewButton").addEventListener("click", () => loadPreview().catch((error) => {
+      $("previewStatus").textContent = error.message || "Preview failed";
+    }));
+    $("previewScheduleSelect").addEventListener("change", () => loadPreview().catch((error) => {
+      $("previewStatus").textContent = error.message || "Preview failed";
+    }));
     document.addEventListener("input", (event) => {
+      const providerSetting = event.target.dataset && event.target.dataset.providerSetting;
+      if (providerSetting) {
+        state.providerSettings = state.providerSettings || {};
+        state.providerSettings[providerSetting] = event.target.value;
+        return;
+      }
       const fieldName = event.target.dataset && event.target.dataset.field;
       const index = event.target.dataset && event.target.dataset.index;
       if (!fieldName || index === undefined) return;
@@ -803,7 +1024,7 @@ const adminHtml = `<!doctype html>
       const index = Number(event.target.dataset && event.target.dataset.index);
       if (action === "remove") {
         state.schedules.splice(index, 1);
-        renderSchedules();
+        render();
       }
       if (action === "run") {
         try {

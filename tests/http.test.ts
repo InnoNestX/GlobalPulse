@@ -177,7 +177,36 @@ describe("handleRequest", () => {
     expect(payload.content.text).toContain("cloudflare");
   });
 
-  it("sends messages to the WeChat AI Agent webhook", async () => {
+  it("sends messages to the wechat clawbot webhook", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ errcode: 0, errmsg: "ok" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await handleRequest(new Request("https://worker.example/v1/messages", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-token",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        target: "wechat_clawbot",
+        title: "clawbot check",
+        body: "Webhook delivery works",
+      }),
+    }), {
+      ...env,
+      WECHAT_CLAWBOT_WEBHOOK_KEY: "wechat-key",
+    });
+
+    expect(response.status).toBe(202);
+    const [url, init] = getFetchCall(fetchMock, 0);
+    const payload = JSON.parse(String(init.body));
+
+    expect(url).toBe("https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=wechat-key");
+    expect(payload.msgtype).toBe("markdown");
+    expect(payload.markdown.content).toContain("clawbot check");
+  });
+
+  it("keeps the legacy WeChat AI target as a wechat clawbot alias", async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ errcode: 0, errmsg: "ok" }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -189,21 +218,18 @@ describe("handleRequest", () => {
       },
       body: JSON.stringify({
         target: "wechat_ai_agent",
-        title: "AI Agent check",
-        body: "Webhook delivery works",
+        title: "Legacy alias check",
+        body: "Old configs still work",
       }),
     }), {
       ...env,
-      WECHAT_AI_AGENT_WEBHOOK_KEY: "wechat-key",
+      WECHAT_AI_AGENT_WEBHOOK_KEY: "legacy-key",
     });
 
     expect(response.status).toBe(202);
-    const [url, init] = getFetchCall(fetchMock, 0);
-    const payload = JSON.parse(String(init.body));
+    const [url] = getFetchCall(fetchMock, 0);
 
-    expect(url).toBe("https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=wechat-key");
-    expect(payload.msgtype).toBe("markdown");
-    expect(payload.markdown.content).toContain("AI Agent check");
+    expect(url).toBe("https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=legacy-key");
   });
 
   it("sends messages to Telegram", async () => {
@@ -305,6 +331,98 @@ describe("handleRequest", () => {
     });
   });
 
+  it("uses provider settings saved in KV for Telegram delivery", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true, result: { message_id: 7 } }), { status: 200 }));
+    const appEnv: Env = {
+      API_TOKEN: "test-token",
+      DEFAULT_TARGETS: "telegram",
+      APP_KV: createMemoryKV(),
+    };
+    vi.stubGlobal("fetch", fetchMock);
+    await saveSettings(appEnv, {
+      appName: "GlobalPulse",
+      language: "zh",
+      timezone: "Asia/Hong_Kong",
+      defaultTargets: ["telegram"],
+      outputFormat: "markdown",
+      topicFocus: "markets",
+      providerSettings: {
+        telegramBotToken: "kv-telegram-token",
+        telegramChatId: "-100777",
+      },
+      template: "# Brief\n\n{{itemsMarkdown}}",
+      schedules: [],
+    });
+
+    const response = await handleRequest(new Request("https://worker.example/v1/messages", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-token",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        title: "KV Telegram check",
+        body: "Provider settings are applied",
+      }),
+    }), appEnv);
+
+    expect(response.status).toBe(202);
+    const [url, init] = getFetchCall(fetchMock, 0);
+    const payload = JSON.parse(String(init.body));
+
+    expect(url).toBe("https://api.telegram.org/botkv-telegram-token/sendMessage");
+    expect(payload.chat_id).toBe("-100777");
+  });
+
+  it("returns a provider-specific admin message preview", async () => {
+    const appEnv: Env = {
+      ...env,
+      ADMIN_PASSWORD: "admin-pass",
+      APP_KV: createMemoryKV(),
+    };
+
+    const response = await handleRequest(new Request("https://worker.example/api/admin/preview", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer admin-pass",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        schedule: {
+          id: "preview",
+          name: "Preview Pulse",
+          enabled: true,
+          time: "09:00",
+          days: [1, 2, 3, 4, 5],
+          timezone: "Asia/Hong_Kong",
+          language: "zh",
+          outputFormat: "markdown",
+          targets: ["telegram", "wechat_clawbot"],
+          marketCalendar: "a_share",
+          tradingDaySource: "external",
+          marketHolidayDates: [],
+          topicQuery: "global markets",
+          template: "# Demo\n\n{{itemsMarkdown}}",
+        },
+      }),
+    }), appEnv);
+
+    expect(response.status).toBe(200);
+    const body = await response.json() as {
+      preview: {
+        deliveries: Array<{ label: string; format: string; content: string }>;
+      };
+    };
+
+    expect(body.preview.deliveries).toHaveLength(2);
+    const telegramPreview = body.preview.deliveries[0];
+    const clawbotPreview = body.preview.deliveries[1];
+
+    expect(telegramPreview).toMatchObject({ label: "Telegram", format: "text" });
+    expect(clawbotPreview).toMatchObject({ label: "wechat clawbot", format: "markdown" });
+    expect(telegramPreview?.content).toContain("美联储");
+  });
+
   it("runs due schedules using the saved timezone and pushes a digest", async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
@@ -397,5 +515,89 @@ describe("handleRequest", () => {
 
     expect(result).toMatchObject({ checked: 1, executed: 0, skipped: 1 });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("skips A-share schedules on weekday holidays from the external calendar", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      code: 0,
+      holiday: { holiday: true },
+      type: { type: 2 },
+    }), { status: 200 }));
+    const appEnv: Env = {
+      ...env,
+      APP_KV: createMemoryKV(),
+    };
+    vi.stubGlobal("fetch", fetchMock);
+    await saveSettings(appEnv, {
+      appName: "GlobalPulse",
+      language: "zh",
+      timezone: "Asia/Hong_Kong",
+      defaultTargets: ["feishu"],
+      outputFormat: "markdown",
+      topicFocus: "markets",
+      template: "# Brief\n\n{{itemsMarkdown}}",
+      schedules: [{
+        id: "a-share-holiday",
+        name: "A-share Holiday",
+        enabled: true,
+        time: "10:00",
+        days: [5],
+        timezone: "Asia/Hong_Kong",
+        language: "zh",
+        outputFormat: "markdown",
+        targets: ["feishu"],
+        marketCalendar: "a_share",
+        tradingDaySource: "external",
+        marketHolidayDates: [],
+        topicQuery: "markets",
+        template: "# Brief\n\n{{itemsMarkdown}}",
+      }],
+    });
+
+    const result = await runDueSchedules(appEnv, new Date("2026-05-01T02:00:00Z"));
+
+    expect(result).toMatchObject({ checked: 1, executed: 0, skipped: 1 });
+    expect(fetchMock).toHaveBeenCalledWith("https://timor.tech/api/holiday/info/2026-05-01", expect.any(Object));
+  });
+
+  it("skips US stock schedules on US market holidays separately from A-share rules", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify([
+      { date: "2026-07-03", name: "Independence Day" },
+    ]), { status: 200 }));
+    const appEnv: Env = {
+      ...env,
+      APP_KV: createMemoryKV(),
+    };
+    vi.stubGlobal("fetch", fetchMock);
+    await saveSettings(appEnv, {
+      appName: "GlobalPulse",
+      language: "en",
+      timezone: "America/New_York",
+      defaultTargets: ["feishu"],
+      outputFormat: "markdown",
+      topicFocus: "markets",
+      template: "# Brief\n\n{{itemsMarkdown}}",
+      schedules: [{
+        id: "us-stock-holiday",
+        name: "US Stock Holiday",
+        enabled: true,
+        time: "09:30",
+        days: [5],
+        timezone: "America/New_York",
+        language: "en",
+        outputFormat: "markdown",
+        targets: ["feishu"],
+        marketCalendar: "us_stock",
+        tradingDaySource: "external",
+        marketHolidayDates: [],
+        topicQuery: "markets",
+        template: "# Brief\n\n{{itemsMarkdown}}",
+      }],
+    });
+
+    const result = await runDueSchedules(appEnv, new Date("2026-07-03T13:30:00Z"));
+
+    expect(result).toMatchObject({ checked: 1, executed: 0, skipped: 1 });
+    expect(fetchMock).toHaveBeenCalledWith("https://date.nager.at/api/v3/PublicHolidays/2026/US", expect.any(Object));
   });
 });

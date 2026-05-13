@@ -66,6 +66,8 @@ printf 'your-api-token' | npx wrangler secret put API_TOKEN
 
 ## 5. Configure Push Providers
 
+Provider credentials can be stored as Cloudflare secrets with the commands below, or entered later in the Admin UI. Admin UI values are stored in Workers KV. If both are set, Cloudflare secrets take precedence.
+
 ### Feishu
 
 ```bash
@@ -83,19 +85,21 @@ printf 'recipient-openid' | npx wrangler secret put WECHAT_OFFICIAL_OPENID
 
 This provider uses the Official Account customer-service message API. The recipient openid generally must have interacted with the account recently.
 
-### WeChat AI Agent
+### wechat clawbot
 
 Use either a full webhook URL:
 
 ```bash
-printf 'your-wechat-ai-agent-webhook-url' | npx wrangler secret put WECHAT_AI_AGENT_WEBHOOK_URL
+printf 'your-wechat-clawbot-webhook-url' | npx wrangler secret put WECHAT_CLAWBOT_WEBHOOK_URL
 ```
 
 Or only the webhook key:
 
 ```bash
-printf 'xxx' | npx wrangler secret put WECHAT_AI_AGENT_WEBHOOK_KEY
+printf 'xxx' | npx wrangler secret put WECHAT_CLAWBOT_WEBHOOK_KEY
 ```
+
+Legacy `WECHAT_AI_AGENT_WEBHOOK_URL` and `WECHAT_AI_AGENT_WEBHOOK_KEY` secrets are still accepted for older deployments.
 
 ### Telegram
 
@@ -132,3 +136,5 @@ Cloudflare Cron Triggers run in UTC. GlobalPulse wakes every 5 minutes with:
 ```
 
 The Worker then loads schedules from KV and checks each schedule's configured timezone and local time.
+
+When a schedule uses `external` trading-day checks, A-share and US stock calendars are evaluated separately. A weekday can still be skipped if the relevant exchange is closed.

@@ -5,7 +5,7 @@ ADMIN_PASSWORD=change-me-to-a-long-random-admin-password
 API_TOKEN=change-me-to-a-long-random-token
 
 # Optional. Comma-separated provider names used when a request omits `target`.
-# Supported values: feishu, wechat_official_account, wechat_ai_agent, telegram
+# Supported values: feishu, wechat_official_account, wechat_clawbot, telegram
 DEFAULT_TARGETS=feishu
 
 # Optional browser/API CORS origin. Use a specific origin in production when possible.
@@ -21,10 +21,10 @@ WECHAT_OFFICIAL_APP_ID=
 WECHAT_OFFICIAL_APP_SECRET=
 WECHAT_OFFICIAL_OPENID=
 
-# WeChat AI Agent / WeCom intelligent bot push webhook.
+# wechat clawbot / WeCom intelligent bot push webhook.
 # You can provide either the full webhook URL or only the key.
-WECHAT_AI_AGENT_WEBHOOK_URL=
-WECHAT_AI_AGENT_WEBHOOK_KEY=
+WECHAT_CLAWBOT_WEBHOOK_URL=
+WECHAT_CLAWBOT_WEBHOOK_KEY=
 
 # Telegram bot notification.
 TELEGRAM_BOT_TOKEN=

@@ -1,5 +1,5 @@
 import type { IncomingMessageBody, MessageLevel, ProviderName } from "./messages";
-import { HttpError, providerNames } from "./messages";
+import { HttpError, coerceProviderName, providerNames } from "./messages";
 
 type MetadataValue = string | number | boolean | null;
 
@@ -139,8 +139,10 @@ function readTarget(value: unknown): ProviderName | ProviderName[] | undefined {
 }
 
 function readProviderName(value: unknown): ProviderName {
-  if (typeof value === "string" && providerNames.includes(value as ProviderName)) {
-    return value as ProviderName;
+  const providerName = coerceProviderName(value);
+
+  if (providerName) {
+    return providerName;
   }
 
   throw new HttpError(400, "Unsupported provider target", {
