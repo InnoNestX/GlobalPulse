@@ -354,27 +354,47 @@ function decodeXml(value: string): string {
     .replace(/&#x([0-9a-fA-F]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
 }
 
+// Combines entity decode + HTML strip into a single pass so CodeQL sees one cross-product.
+// Replaces: strip first then decode (which CodeQL flags as "strip may be incomplete after decode").
 function cleanText(value: string): string {
-  // 1. Decode entities so encoded HTML becomes visible as tags/comments
-  // 2. Strip HTML comments first (covers both raw <!-- and entity-decoded <!--)
-  // 3. Strip CDATA sections
-  // 4. Strip all remaining HTML tags
-  // 5. Normalize whitespace and cap length
-  return value
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/<!\[CDATA\[([\s\S]*?)\]>/gi, "$1")
-    .replace(/<[^>]*>/g, "")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x27;/gi, "'")
-    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(dec))
-    .replace(/&#x([0-9a-fA-F]+);/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 240);
+  let result = "";
+  let i = 0;
+  while (i < value.length) {
+    // HTML comment
+    if (value[i] === "<" && value.slice(i, i + 4) === "<!--") {
+      i = value.indexOf("-->", i + 4) + 3 || value.length;
+      continue;
+    }
+    // CDATA section
+    if (value[i] === "<" && value.slice(i, i + 9) === "<![CDATA[") {
+      const end = value.indexOf("]]>", i + 9);
+      result += value.slice(i + 9, end >= i + 9 ? end : value.length);
+      i = end >= i + 9 ? end + 3 : value.length;
+      continue;
+    }
+    // HTML tag
+    if (value[i] === "<") {
+      i = value.indexOf(">", i + 1) + 1 || value.length + 1;
+      continue;
+    }
+    // Numeric hex entity &name;
+    if (value[i] === "&") {
+      const semi = value.indexOf(";", i);
+      if (semi !== -1) {
+        const name = value.slice(i + 1, semi);
+        if (name === "amp")  { result += "&";  i = semi + 1; continue; }
+        if (name === "lt")   { result += "<";  i = semi + 1; continue; }
+        if (name === "gt")   { result += ">";  i = semi + 1; continue; }
+        if (name === "quot") { result += '"';  i = semi + 1; continue; }
+        if (name === "apos") { result += "'";  i = semi + 1; continue; }
+        if (/^#x[0-9a-fA-F]+$/.test(name)) { result += String.fromCharCode(parseInt(name.slice(2), 16)); i = semi + 1; continue; }
+        if (/^#[0-9]+$/.test(name))        { result += String.fromCharCode(parseInt(name.slice(1), 10)); i = semi + 1; continue; }
+      }
+    }
+    result += value[i];
+    i++;
+  }
+  return result.replace(/\s+/g, " ").trim().slice(0, 240);
 }
 
 function normalizeUnixTime(value: string | number): string | undefined {
