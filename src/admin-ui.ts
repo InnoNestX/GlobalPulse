@@ -188,6 +188,24 @@ const adminHtml = `<!doctype html>
       font-size: 12px;
       font-weight: 700;
     }
+    .inline-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 9px 11px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .inline-checkbox input[type="checkbox"] {
+      width: auto;
+      margin: 0;
+      padding: 0;
+      border-radius: 4px;
+    }
     input, select, textarea, button {
       font: inherit;
       border-radius: 7px;
@@ -1423,7 +1441,7 @@ const adminHtml = `<!doctype html>
           '<span class="schedule-chevron">▾</span>' +
           '</summary>' +
           '<div class="schedule-body">' +
-          '<div class="schedule-summary-row"><label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" data-index="' + index + '" data-field="enabled" ' + (schedule.enabled ? "checked" : "") + '>' + t("enabled") + '</label></div>' +
+          '<div class="schedule-summary-row"><label class="inline-checkbox"><input type="checkbox" data-index="' + index + '" data-field="enabled" ' + (schedule.enabled ? "checked" : "") + '>' + t("enabled") + '</label></div>' +
           '<div class="cols">' +
           field(t("name"), "name", schedule.name, index) +
           selectField(t("reportType"), "reportType", schedule.reportType, index, reportTypeOptions) +
@@ -1439,7 +1457,7 @@ const adminHtml = `<!doctype html>
           selectField(t("marketCalendar"), "marketCalendar", schedule.marketCalendar, index, marketOptions) +
           '</div>' +
           '<div class="muted">' + ((schedule.marketCalendar === "a_share" || schedule.marketCalendar === "us_stock") ? t("autoMarketSourceExternal") : t("autoMarketSourceAlwaysOpen")) + '</div>' +
-          '<label style="display:flex;align-items:center;gap:8px;"><input type="checkbox" data-index="' + index + '" data-field="skipNonTradingInCron" ' + (schedule.skipNonTradingInCron ? "checked" : "") + '><span>' + t("skipNonTradingInCron") + '</span></label>' +
+          '<label class="inline-checkbox"><input type="checkbox" data-index="' + index + '" data-field="skipNonTradingInCron" ' + (schedule.skipNonTradingInCron ? "checked" : "") + '><span>' + t("skipNonTradingInCron") + '</span></label>' +
           '<label>' + t("topicQuery") + '<input data-index="' + index + '" data-field="topicQuery" value="' + escapeAttr(schedule.topicQuery) + '"></label>' +
           '<label>' + t("sourceUrl") + '<input data-index="' + index + '" data-field="sourceUrl" value="' + escapeAttr(schedule.sourceUrl || "") + '"></label>' +
           '<div class="cols">' +
