@@ -1,3 +1,11 @@
 name = "globalpulse"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
+
+[[durable_objects.bindings]]
+name = "APP_STATE_DO"
+class_name = "AppStateDurableObject"
+
+[[migrations]]
+tag = "v1-app-state-do"
+new_sqlite_classes = ["AppStateDurableObject"]

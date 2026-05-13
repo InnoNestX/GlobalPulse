@@ -1,4 +1,4 @@
-import { appendLog, getRunMarkerKey, getSettings, requireKV, type PulseSchedule } from "./config";
+import { appendLog, getRunMarker, getSettings, setRunMarker, type PulseSchedule } from "./config";
 import { sendIncomingMessage } from "./delivery";
 import type { Env } from "./env";
 import { isTradingDayForSchedule } from "./market-calendar";
@@ -36,10 +36,7 @@ export async function runDueSchedules(env: Env, now = new Date()): Promise<Sched
 
 export async function runSchedule(env: Env, schedule: PulseSchedule, now = new Date()): Promise<void> {
   const local = getLocalTimeParts(now, schedule.timezone, schedule.language);
-  if (env.APP_KV) {
-    const markerKey = getRunMarkerKey(schedule.id, local.date, schedule.time);
-    await requireKV(env).put(markerKey, now.toISOString(), { expirationTtl: 60 * 60 * 36 });
-  }
+  await setRunMarker(env, schedule.id, local.date, schedule.time, now.toISOString());
 
   try {
     const topicData = await fetchTopicItems(schedule.topicQuery, schedule.language, schedule.sourceUrl);
@@ -115,12 +112,7 @@ async function shouldRunSchedule(env: Env, schedule: PulseSchedule, now: Date): 
     return false;
   }
 
-  if (!env.APP_KV) {
-    return true;
-  }
-
-  const markerKey = getRunMarkerKey(schedule.id, local.date, schedule.time);
-  const existingMarker = await requireKV(env).get(markerKey);
+  const existingMarker = await getRunMarker(env, schedule.id, local.date, schedule.time);
 
   return existingMarker === null;
 }
