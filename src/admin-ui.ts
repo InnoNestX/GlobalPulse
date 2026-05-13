@@ -664,12 +664,12 @@ const adminHtml = `<!doctype html>
         <section class="hero-landing">
           <div class="hero-landing-inner">
             <div class="hero-badge"><span class="badge">🚀 by InnoNestX</span></div>
-            <h1 class="hero-title">GlobalPulse</h1>
-            <p class="hero-tagline">金融与国际热点智能推送平台</p>
-            <p class="hero-desc muted">多市场交易日历 · 多渠道实时推送 · 灵活模板配置 · 定时简报发送</p>
+            <h1 class="hero-title" data-i18n="heroTitleLP">GlobalPulse</h1>
+            <p class="hero-tagline" data-i18n="heroTagline">金融与国际热点智能推送平台</p>
+            <p class="hero-desc muted" data-i18n="heroDesc">多市场交易日历 · 多渠道实时推送 · 灵活模板配置 · 定时简报发送</p>
             <div class="hero-cta">
-              <a class="button-link primary" href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noreferrer">⭐ Star on GitHub</a>
-              <a class="button-link secondary" href="https://github.com/InnoNestX/GlobalPulse/pulls" target="_blank" rel="noreferrer">🔧 Submit PR</a>
+              <a class="button-link primary" href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noreferrer" data-i18n="starGithub">⭐ Star on GitHub</a>
+              <a class="button-link secondary" href="https://github.com/InnoNestX/GlobalPulse/pulls" target="_blank" rel="noreferrer" data-i18n="submitPR">🔧 Submit PR</a>
             </div>
           </div>
         </section>
@@ -678,126 +678,126 @@ const adminHtml = `<!doctype html>
           <div class="features-grid">
             <div class="feature-card">
               <div class="feature-icon">📡</div>
-              <h3>多平台推送</h3>
-              <p>支持飞书、微信公众号、Telegram、WeChat Clawbot 等多种渠道</p>
+              <h3 data-i18n="feat1Title">多平台推送</h3>
+              <p data-i18n="feat1Desc">支持飞书、微信公众号、Telegram、WeChat Clawbot 等多种渠道</p>
             </div>
             <div class="feature-card">
               <div class="feature-icon">📅</div>
-              <h3>定时简报</h3>
-              <p>基于 A股/US stock/crypto 交易日历自动发送，不错过任何交易日</p>
+              <h3 data-i18n="feat2Title">定时简报</h3>
+              <p data-i18n="feat2Desc">基于 A股/US stock/crypto 交易日历自动发送，不错过任何交易日</p>
             </div>
             <div class="feature-card">
               <div class="feature-icon">⚙️</div>
-              <h3>管理后台</h3>
-              <p>可视化配置模板、渠道、日历，一键测试发送</p>
+              <h3 data-i18n="feat3Title">管理后台</h3>
+              <p data-i18n="feat3Desc">可视化配置模板、渠道、日历，一键测试发送</p>
             </div>
             <div class="feature-card">
               <div class="feature-icon">📊</div>
-              <h3>内容预览</h3>
-              <p>实时预览推送到各渠道的实际内容，确保万无一失</p>
+              <h3 data-i18n="feat4Title">内容预览</h3>
+              <p data-i18n="feat4Desc">实时预览推送到各渠道的实际内容，确保万无一失</p>
             </div>
           </div>
         </section>
 
         <section class="api-docs">
-          <h2 class="section-title">API Endpoints</h2>
+          <h2 class="section-title" data-i18n="apiTitle">API Endpoints</h2>
           <div class="api-grid">
             <div class="api-card">
               <div class="api-method post">POST</div>
               <div class="api-path">/v1/messages</div>
-              <div class="api-desc muted">发送消息到已配置渠道</div>
+              <div class="api-desc muted" data-i18n="api1Desc">发送消息到已配置渠道</div>
             </div>
             <div class="api-card">
               <div class="api-method get">GET</div>
               <div class="api-path">/v1/health</div>
-              <div class="api-desc muted">健康检查接口</div>
+              <div class="api-desc muted" data-i18n="api2Desc">健康检查接口</div>
             </div>
             <div class="api-card">
               <div class="api-method post">POST</div>
               <div class="api-path">/v1/test</div>
-              <div class="api-desc muted">触发测试推送</div>
+              <div class="api-desc muted" data-i18n="api3Desc">触发测试推送</div>
             </div>
             <div class="api-card">
               <div class="api-method get">GET</div>
               <div class="api-path">/v1/schedules</div>
-              <div class="api-desc muted">获取推送时间表</div>
+              <div class="api-desc muted" data-i18n="api4Desc">获取推送时间表</div>
             </div>
           </div>
         </section>
 
         <section class="deploy-info">
-          <h2 class="section-title">快速部署</h2>
+          <h2 class="section-title" data-i18n="deployTitle">快速部署</h2>
           <div class="deploy-steps">
             <div class="deploy-step">
               <div class="step-num">1</div>
               <div>
-                <strong>Fork 本项目</strong>
-                <p class="muted">Fork <a href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noreferrer">github.com/InnoNestX/GlobalPulse</a> 到你的 GitHub 账户</p>
+                <strong data-i18n="step1Title">Fork 本项目</strong>
+                <p class="muted" data-i18n="step1Desc">Fork <a href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noreferrer">github.com/InnoNestX/GlobalPulse</a> 到你的 GitHub 账户</p>
               </div>
             </div>
             <div class="deploy-step">
               <div class="step-num">2</div>
               <div>
-                <strong>部署到 Cloudflare Workers</strong>
-                <p class="muted">使用 Wrangler CLI 部署，或直接 push 到 GitHub 触发 Pages 部署</p>
+                <strong data-i18n="step2Title">部署到 Cloudflare Workers</strong>
+                <p class="muted" data-i18n="step2Desc">使用 Wrangler CLI 部署，或直接 push 到 GitHub 触发 Pages 部署</p>
               </div>
             </div>
             <div class="deploy-step">
               <div class="step-num">3</div>
               <div>
-                <strong>配置环境变量</strong>
-                <p class="muted">在 Cloudflare Dashboard 设置 ADMIN_PASSWORD 和各渠道的 WEBHOOK/TOKEN</p>
+                <strong data-i18n="step3Title">配置环境变量</strong>
+                <p class="muted" data-i18n="step3Desc">在 Cloudflare Dashboard 设置 ADMIN_PASSWORD 和各渠道的 WEBHOOK/TOKEN</p>
               </div>
             </div>
             <div class="deploy-step">
               <div class="step-num">4</div>
               <div>
-                <strong>访问 Admin 后台</strong>
-                <p class="muted">访问 <span class="code-inline">/admin</span> 路径，输入密码登录并配置推送</p>
+                <strong data-i18n="step4Title">访问 Admin 后台</strong>
+                <p class="muted" data-i18n="step4Desc">访问 <span class="code-inline">/admin</span> 路径，输入密码登录并配置推送</p>
               </div>
             </div>
           </div>
         </section>
 
         <section class="link-check">
-          <h2 class="section-title">链接校验</h2>
+          <h2 class="section-title" data-i18n="linkCheckTitle">链接校验</h2>
           <div class="link-table">
             <table>
               <thead>
                 <tr>
-                  <th></th>
-                  <th>目标</th>
-                  <th>状态</th>
+                  <th data-i18n="linkCheckCol1"></th>
+                  <th data-i18n="linkCheckCol2">目标</th>
+                  <th data-i18n="linkCheckCol3">状态</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td>🐛 Report Bug</td>
+                  <td data-i18n="linkBug">🐛 Report Bug</td>
                   <td><a href="https://github.com/InnoNestX/GlobalPulse/issues" target="_blank" rel="noreferrer">github.com/InnoNestX/GlobalPulse/issues</a></td>
                   <td><span class="badge ok">✅</span></td>
                 </tr>
                 <tr>
-                  <td>🔧 Submit PR</td>
+                  <td data-i18n="linkPR">🔧 Submit PR</td>
                   <td><a href="https://github.com/InnoNestX/GlobalPulse/pulls" target="_blank" rel="noreferrer">github.com/InnoNestX/GlobalPulse/pulls</a></td>
                   <td><span class="badge ok">✅</span></td>
                 </tr>
                 <tr>
-                  <td>⭐ Star Repo</td>
+                  <td data-i18n="linkStar">⭐ Star Repo</td>
                   <td><a href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noreferrer">github.com/InnoNestX/GlobalPulse</a></td>
                   <td><span class="badge ok">✅</span></td>
                 </tr>
                 <tr>
-                  <td>💖 Sponsor</td>
+                  <td data-i18n="linkSponsor">💖 Sponsor</td>
                   <td><a href="https://github.com/sponsors/InnoNestX" target="_blank" rel="noreferrer">github.com/sponsors/InnoNestX</a></td>
                   <td><span class="badge ok">✅</span></td>
                 </tr>
                 <tr>
-                  <td>☕ Buy Me a Coffee</td>
+                  <td data-i18n="linkCoffee">☕ Buy Me a Coffee</td>
                   <td><a href="https://buymeacoffee.com/xuxuclassmate" target="_blank" rel="noreferrer">buymeacoffee.com/xuxuclassmate</a></td>
                   <td><span class="badge ok">✅</span></td>
                 </tr>
                 <tr>
-                  <td>💬 Discussions</td>
+                  <td data-i18n="linkDiscussions">💬 Discussions</td>
                   <td><a href="https://github.com/InnoNestX/GlobalPulse/discussions" target="_blank" rel="noreferrer">github.com/InnoNestX/GlobalPulse/discussions</a></td>
                   <td><span class="badge ok">✅</span></td>
                 </tr>
@@ -947,16 +947,16 @@ const adminHtml = `<!doctype html>
         </div>
       </div>
       <div class="footer-section">
-        <h4>Contribute</h4>
-        <a href="https://github.com/InnoNestX/GlobalPulse/issues" target="_blank" rel="noreferrer">🐛 Report Bug</a>
-        <a href="https://github.com/InnoNestX/GlobalPulse/pulls" target="_blank" rel="noreferrer">🔧 Submit PR</a>
-        <a href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noreferrer">⭐ Star Repo</a>
+        <h4 data-i18n="footerContribute">Contribute</h4>
+        <a href="https://github.com/InnoNestX/GlobalPulse/issues" target="_blank" rel="noreferrer" data-i18n="footerBug">🐛 Report Bug</a>
+        <a href="https://github.com/InnoNestX/GlobalPulse/pulls" target="_blank" rel="noreferrer" data-i18n="footerPR">🔧 Submit PR</a>
+        <a href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noreferrer" data-i18n="footerStar">⭐ Star Repo</a>
       </div>
       <div class="footer-section">
-        <h4>Support</h4>
-        <a href="https://github.com/sponsors/InnoNestX" target="_blank" rel="noreferrer">💖 Sponsor</a>
-        <a href="https://buymeacoffee.com/xuxuclassmate" target="_blank" rel="noreferrer">☕ Buy Me a Coffee</a>
-        <a href="https://github.com/InnoNestX/GlobalPulse/discussions" target="_blank" rel="noreferrer">💬 Discussions</a>
+        <h4 data-i18n="footerSupport">Support</h4>
+        <a href="https://github.com/sponsors/InnoNestX" target="_blank" rel="noreferrer" data-i18n="footerSponsor">💖 Sponsor</a>
+        <a href="https://buymeacoffee.com/xuxuclassmate" target="_blank" rel="noreferrer" data-i18n="footerCoffee">☕ Buy Me a Coffee</a>
+        <a href="https://github.com/InnoNestX/GlobalPulse/discussions" target="_blank" rel="noreferrer" data-i18n="footerDiscuss">💬 Discussions</a>
       </div>
       <div class="footer-copy">© 2026 InnoNestX · Built with ❤️ on Cloudflare Workers</div>
     </div>
@@ -1043,7 +1043,52 @@ const adminHtml = `<!doctype html>
         loginFailed: "登录失败",
         loginOk: "登录成功",
         noLogs: "暂无记录",
-        themeToggle: "切换主题"
+        themeToggle: "切换主题",
+        heroTitleLP: "金融与国际热点智能推送平台",
+        heroTagline: "金融与国际热点智能推送平台",
+        heroDesc: "多市场交易日历 · 多渠道实时推送 · 灵活模板配置 · 定时简报发送",
+        starGithub: "⭐ Star on GitHub",
+        submitPR: "🔧 Submit PR",
+        feat1Title: "多平台推送",
+        feat1Desc: "支持飞书、微信公众号、Telegram、WeChat Clawbot 等多种渠道",
+        feat2Title: "定时简报",
+        feat2Desc: "基于 A股/US stock/crypto 交易日历自动发送，不错过任何交易日",
+        feat3Title: "管理后台",
+        feat3Desc: "可视化配置模板、渠道、日历，一键测试发送",
+        feat4Title: "内容预览",
+        feat4Desc: "实时预览推送到各渠道的实际内容，确保万无一失",
+        apiTitle: "API Endpoints",
+        api1Desc: "发送消息到已配置渠道",
+        api2Desc: "健康检查接口",
+        api3Desc: "触发测试推送",
+        api4Desc: "获取推送时间表",
+        deployTitle: "快速部署",
+        step1Title: "Fork 本项目",
+        step1Desc: "Fork github.com/InnoNestX/GlobalPulse 到你的 GitHub 账户",
+        step2Title: "部署到 Cloudflare Workers",
+        step2Desc: "使用 Wrangler CLI 部署，或直接 push 到 GitHub 触发 Pages 部署",
+        step3Title: "配置环境变量",
+        step3Desc: "在 Cloudflare Dashboard 设置 ADMIN_PASSWORD 和各渠道的 WEBHOOK/TOKEN",
+        step4Title: "访问 Admin 后台",
+        step4Desc: "访问 /admin 路径，输入密码登录并配置推送",
+        linkCheckTitle: "链接校验",
+        linkCheckCol1: "",
+        linkCheckCol2: "目标",
+        linkCheckCol3: "状态",
+        linkBug: "🐛 Report Bug",
+        linkPR: "🔧 Submit PR",
+        linkStar: "⭐ Star Repo",
+        linkSponsor: "💖 Sponsor",
+        linkCoffee: "☕ Buy Me a Coffee",
+        linkDiscussions: "💬 Discussions",
+        footerContribute: "Contribute",
+        footerSupport: "Support",
+        footerBug: "🐛 Report Bug",
+        footerPR: "🔧 Submit PR",
+        footerStar: "⭐ Star Repo",
+        footerSponsor: "💖 Sponsor",
+        footerCoffee: "☕ Buy Me a Coffee",
+        footerDiscuss: "💬 Discussions"
       },
       en: {
         feedback: "Bug / request",
@@ -1110,7 +1155,52 @@ const adminHtml = `<!doctype html>
         loginFailed: "Login failed",
         loginOk: "Logged in",
         noLogs: "No logs yet",
-        themeToggle: "Toggle theme"
+        themeToggle: "Toggle theme",
+        heroTitleLP: "AI-Powered Finance and Global News Push Platform",
+        heroTagline: "AI-Powered Finance and Global News Push Platform",
+        heroDesc: "Multi-market trading calendars · Multi-channel real-time push · Flexible template config · Scheduled digest delivery",
+        starGithub: "⭐ Star on GitHub",
+        submitPR: "🔧 Submit PR",
+        feat1Title: "Multi-Platform Push",
+        feat1Desc: "Supports Feishu, WeChat Official Account, Telegram, WeChat Clawbot and more",
+        feat2Title: "Scheduled Digests",
+        feat2Desc: "Auto-sends based on A-share/US stock/crypto trading calendars — never miss a trading day",
+        feat3Title: "Admin Dashboard",
+        feat3Desc: "Visual config for templates, channels, and calendars with one-click test send",
+        feat4Title: "Content Preview",
+        feat4Desc: "Real-time preview of actual content sent to each channel",
+        apiTitle: "API Endpoints",
+        api1Desc: "Send messages to configured channels",
+        api2Desc: "Health check endpoint",
+        api3Desc: "Trigger test push",
+        api4Desc: "Get push schedule",
+        deployTitle: "Quick Deploy",
+        step1Title: "Fork this project",
+        step1Desc: "Fork github.com/InnoNestX/GlobalPulse to your GitHub account",
+        step2Title: "Deploy to Cloudflare Workers",
+        step2Desc: "Deploy via Wrangler CLI, or push to GitHub to trigger Pages deployment",
+        step3Title: "Configure env vars",
+        step3Desc: "Set ADMIN_PASSWORD and channel WEBHOOK/TOKEN in Cloudflare Dashboard",
+        step4Title: "Access Admin panel",
+        step4Desc: "Visit /admin, enter password to login and configure push",
+        linkCheckTitle: "Link Checker",
+        linkCheckCol1: "",
+        linkCheckCol2: "Target",
+        linkCheckCol3: "Status",
+        linkBug: "🐛 Report Bug",
+        linkPR: "🔧 Submit PR",
+        linkStar: "⭐ Star Repo",
+        linkSponsor: "💖 Sponsor",
+        linkCoffee: "☕ Buy Me a Coffee",
+        linkDiscussions: "💬 Discussions",
+        footerContribute: "Contribute",
+        footerSupport: "Support",
+        footerBug: "🐛 Report Bug",
+        footerPR: "🔧 Submit PR",
+        footerStar: "⭐ Star Repo",
+        footerSponsor: "💖 Sponsor",
+        footerCoffee: "☕ Buy Me a Coffee",
+        footerDiscuss: "💬 Discussions"
       }
     };
     const dayLabels = {
@@ -1120,7 +1210,7 @@ const adminHtml = `<!doctype html>
     let state = null;
     let providerStatus = [];
     let password = localStorage.getItem("globalpulse_admin_password") || "";
-    let uiLanguage = localStorage.getItem("globalpulse_ui_language") || "zh";
+    let uiLanguage = localStorage.getItem("globalpulse_ui_language") || "en";
     let theme = "";
 
     const $ = (id) => document.getElementById(id);
@@ -1154,11 +1244,11 @@ const adminHtml = `<!doctype html>
     function applyI18n() {
       document.documentElement.lang = uiLanguage;
       const langBtn = $("langButton");
-      if (langBtn) langBtn.textContent = uiLanguage === "zh" ? "EN" : "中";
+      if (langBtn) langBtn.textContent = uiLanguage === "en" ? "中" : "EN";
+      if (langBtn) langBtn.title = uiLanguage === "en" ? "Switch to 中文" : "Switch to English";
       document.querySelectorAll("[data-i18n]").forEach((node) => {
         node.textContent = t(node.dataset.i18n);
       });
-      if (state) render();
     }
 
     async function api(path, options = {}) {
@@ -1215,6 +1305,7 @@ const adminHtml = `<!doctype html>
       renderProviderSettings();
       renderSchedules();
       renderPreviewSelect();
+      applyI18n();
     }
 
     function renderProviderStatus() {
