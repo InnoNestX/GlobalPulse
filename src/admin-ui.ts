@@ -524,10 +524,10 @@ const adminHtml = `<!doctype html>
     }
     .login-screen {
       display: grid;
-      gap: 20px;
+      gap: 12px;
       min-height: calc(100vh - 150px);
       align-items: start;
-      padding: 8px 0 18px;
+      padding: 4px 0 12px;
     }
     .login-shell {
       display: grid;
@@ -538,7 +538,7 @@ const adminHtml = `<!doctype html>
     .login-info {
       display: grid;
       gap: 14px;
-      min-height: 460px;
+      min-height: 360px;
       align-content: start;
     }
     .login-title {
@@ -746,32 +746,20 @@ const adminHtml = `<!doctype html>
     footer {
       border-top: 1px solid var(--line);
       background: var(--surface);
-      padding: 20px 0 16px;
+      padding: 16px 0 12px;
       margin-top: auto;
     }
     .page-footer {
       width: min(1400px, calc(100vw - 32px));
       margin: 0 auto;
       display: flex;
-      gap: 32px;
-      align-items: flex-start;
-      flex-wrap: wrap;
-    }
-    .page-footer-section {
-      display: grid;
-      gap: 8px;
-    }
-    .page-footer-label {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+      justify-content: center;
     }
     .page-footer-links {
       display: flex;
       gap: 16px;
       flex-wrap: wrap;
+      justify-content: center;
     }
     .page-footer-links a {
       display: inline-flex;
@@ -785,32 +773,18 @@ const adminHtml = `<!doctype html>
     .page-footer-links a:hover { color: var(--accent); }
     .page-footer-copy {
       width: min(1400px, calc(100vw - 32px));
-      margin: 12px auto 0;
+      margin: 10px auto 0;
       text-align: center;
       font-size: 12px;
       color: var(--muted);
-      padding-top: 12px;
+      padding-top: 10px;
       border-top: 1px solid var(--line);
     }
     /* Login panel Contribute+Support footer */
     .contribute-support-footer {
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
       border-top: 1px solid var(--line);
-      padding-top: 12px;
-      margin-top: 6px;
-    }
-    .contribute-support-footer .footer-section {
-      display: grid;
-      gap: 6px;
-    }
-    .footer-section-label {
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+      padding-top: 8px;
+      margin-top: 4px;
     }
     .footer-links {
       display: flex;
@@ -914,19 +888,11 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
             </div>
             <span class="status" id="loginStatus"></span>
             <div class="contribute-support-footer">
-              <div class="footer-section">
-                <span class="footer-section-label" data-i18n="contributeTitle">Contribute</span>
-                <div class="footer-links">
-                  <a class="footer-link" href="https://github.com/InnoNestX/GlobalPulse/issues?q=is%3Aissue+is%3Aopen+label%3Abug" target="_blank" rel="noreferrer">🐛 <span data-i18n="reportBug">Report Bug</span></a>
-                </div>
-              </div>
-              <div class="footer-section">
-                <span class="footer-section-label" data-i18n="supportTitle">Support</span>
-                <div class="footer-links">
-                  <a class="footer-link" href="https://github.com/sponsors/InnoNestX" target="_blank" rel="noreferrer">💖 <span data-i18n="sponsor">Sponsor</span></a>
-                  <a class="footer-link" href="https://www.buymeacoffee.com/xuxuclassmate" target="_blank" rel="noreferrer">☕ <span data-i18n="buyCoffee">Buy Me a Coffee</span></a>
-                  <a class="footer-link" href="https://github.com/InnoNestX/GlobalPulse/discussions" target="_blank" rel="noreferrer">💬 <span data-i18n="discussions">Discussions</span></a>
-                </div>
+              <div class="footer-links">
+                <a class="footer-link" href="https://github.com/InnoNestX/GlobalPulse/issues?q=is%3Aissue+is%3Aopen+label%3Abug" target="_blank" rel="noreferrer">🐛 <span data-i18n="reportBug">Report Bug</span></a>
+                <a class="footer-link" href="https://github.com/sponsors/InnoNestX" target="_blank" rel="noreferrer">💖 <span data-i18n="sponsor">Sponsor</span></a>
+                <a class="footer-link" href="https://www.buymeacoffee.com/xuxuclassmate" target="_blank" rel="noreferrer">☕ <span data-i18n="buyCoffee">Buy Me a Coffee</span></a>
+                <a class="footer-link" href="https://github.com/InnoNestX/GlobalPulse/discussions" target="_blank" rel="noreferrer">💬 <span data-i18n="discussions">Discussions</span></a>
               </div>
             </div>
           </section>
@@ -1128,19 +1094,11 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
 
   <footer>
     <div class="page-footer">
-      <div class="page-footer-section">
-        <span class="page-footer-label" data-i18n="contributeTitle">Contribute</span>
-        <div class="page-footer-links">
-          <a href="https://github.com/InnoNestX/GlobalPulse/issues?q=is%3Aissue+is%3Aopen+label%3Abug" target="_blank" rel="noreferrer">🐛 <span data-i18n="reportBug">Report Bug</span></a>
-        </div>
-      </div>
-      <div class="page-footer-section">
-        <span class="page-footer-label" data-i18n="supportTitle">Support</span>
-        <div class="page-footer-links">
-          <a href="https://github.com/sponsors/InnoNestX" target="_blank" rel="noreferrer">💖 <span data-i18n="sponsor">Sponsor</span></a>
-          <a href="https://www.buymeacoffee.com/xuxuclassmate" target="_blank" rel="noreferrer">☕ <span data-i18n="buyCoffee">Buy Me a Coffee</span></a>
-          <a href="https://github.com/InnoNestX/GlobalPulse/discussions" target="_blank" rel="noreferrer">💬 <span data-i18n="discussions">Discussions</span></a>
-        </div>
+      <div class="page-footer-links">
+        <a href="https://github.com/InnoNestX/GlobalPulse/issues?q=is%3Aissue+is%3Aopen+label%3Abug" target="_blank" rel="noreferrer">🐛 <span data-i18n="reportBug">Report Bug</span></a>
+        <a href="https://github.com/sponsors/InnoNestX" target="_blank" rel="noreferrer">💖 <span data-i18n="sponsor">Sponsor</span></a>
+        <a href="https://www.buymeacoffee.com/xuxuclassmate" target="_blank" rel="noreferrer">☕ <span data-i18n="buyCoffee">Buy Me a Coffee</span></a>
+        <a href="https://github.com/InnoNestX/GlobalPulse/discussions" target="_blank" rel="noreferrer">💬 <span data-i18n="discussions">Discussions</span></a>
       </div>
     </div>
     <div class="page-footer-copy">© 2026 InnoNestX · Built with ❤️ on Cloudflare Workers</div>
