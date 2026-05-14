@@ -918,8 +918,6 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
                 <span class="footer-section-label" data-i18n="contributeTitle">Contribute</span>
                 <div class="footer-links">
                   <a class="footer-link" href="https://github.com/InnoNestX/GlobalPulse/issues?q=is%3Aissue+is%3Aopen+label%3Abug" target="_blank" rel="noreferrer">🐛 <span data-i18n="reportBug">Report Bug</span></a>
-                  <a class="footer-link" href="https://github.com/InnoNestX/GlobalPulse/pulls" target="_blank" rel="noreferrer">🔧 <span data-i18n="submitPR">Submit PR</span></a>
-                  <a class="footer-link" href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noreferrer">⭐ <span data-i18n="starRepo">Star Repo</span></a>
                 </div>
               </div>
               <div class="footer-section">
@@ -1134,8 +1132,6 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         <span class="page-footer-label" data-i18n="contributeTitle">Contribute</span>
         <div class="page-footer-links">
           <a href="https://github.com/InnoNestX/GlobalPulse/issues?q=is%3Aissue+is%3Aopen+label%3Abug" target="_blank" rel="noreferrer">🐛 <span data-i18n="reportBug">Report Bug</span></a>
-          <a href="https://github.com/InnoNestX/GlobalPulse/pulls" target="_blank" rel="noreferrer">🔧 <span data-i18n="submitPR">Submit PR</span></a>
-          <a href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noreferrer">⭐ <span data-i18n="starRepo">Star Repo</span></a>
         </div>
       </div>
       <div class="page-footer-section">
