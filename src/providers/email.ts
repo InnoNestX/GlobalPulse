@@ -185,18 +185,45 @@ function renderMarkdownLikeBody(markdown: string): string {
       continue;
     }
 
-    const ordered = /^\d+\.\s+/.exec(line);
+    const ordered = /^(\d+)\.\s+(.+)$/.exec(line);
     if (ordered) {
-      const items: string[] = [];
+      const items: Array<{ num: number; parts: string[] }> = [];
       while (i < lines.length) {
-        const candidate = (lines[i] ?? "").trim();
-        if (!/^\d+\.\s+/.test(candidate)) break;
-        items.push(candidate.replace(/^\d+\.\s+/, ""));
+        const current = (lines[i] ?? "").trim();
+        const currentMatch = /^(\d+)\.\s+(.+)$/.exec(current);
+        if (!currentMatch) break;
+
+        const num = Number(currentMatch[1]);
+        const parts = [(currentMatch[2] ?? "")];
         i += 1;
+
+        while (i < lines.length) {
+          const nextRaw = lines[i] ?? "";
+          const next = nextRaw.trim();
+          if (!next) {
+            i += 1;
+            if (/^\d+\.\s+/.test((lines[i] ?? "").trim())) {
+              break;
+            }
+            continue;
+          }
+          if (/^\d+\.\s+/.test(next) || /^#{1,3}\s+/.test(next) || /^[-*]\s+/.test(next) || isTableLine(next)) {
+            break;
+          }
+          parts.push(next);
+          i += 1;
+        }
+
+        items.push({ num: Number.isFinite(num) ? num : 1, parts });
       }
+
+      const start = Math.max(1, items[0]?.num ?? 1);
       blocks.push(
-        `<ol style="margin:8px 0 10px 22px;padding:0;">${
-          items.map((item) => `<li style="margin:4px 0;">${renderInline(item)}</li>`).join("")
+        `<ol start="${start}" style="margin:8px 0 10px 22px;padding:0;">${
+          items.map((item) => `<li style="margin:6px 0;">${item.parts.map((part, idx) =>
+            idx === 0
+              ? `${renderInline(part)}`
+              : `<div style="margin-top:4px;color:#cbd5e1;">${renderInline(part)}</div>`).join("")}</li>`).join("")
         }</ol>`
       );
       continue;
