@@ -84,7 +84,7 @@ function buildEffectiveQuery(schedule: PulseSchedule): string {
   if (schedule.reportType === "us_stock") {
     marketQuery = "US stock OR Nasdaq OR S&P 500 OR Dow OR Fed OR earnings";
   } else if (schedule.reportType === "a_share") {
-    marketQuery = "A股 OR 上证 OR 深证 OR 沪深300 OR 央行 OR 政策";
+    marketQuery = "A股 OR 上证 OR 深证 OR 沪深300 OR 北向资金 OR 央行 OR 证监会 OR 板块轮动 OR 中国市场";
   } else if (schedule.reportType === "crypto") {
     marketQuery = "Bitcoin OR Ethereum OR crypto OR ETF OR regulation OR stablecoin";
   } else {
@@ -411,6 +411,8 @@ function selectCatalystItems(schedule: PulseSchedule, items: TopicItem[], now: D
     if (source.includes("reuters") || source.includes("bloomberg") || source.includes("sina") || source.includes("investing")) {
       score += 3;
     }
+    const url = normalizeHttpUrl(item.url) ?? "";
+    score += scoreUrlByReportType(schedule.reportType, text, url);
 
     const publishedAtMs = item.publishedAt ? Date.parse(item.publishedAt) : NaN;
     if (Number.isFinite(publishedAtMs)) {
@@ -420,8 +422,6 @@ function selectCatalystItems(schedule: PulseSchedule, items: TopicItem[], now: D
       else if (ageHours <= 72) score += 2;
       else if (ageHours > 168) score -= 6;
     }
-
-    const url = normalizeHttpUrl(item.url);
     if (!url) {
       score -= 4;
     }
@@ -467,6 +467,34 @@ function selectCatalystItems(schedule: PulseSchedule, items: TopicItem[], now: D
   }
 
   return selected.map((row) => row.item);
+}
+
+function scoreUrlByReportType(reportType: PulseSchedule["reportType"], text: string, url: string): number {
+  if (!url) {
+    return -2;
+  }
+
+  const lowerUrl = url.toLowerCase();
+
+  if (reportType === "a_share") {
+    let score = 0;
+    const cnSignals = ["A股", "上证", "深证", "沪深300", "中证", "北向资金", "证监会", "人民币", "科创板"]
+      .some((entry) => text.includes(entry.toUpperCase()));
+    if (cnSignals) score += 8;
+    if (lowerUrl.includes("/stock/usstock/")) score -= 12;
+    if (lowerUrl.includes("finance.sina.com.cn/stock/") || lowerUrl.includes("eastmoney") || lowerUrl.includes("cs.com.cn")) score += 3;
+    if (["国际", "英国", "欧洲", "美联储", "NASDAQ", "S&P", "DOW"].some((entry) => text.includes(entry.toUpperCase())) && !cnSignals) {
+      score -= 6;
+    }
+    return score;
+  }
+
+  if (reportType === "us_stock") {
+    if (lowerUrl.includes("/stock/usstock/")) return 4;
+    return 0;
+  }
+
+  return 0;
 }
 
 function keywordsByReportType(reportType: PulseSchedule["reportType"], language: PulseSchedule["language"]): string[] {
