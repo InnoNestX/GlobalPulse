@@ -375,8 +375,8 @@ async function buildEnrichedBody(
 }
 
 function selectCatalystItems(schedule: PulseSchedule, items: TopicItem[], now: Date): TopicItem[] {
-  if (items.length <= 6) {
-    return items;
+  if (items.length === 0) {
+    return [];
   }
 
   const focus = dedupeSymbols([...schedule.focusSymbols, ...schedule.positionSymbols]);
@@ -394,15 +394,17 @@ function selectCatalystItems(schedule: PulseSchedule, items: TopicItem[], now: D
     score += symbolHits * 8;
     score += titleSymbolHits * 6;
 
+    const titleKeywordHits = marketKeywords.filter((keyword) => titleText.includes(keyword)).length;
     const keywordHits = marketKeywords.filter((keyword) => text.includes(keyword)).length;
-    score += Math.min(keywordHits, 5) * 2;
+    score += Math.min(keywordHits, 6) * 2;
+    score += Math.min(titleKeywordHits, 4) * 2;
 
     if (item.category === "finance" || item.category === "macro" || item.category === "crypto-sentiment") {
       score += 4;
     } else if (item.category === "news") {
       score += 3;
     } else if (item.category === "international-tech" || item.category === "developer-trend") {
-      score -= symbolHits > 0 ? 1 : 8;
+      score -= symbolHits > 0 ? 4 : 12;
     }
 
     const source = (item.source ?? "").toLowerCase();
@@ -413,9 +415,10 @@ function selectCatalystItems(schedule: PulseSchedule, items: TopicItem[], now: D
     const publishedAtMs = item.publishedAt ? Date.parse(item.publishedAt) : NaN;
     if (Number.isFinite(publishedAtMs)) {
       const ageHours = (nowMs - publishedAtMs) / (1000 * 60 * 60);
-      if (ageHours <= 24) score += 4;
+      if (ageHours <= 18) score += 6;
+      else if (ageHours <= 36) score += 4;
       else if (ageHours <= 72) score += 2;
-      else if (ageHours > 168) score -= 2;
+      else if (ageHours > 168) score -= 6;
     }
 
     const url = normalizeHttpUrl(item.url);
@@ -434,13 +437,36 @@ function selectCatalystItems(schedule: PulseSchedule, items: TopicItem[], now: D
     return a.index - b.index;
   });
 
-  const top = sorted.filter((row) => row.score > -2).slice(0, 6).map((row) => row.item);
+  const relevant = sorted.filter((row) => row.score >= 2);
+  const symbolRelevant = primarySymbols.length > 0
+    ? relevant.filter((row) => primarySymbols.some((symbol) => `${row.item.title}\n${row.item.summary ?? ""}`.toUpperCase().includes(symbol)))
+    : [];
+  const marketRelevant = relevant.filter((row) => {
+    const text = `${row.item.title}\n${row.item.summary ?? ""}`.toUpperCase();
+    return marketKeywords.some((keyword) => text.includes(keyword));
+  });
 
-  if (top.length >= 4) {
-    return top;
+  const selected: typeof sorted = [];
+  const seen = new Set<number>();
+  for (const row of symbolRelevant) {
+    if (selected.length >= 6) break;
+    selected.push(row);
+    seen.add(row.index);
+  }
+  for (const row of marketRelevant) {
+    if (selected.length >= 6) break;
+    if (seen.has(row.index)) continue;
+    selected.push(row);
+    seen.add(row.index);
+  }
+  for (const row of sorted) {
+    if (selected.length >= 6) break;
+    if (seen.has(row.index)) continue;
+    selected.push(row);
+    seen.add(row.index);
   }
 
-  return sorted.slice(0, 6).map((row) => row.item);
+  return selected.map((row) => row.item);
 }
 
 function keywordsByReportType(reportType: PulseSchedule["reportType"], language: PulseSchedule["language"]): string[] {
