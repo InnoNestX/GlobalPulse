@@ -1,6 +1,6 @@
 import type { Env } from "./env";
 import type { PulseSchedule } from "./config";
-import { fetchTopicItems, type TopicItem } from "./sources";
+import { buildGoogleNewsRssUrl, fetchTopicItems, type TopicItem } from "./sources";
 import { renderDigest } from "./template";
 import { getLocalTimeParts } from "./time";
 
@@ -24,7 +24,7 @@ export async function buildScheduleReport(env: Env, schedule: PulseSchedule, now
   const local = getLocalTimeParts(now, schedule.timezone, schedule.language);
   const fetched = await fetchItemsWithFallback(schedule);
   const translatedItems = await maybeTranslateItems(env, fetched.items, schedule.language);
-  const enrichedBody = buildEnrichedBody(schedule, translatedItems, local.label, fetched.sourceUrl);
+  const enrichedBody = await buildEnrichedBody(schedule, translatedItems, local.label, fetched.sourceUrl);
   const actions = buildActions(translatedItems, schedule.language);
 
   return {
@@ -316,10 +316,13 @@ function withOptionalSummary(item: TopicItem, summary: string | undefined): Topi
   };
 }
 
-function buildEnrichedBody(schedule: PulseSchedule, items: TopicItem[], generatedAt: string, sourceUrl: string): {
+async function buildEnrichedBody(schedule: PulseSchedule, items: TopicItem[], generatedAt: string, sourceUrl: string): Promise<{
   title: string;
   body: string;
-} {
+}> {
+  const marketReport = schedule.reportMode === "market"
+    ? await buildMarketReportSection(schedule, items, generatedAt)
+    : "";
   const rendered = renderDigest(schedule, {
     generatedAt,
     timezone: schedule.timezone,
@@ -327,13 +330,420 @@ function buildEnrichedBody(schedule: PulseSchedule, items: TopicItem[], generate
     sourceUrl,
     items,
     format: schedule.outputFormat,
+    marketReport,
   });
   const analysisSection = buildAnalysisSection(schedule, items);
+  const bodyWithMarketReport = marketReport && !schedule.template.includes("{{marketReport}}")
+    ? `${rendered.body}\n\n${marketReport}`
+    : rendered.body;
 
   return {
     title: rendered.title,
-    body: analysisSection ? `${rendered.body}\n\n${analysisSection}` : rendered.body,
+    body: analysisSection ? `${bodyWithMarketReport}\n\n${analysisSection}` : bodyWithMarketReport,
   };
+}
+
+interface QuoteRow {
+  symbol: string;
+  name: string;
+  price: number;
+  change: number;
+  changePercent: number;
+}
+
+async function buildMarketReportSection(schedule: PulseSchedule, items: TopicItem[], generatedAt: string): Promise<string> {
+  if (schedule.language !== "zh") {
+    return "";
+  }
+
+  if (schedule.reportType === "us_stock") {
+    return buildUsStockReport(schedule, items, generatedAt);
+  }
+
+  if (schedule.reportType === "crypto") {
+    return buildCryptoReport(schedule, items, generatedAt);
+  }
+
+  if (schedule.reportType === "a_share") {
+    return buildAShareReport(schedule, items, generatedAt);
+  }
+
+  return "";
+}
+
+async function buildUsStockReport(schedule: PulseSchedule, items: TopicItem[], generatedAt: string): Promise<string> {
+  const benchmarks = await fetchTencentUsQuotes(["SPY", "QQQ", "DIA", "IWM"]);
+  const watchSymbols = dedupeSymbols([
+    ...schedule.focusSymbols,
+    ...schedule.positionSymbols,
+    "TSLA",
+    "NVDA",
+    "MSFT",
+    "AAPL",
+    "GOOGL",
+  ]).slice(0, 12);
+  const watchQuotes = await fetchTencentUsQuotes(watchSymbols);
+  const xSentiment = schedule.moduleSwitches?.x_sentiment
+    ? await fetchXSentimentSummary(schedule, watchSymbols)
+    : [];
+  const topWinners = watchQuotes.filter((row) => Number.isFinite(row.changePercent)).sort((a, b) => b.changePercent - a.changePercent).slice(0, 3);
+  const topLosers = watchQuotes.filter((row) => Number.isFinite(row.changePercent)).sort((a, b) => a.changePercent - b.changePercent).slice(0, 2);
+
+  const lines = [
+    "**美股市场报告生成并推送成功**",
+    "",
+    `📊 **报告摘要 (${generatedAt})**`,
+    "",
+    "| 指数/ETF | 价格 | 涨跌 |",
+    "|---------|------|------|",
+    ...benchmarks.map((row) => `| ${row.symbol} | ${formatUsd(row.price)} | ${formatPctCell(row.changePercent)} |`),
+    "",
+    `**涨幅领先:** ${formatLeaders(topWinners)}`,
+    `**跌幅较大:** ${formatLeaders(topLosers)}`,
+    "",
+    "**技术信号:**",
+    ...buildSimpleTechnicalSignals(benchmarks),
+  ];
+
+  if (schedule.moduleSwitches?.fear_greed) {
+    const fearGreed = readFearGreedItem(items);
+    if (fearGreed) {
+      lines.push(`**📊 恐惧贪婪指数**: ${fearGreed}`);
+    }
+  }
+
+  if (schedule.moduleSwitches?.sentiment) {
+    lines.push(`**💡 综合情绪**: ${buildNewsSentimentLabel(items)}`);
+  }
+
+  if (schedule.moduleSwitches?.macro) {
+    lines.push(`**宏观背景:** ${buildMacroHint(items)}`);
+  }
+
+  lines.push(...buildSessionSection(schedule, generatedAt, watchQuotes, items));
+
+  if (xSentiment.length > 0) {
+    lines.push("", "### X 情绪跟踪", ...xSentiment.map((entry) => `- ${entry}`));
+  }
+
+  return lines.join("\n");
+}
+
+async function buildCryptoReport(schedule: PulseSchedule, items: TopicItem[], generatedAt: string): Promise<string> {
+  const baseSymbols = dedupeSymbols([
+    ...schedule.focusSymbols.map(toCryptoPair),
+    ...schedule.positionSymbols.map(toCryptoPair),
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "DOGEUSDT",
+  ]).slice(0, 14);
+  const quotes = await fetchBinanceQuotes(baseSymbols);
+  const topWinners = quotes.slice().sort((a, b) => b.changePercent - a.changePercent).slice(0, 3);
+  const topLosers = quotes.slice().sort((a, b) => a.changePercent - b.changePercent).slice(0, 3);
+  const xSentiment = schedule.moduleSwitches?.x_sentiment
+    ? await fetchXSentimentSummary(schedule, baseSymbols.map((symbol) => symbol.replace("USDT", "")))
+    : [];
+
+  const lines = [
+    "**加密货币市场报告生成并推送成功**",
+    "",
+    `📊 **报告摘要 (${generatedAt})**`,
+    "",
+    "| 币种 | 价格 | 24h涨跌 |",
+    "|------|------|---------|",
+    ...quotes.slice(0, 6).map((row) => `| ${row.symbol.replace("USDT", "")} | ${formatUsd(row.price)} | ${formatPctCell(row.changePercent)} |`),
+    "",
+    `**涨幅领先:** ${formatLeaders(topWinners)}`,
+    `**跌幅较大:** ${formatLeaders(topLosers)}`,
+  ];
+
+  if (schedule.moduleSwitches?.fear_greed) {
+    const fearGreed = readFearGreedItem(items);
+    if (fearGreed) {
+      lines.push(`**📊 恐惧贪婪指数**: ${fearGreed}`);
+    }
+  }
+
+  lines.push(...buildSessionSection(schedule, generatedAt, quotes, items));
+
+  if (xSentiment.length > 0) {
+    lines.push("", "### X 情绪跟踪", ...xSentiment.map((entry) => `- ${entry}`));
+  }
+
+  return lines.join("\n");
+}
+
+async function buildAShareReport(schedule: PulseSchedule, items: TopicItem[], generatedAt: string): Promise<string> {
+  const indices = await fetchTencentIndexQuotes(["sh000001", "sz399001", "sh000300"]);
+  const watchCodes = dedupeSymbols([
+    ...schedule.focusSymbols,
+    ...schedule.positionSymbols,
+  ]).slice(0, 10).map(normalizeAShareCode).filter(Boolean) as string[];
+  const watchQuotes = watchCodes.length > 0 ? await fetchTencentIndexQuotes(watchCodes) : [];
+
+  const lines = [
+    "**A股市场报告生成并推送成功**",
+    "",
+    `📊 **报告摘要 (${generatedAt})**`,
+    "",
+    "| 指数 | 点位 | 涨跌 |",
+    "|------|------|------|",
+    ...indices.map((row) => `| ${row.name || row.symbol} | ${row.price.toFixed(2)} | ${formatPctCell(row.changePercent)} |`),
+  ];
+
+  if (watchQuotes.length > 0) {
+    lines.push(
+      "",
+      "**关注/持仓跟踪:**",
+      ...watchQuotes.slice(0, 6).map((row) => `- ${row.symbol}: ${row.price.toFixed(2)} (${formatSignedPct(row.changePercent)})`)
+    );
+  }
+
+  lines.push(...buildSessionSection(schedule, generatedAt, watchQuotes, items));
+  return lines.join("\n");
+}
+
+async function fetchTencentUsQuotes(symbols: string[]): Promise<QuoteRow[]> {
+  if (symbols.length === 0) return [];
+  const query = symbols.map((symbol) => `us${symbol.toUpperCase()}`).join(",");
+  const raw = await fetch(`https://qt.gtimg.cn/q=${query}`, {
+    headers: { "User-Agent": "globalpulse-worker/0.1" },
+  }).then((res) => res.text());
+  return parseTencentQuoteLines(raw).map((row) => ({
+    symbol: normalizeUsSymbol(row.code),
+    name: row.name,
+    price: row.price,
+    change: row.change,
+    changePercent: row.changePercent,
+  })).filter((row) => Number.isFinite(row.price));
+}
+
+async function fetchTencentIndexQuotes(symbols: string[]): Promise<QuoteRow[]> {
+  if (symbols.length === 0) return [];
+  const query = symbols.join(",");
+  const raw = await fetch(`https://qt.gtimg.cn/q=${query}`, {
+    headers: { "User-Agent": "globalpulse-worker/0.1" },
+  }).then((res) => res.text());
+  return parseTencentQuoteLines(raw).map((row) => ({
+    symbol: row.code,
+    name: row.name,
+    price: row.price,
+    change: row.change,
+    changePercent: row.changePercent,
+  })).filter((row) => Number.isFinite(row.price));
+}
+
+interface BinanceQuote {
+  symbol: string;
+  price: number;
+  changePercent: number;
+}
+
+async function fetchBinanceQuotes(symbols: string[]): Promise<BinanceQuote[]> {
+  if (symbols.length === 0) return [];
+  const url = new URL("https://api.binance.com/api/v3/ticker/24hr");
+  url.searchParams.set("symbols", JSON.stringify(symbols));
+  const response = await fetch(url.toString(), {
+    headers: { "User-Agent": "globalpulse-worker/0.1" },
+  });
+
+  if (!response.ok) {
+    return [];
+  }
+
+  const payload = await response.json() as Array<{ symbol?: string; lastPrice?: string; priceChangePercent?: string }>;
+  return payload.flatMap((entry) => {
+    const symbol = entry.symbol?.toUpperCase();
+    const price = Number(entry.lastPrice);
+    const changePercent = Number(entry.priceChangePercent);
+    if (!symbol || !Number.isFinite(price) || !Number.isFinite(changePercent)) {
+      return [];
+    }
+    return [{ symbol, price, changePercent }];
+  });
+}
+
+async function fetchXSentimentSummary(schedule: PulseSchedule, symbols: string[]): Promise<string[]> {
+  const top = dedupeSymbols(symbols).slice(0, 4);
+  const summaries: string[] = [];
+
+  for (const symbol of top) {
+    const rss = buildGoogleNewsRssUrl(`site:x.com ${symbol} (stock OR crypto OR market)`, schedule.language);
+    const scoped = await fetchTopicItems(schedule.topicQuery, schedule.language, rss);
+    const texts = scoped.items.slice(0, 6).map((item) => `${item.title}\n${item.summary ?? ""}`).join("\n").toUpperCase();
+    if (!texts.trim()) continue;
+    const score = classifySentiment(texts);
+    const label = score > 0 ? "偏多" : score < 0 ? "偏空" : "中性";
+    summaries.push(`${symbol}: ${label}（样本${scoped.items.length}条）`);
+  }
+
+  return summaries;
+}
+
+function parseTencentQuoteLines(raw: string): Array<{ code: string; name: string; price: number; change: number; changePercent: number }> {
+  return raw.split(";").flatMap((line) => {
+    const match = /v_([^=]+)=\"([^\"]*)\"/.exec(line.trim());
+    if (!match) return [];
+    const code = match[1] || "";
+    const fields = (match[2] || "").split("~");
+    const name = fields[1] ?? code;
+    const price = Number(fields[3]);
+    const change = Number(fields[31]);
+    const changePercent = Number(fields[32]);
+    if (!Number.isFinite(price)) return [];
+    return [{ code, name, price, change: Number.isFinite(change) ? change : 0, changePercent: Number.isFinite(changePercent) ? changePercent : 0 }];
+  });
+}
+
+function normalizeUsSymbol(code: string): string {
+  if (!code.startsWith("us")) return code.toUpperCase();
+  const body = code.slice(2).toUpperCase();
+  return body.split(".")[0] ?? body;
+}
+
+function normalizeAShareCode(code: string): string | undefined {
+  const cleaned = code.trim().toLowerCase();
+  if (!cleaned) return undefined;
+  if (cleaned.startsWith("sh") || cleaned.startsWith("sz")) return cleaned;
+  if (/^\d{6}$/.test(cleaned)) {
+    return cleaned.startsWith("6") ? `sh${cleaned}` : `sz${cleaned}`;
+  }
+  return undefined;
+}
+
+function toCryptoPair(symbol: string): string {
+  const normalized = symbol.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!normalized) return "BTCUSDT";
+  if (normalized.endsWith("USDT")) return normalized;
+  return `${normalized}USDT`;
+}
+
+function dedupeSymbols(symbols: string[]): string[] {
+  return Array.from(new Set(symbols.map((symbol) => symbol.trim().toUpperCase()).filter(Boolean)));
+}
+
+function formatUsd(value: number): string {
+  if (!Number.isFinite(value)) return "N/A";
+  return `$${value.toFixed(value >= 100 ? 2 : 4)}`;
+}
+
+function formatSignedPct(value: number): string {
+  if (!Number.isFinite(value)) return "N/A";
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
+function formatPctCell(value: number): string {
+  if (!Number.isFinite(value)) return "N/A";
+  return `${formatSignedPct(value)} ${value >= 0 ? "🟢" : "🔴"}`;
+}
+
+function formatLeaders(rows: Array<{ symbol: string; changePercent: number }>): string {
+  if (rows.length === 0) return "暂无";
+  return rows.map((row) => `${row.symbol} ${formatSignedPct(row.changePercent)}`).join(", ");
+}
+
+function buildSimpleTechnicalSignals(rows: Array<{ symbol: string; changePercent: number }>): string[] {
+  if (rows.length === 0) {
+    return ["- 数据不足，暂无法判断技术信号"];
+  }
+
+  return rows.map((row) => {
+    const abs = Math.abs(row.changePercent);
+    const signal = abs >= 1.8 ? "HOLD" : row.changePercent >= 0 ? "BUY" : "SELL";
+    return `- ${row.symbol} 波动 ${formatSignedPct(row.changePercent)}，${signal} 信号`;
+  });
+}
+
+function readFearGreedItem(items: TopicItem[]): string | undefined {
+  const fearGreed = items.find((item) => item.category === "crypto-sentiment");
+  if (!fearGreed) return undefined;
+  const score = typeof fearGreed.score === "number" ? fearGreed.score : undefined;
+  const text = fearGreed.title.replace(/^Crypto Fear & Greed Index:\s*/i, "");
+  return score !== undefined ? `${score} — ${text}` : text;
+}
+
+function buildNewsSentimentLabel(items: TopicItem[]): string {
+  const allText = items.map((item) => `${item.title}\n${item.summary ?? ""}`).join("\n").toUpperCase();
+  const positive = countKeywordHits(allText, ["BEAT", "SURGE", "RALLY", "突破", "利好", "超预期", "增长"]);
+  const negative = countKeywordHits(allText, ["MISS", "DROP", "CRASH", "回撤", "利空", "低于预期", "衰退"]);
+  const total = positive + negative + Math.max(items.length - positive - negative, 0);
+  const score = total > 0 ? ((positive - negative) / total) * 100 : 0;
+  const label = score >= 15 ? "🟢 偏多" : score <= -15 ? "🔴 偏空" : "🟡 中性";
+  return `${label} (score=${score.toFixed(1)})`;
+}
+
+function buildMacroHint(items: TopicItem[]): string {
+  const text = items.map((item) => `${item.title}\n${item.summary ?? ""}`).join("\n").toLowerCase();
+  const fed = text.includes("fed") || text.includes("powell") || text.includes("美联储");
+  const cpi = text.includes("cpi") || text.includes("inflation") || text.includes("通胀");
+  const earnings = text.includes("earnings") || text.includes("财报");
+  const parts: string[] = [];
+  if (fed) parts.push("美联储政策仍是核心变量");
+  if (cpi) parts.push("通胀数据主导降息预期");
+  if (earnings) parts.push("财报分化加剧板块轮动");
+  if (parts.length === 0) parts.push("宏观信号中性，等待新数据驱动");
+  return parts.join("，");
+}
+
+function buildSessionSection(schedule: PulseSchedule, generatedAt: string, rows: Array<{ symbol: string; changePercent: number }>, items: TopicItem[]): string[] {
+  const session = resolveMarketSession(schedule, generatedAt);
+  const direction = rows.length > 0
+    ? rows.reduce((sum, row) => sum + row.changePercent, 0) / rows.length
+    : 0;
+  const headline = direction >= 0 ? "偏强震荡" : "偏弱震荡";
+
+  if (session === "pre_open") {
+    return [
+      "",
+      "### 开盘前预期",
+      `- 关注组合预期：${headline}，建议先看量价确认再加仓。`,
+      "- 重点检查：隔夜宏观、期货方向、重点股新闻催化剂。",
+    ];
+  }
+
+  if (session === "post_close") {
+    const risk = classifySentiment(items.map((item) => item.title).join("\n").toUpperCase()) < 0 ? "风险偏高" : "风险可控";
+    return [
+      "",
+      "### 盘后总结",
+      `- 市场节奏：${headline}，${risk}。`,
+      "- 次日计划：保留核心仓位，围绕强势主线做跟踪与回撤应对。",
+    ];
+  }
+
+  return [
+    "",
+    "### 盘中跟踪",
+    `- 当前节奏：${headline}，关注高波动标的分时量能变化。`,
+    "- 执行建议：强势延续看突破，弱势回落看防守位与止损纪律。",
+  ];
+}
+
+function resolveMarketSession(schedule: PulseSchedule, generatedAt: string): PulseSchedule["marketSession"] {
+  if (schedule.marketSession !== "intraday") {
+    return schedule.marketSession;
+  }
+
+  const hhmm = /(\d{1,2}):(\d{2})/.exec(generatedAt);
+  const hour = hhmm ? Number(hhmm[1]) : NaN;
+  if (!Number.isFinite(hour)) {
+    return schedule.marketSession;
+  }
+
+  if (schedule.reportType === "us_stock") {
+    if (hour <= 8) return "post_close";
+    if (hour >= 20 && hour <= 22) return "pre_open";
+    return "intraday";
+  }
+
+  if (schedule.reportType === "a_share") {
+    if (hour <= 10) return "pre_open";
+    if (hour >= 15) return "post_close";
+    return "intraday";
+  }
+
+  return schedule.marketSession;
 }
 
 function buildAnalysisSection(schedule: PulseSchedule, items: TopicItem[]): string {

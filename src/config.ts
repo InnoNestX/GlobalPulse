@@ -8,6 +8,8 @@ export type AppLanguage = "zh" | "en";
 export type OutputFormat = "markdown" | "text" | "json";
 export type TriggerMode = "slots" | "cron";
 export type ReportType = "a_share" | "us_stock" | "crypto" | "daily_hot" | "custom";
+export type ReportMode = "digest" | "market";
+export type MarketSession = "pre_open" | "intraday" | "post_close";
 
 /** All available report modules — each can be toggled on/off independently. */
 export type ReportModule =
@@ -50,6 +52,8 @@ export interface PulseSchedule {
   language: AppLanguage;
   outputFormat: OutputFormat;
   reportType: ReportType;
+  reportMode: ReportMode;
+  marketSession: MarketSession;
   focusSymbols: string[];
   positionSymbols: string[];
   moduleSwitches: ReportModuleSwitches;
@@ -125,6 +129,8 @@ const zhTemplate = [
   "- 时区：{{timezone}}",
   "- 主题：{{topicQuery}}",
   "",
+  "{{marketReport}}",
+  "",
   "{{itemsMarkdown}}",
   "",
   "> 数据来源：{{sourceUrl}}",
@@ -136,6 +142,8 @@ const enTemplate = [
   "- Time: {{generatedAt}}",
   "- Timezone: {{timezone}}",
   "- Focus: {{topicQuery}}",
+  "",
+  "{{marketReport}}",
   "",
   "{{itemsMarkdown}}",
   "",
@@ -166,6 +174,8 @@ export function createDefaultSettings(): AppSettings {
         language: "zh",
         outputFormat: "markdown",
         reportType: "a_share",
+        reportMode: "market",
+        marketSession: "pre_open",
         focusSymbols: [],
         positionSymbols: [],
         emailRecipientIds: [],
@@ -201,6 +211,8 @@ export function createDefaultSettings(): AppSettings {
         language: "en",
         outputFormat: "markdown",
         reportType: "us_stock",
+        reportMode: "market",
+        marketSession: "post_close",
         focusSymbols: [],
         positionSymbols: [],
         emailRecipientIds: [],
@@ -367,6 +379,8 @@ function readSchedules(value: unknown, fallback: PulseSchedule[]): PulseSchedule
       language: readLanguage(entry.language, "zh"),
       outputFormat: readOutputFormat(entry.outputFormat, "markdown"),
       reportType: readReportType(entry.reportType, inferReportType(entry)),
+      reportMode: readReportMode(entry.reportMode),
+      marketSession: readMarketSession(entry.marketSession, inferMarketSession(entry)),
       focusSymbols: readSymbols(entry.focusSymbols),
       positionSymbols: readSymbols(entry.positionSymbols),
       emailRecipientIds: readEmailRecipientIds(entry.emailRecipientIds),
@@ -505,6 +519,16 @@ function inferReportType(entry: Record<string, unknown>): ReportType {
   return "custom";
 }
 
+function inferMarketSession(entry: Record<string, unknown>): MarketSession {
+  const hint = `${typeof entry.id === "string" ? entry.id : ""} ${typeof entry.name === "string" ? entry.name : ""}`.toLowerCase();
+
+  if (hint.includes("pre") || hint.includes("开盘前")) return "pre_open";
+  if (hint.includes("盘中") || hint.includes("intraday") || hint.includes("midday")) return "intraday";
+  if (hint.includes("盘后") || hint.includes("close") || hint.includes("post")) return "post_close";
+
+  return "intraday";
+}
+
 function readString(value: unknown, fallback: string): string {
   if (typeof value !== "string") {
     return fallback;
@@ -517,6 +541,14 @@ function readString(value: unknown, fallback: string): string {
 
 function readLanguage(value: unknown, fallback: AppLanguage): AppLanguage {
   return value === "zh" || value === "en" ? value : fallback;
+}
+
+function readReportMode(value: unknown): ReportMode {
+  return value === "market" || value === "digest" ? value : "market";
+}
+
+function readMarketSession(value: unknown, fallback: MarketSession): MarketSession {
+  return value === "pre_open" || value === "intraday" || value === "post_close" ? value : fallback;
 }
 
 function readOutputFormat(value: unknown, fallback: OutputFormat): OutputFormat {

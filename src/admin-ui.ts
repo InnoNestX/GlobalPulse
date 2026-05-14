@@ -1150,6 +1150,15 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       ["daily_hot", "每日热点"],
       ["custom", "Custom"]
     ];
+    const reportModeOptions = [
+      ["market", "市场报告"],
+      ["digest", "通用简报"]
+    ];
+    const marketSessionOptions = [
+      ["pre_open", "开盘前"],
+      ["intraday", "盘中"],
+      ["post_close", "盘后"]
+    ];
     const slotTemplates = {
       a_share: ["09:00", "13:00", "16:00"],
       us_stock: ["21:30", "23:30", "04:30", "07:30"],
@@ -1201,6 +1210,8 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         scheduleConfigurator: "日报配置器",
         batchBuilder: "批量生成",
         reportType: "日报类型",
+        reportMode: "报告模式",
+        marketSession: "交易阶段",
         customReportName: "自定义名称",
         slotTimes: "时间点（可多选）",
         applySlotTemplate: "套用预置时间",
@@ -1223,7 +1234,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         refreshPreview: "刷新预览",
         previewEmpty: "选择一个时间表后查看预览。",
         template: "全局模板",
-        variables: "变量：{{generatedAt}}, {{timezone}}, {{topicQuery}}, {{sourceUrl}}, {{itemsMarkdown}}, {{itemsText}}, {{itemsJson}}",
+        variables: "变量：{{generatedAt}}, {{timezone}}, {{topicQuery}}, {{sourceUrl}}, {{itemsMarkdown}}, {{itemsText}}, {{itemsJson}}, {{marketReport}}",
         logs: "最近记录",
         refreshLogs: "刷新记录",
         name: "名称",
@@ -1353,6 +1364,8 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         scheduleConfigurator: "Report configurator",
         batchBuilder: "Batch builder",
         reportType: "Report type",
+        reportMode: "Report mode",
+        marketSession: "Market session",
         customReportName: "Custom name",
         slotTimes: "Time slots (multi-select)",
         applySlotTemplate: "Apply preset slots",
@@ -1375,7 +1388,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         refreshPreview: "Refresh preview",
         previewEmpty: "Select a schedule to preview.",
         template: "Global template",
-        variables: "Variables: {{generatedAt}}, {{timezone}}, {{topicQuery}}, {{sourceUrl}}, {{itemsMarkdown}}, {{itemsText}}, {{itemsJson}}",
+        variables: "Variables: {{generatedAt}}, {{timezone}}, {{topicQuery}}, {{sourceUrl}}, {{itemsMarkdown}}, {{itemsText}}, {{itemsJson}}, {{marketReport}}",
         logs: "Recent logs",
         refreshLogs: "Refresh logs",
         name: "Name",
@@ -1743,6 +1756,8 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
           schedule.marketHolidayDates = [];
         }
         schedule.reportType = schedule.reportType || inferReportType(schedule);
+        schedule.reportMode = schedule.reportMode || "market";
+        schedule.marketSession = schedule.marketSession || "intraday";
         schedule.focusSymbols = Array.isArray(schedule.focusSymbols) ? schedule.focusSymbols : parseSymbols(schedule.focusSymbols);
         schedule.positionSymbols = Array.isArray(schedule.positionSymbols) ? schedule.positionSymbols : parseSymbols(schedule.positionSymbols);
         const triggerLabel = schedule.triggerMode === "cron" ? "cron" : schedule.time;
@@ -1767,6 +1782,8 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
           '<div class="cols">' +
           field(t("name"), "name", schedule.name, index) +
           selectField(t("reportType"), "reportType", schedule.reportType, index, reportTypeOptions) +
+          selectField(t("reportMode"), "reportMode", schedule.reportMode, index, reportModeOptions) +
+          selectField(t("marketSession"), "marketSession", schedule.marketSession, index, marketSessionOptions) +
           selectField(t("triggerMode"), "triggerMode", schedule.triggerMode, index, [["slots", t("triggerModeSlots")], ["cron", t("triggerModeCron")]]) +
           field(t("time"), "time", schedule.time, index, "time") +
           field(t("cronExpression"), "cronExpression", schedule.cronExpression, index, "text") +
@@ -1966,6 +1983,8 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         language: state.language,
         outputFormat: state.outputFormat,
         reportType: "a_share",
+        reportMode: "market",
+        marketSession: "intraday",
         focusSymbols: [],
         positionSymbols: [],
         emailRecipientIds: [],
@@ -2013,6 +2032,13 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         daily_hot: "everyday",
         custom: "everyday"
       };
+      const sessionByReport = {
+        a_share: "pre_open",
+        us_stock: "post_close",
+        crypto: "intraday",
+        daily_hot: "intraday",
+        custom: "intraday"
+      };
       const baseName = reportType === "custom" ? (customName || "Custom Report") : reportTypeLabel(reportType);
 
       const defaultModuleSwitches = {
@@ -2043,6 +2069,8 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
           language: state.language,
           outputFormat: state.outputFormat,
           reportType,
+          reportMode: "market",
+          marketSession: sessionByReport[reportType] || "intraday",
           focusSymbols: [],
           positionSymbols: [],
           emailRecipientIds: [],
@@ -2180,7 +2208,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
             schedule.marketHolidayDates = [];
           }
         }
-        if (fieldName === "triggerMode" || fieldName === "reportType" || fieldName === "marketCalendar") {
+        if (fieldName === "triggerMode" || fieldName === "reportType" || fieldName === "marketCalendar" || fieldName === "reportMode") {
           renderSchedules();
         }
       }

@@ -8,6 +8,7 @@ export interface DigestContext {
   sourceUrl: string;
   items: TopicItem[];
   format: OutputFormat;
+  marketReport?: string;
 }
 
 export function renderDigest(schedule: PulseSchedule, context: DigestContext): {
@@ -25,6 +26,7 @@ export function renderDigest(schedule: PulseSchedule, context: DigestContext): {
     itemsMarkdown: renderItemsMarkdown(context.items, schedule.language),
     itemsText: renderItemsText(context.items, schedule.language),
     itemsJson: JSON.stringify(context.items, null, 2),
+    marketReport: context.marketReport ?? "",
   };
   const body = renderByFormat(schedule.template, variables, context.format);
 
