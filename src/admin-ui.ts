@@ -932,7 +932,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
               <input id="passwordInput" type="password" autocomplete="current-password">
             </label>
             <div class="login-actions">
-              <button class="primary" id="loginButton" data-i18n="login">登录</button>
+              <button type="button" class="primary" id="loginButton" data-i18n="login">登录</button>
             </div>
             <span class="status" id="loginStatus"></span>
           </section>
@@ -2243,16 +2243,25 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       return escapeHtml(value);
     }
 
-    $("loginButton").addEventListener("click", login);
-    $("passwordInput").addEventListener("keydown", (event) => {
-      if (event.key === "Enter") login();
+    function bind(id, eventName, handler) {
+      const el = $(id);
+      if (!el) return;
+      el.addEventListener(eventName, handler);
+    }
+
+    bind("loginButton", "click", login);
+    bind("passwordInput", "keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        login();
+      }
     });
-    $("logoutButton").addEventListener("click", () => {
+    bind("logoutButton", "click", () => {
       localStorage.removeItem("globalpulse_admin_password");
       location.reload();
     });
+    bind("themeButton", "click", cycleTheme);
     const themeBtn = $("themeButton");
-    if (themeBtn) themeBtn.addEventListener("click", cycleTheme);
     if (themeBtn) themeBtn.title = t("themeToggle");
     const sidebar = $("sidebar");
     if (sidebar) sidebar.addEventListener("click", (event) => {
@@ -2273,23 +2282,23 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       item.classList.add("active");
       section.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-    $("langButton").addEventListener("click", () => {
+    bind("langButton", "click", () => {
       uiLanguage = uiLanguage === "zh" ? "en" : "zh";
       localStorage.setItem("globalpulse_ui_language", uiLanguage);
       applyI18n();
     });
-    $("saveButton").addEventListener("click", saveSettings);
-    $("refreshButton").addEventListener("click", loadSettings);
-    $("loadLogsButton").addEventListener("click", loadLogs);
-    $("addScheduleButton").addEventListener("click", addSchedule);
-    $("addEmailRecipient").addEventListener("click", addEmailRecipient);
-    $("builderReportType").addEventListener("change", renderSlotBuilder);
-    $("applySlotTemplateButton").addEventListener("click", applySlotTemplate);
-    $("buildSchedulesButton").addEventListener("click", buildSchedulesFromBuilder);
-    $("refreshPreviewButton").addEventListener("click", () => loadPreview().catch((error) => {
+    bind("saveButton", "click", saveSettings);
+    bind("refreshButton", "click", loadSettings);
+    bind("loadLogsButton", "click", loadLogs);
+    bind("addScheduleButton", "click", addSchedule);
+    bind("addEmailRecipient", "click", addEmailRecipient);
+    bind("builderReportType", "change", renderSlotBuilder);
+    bind("applySlotTemplateButton", "click", applySlotTemplate);
+    bind("buildSchedulesButton", "click", buildSchedulesFromBuilder);
+    bind("refreshPreviewButton", "click", () => loadPreview().catch((error) => {
       $("previewStatus").textContent = error.message || "Preview failed";
     }));
-    $("previewScheduleSelect").addEventListener("change", () => loadPreview().catch((error) => {
+    bind("previewScheduleSelect", "change", () => loadPreview().catch((error) => {
       $("previewStatus").textContent = error.message || "Preview failed";
     }));
     document.addEventListener("input", (event) => {
