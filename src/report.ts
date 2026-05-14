@@ -562,7 +562,7 @@ async function fetchBinanceQuotes(symbols: string[]): Promise<BinanceQuote[]> {
     }
 
     const payload = await response.json() as Array<{ symbol?: string; lastPrice?: string; priceChangePercent?: string }>;
-    return payload.flatMap((entry) => {
+    const parsed = payload.flatMap((entry) => {
       const symbol = entry.symbol?.toUpperCase();
       const price = Number(entry.lastPrice);
       const changePercent = Number(entry.priceChangePercent);
@@ -571,6 +571,52 @@ async function fetchBinanceQuotes(symbols: string[]): Promise<BinanceQuote[]> {
       }
       return [{ symbol, price, changePercent }];
     });
+
+    if (parsed.length > 0) {
+      return parsed;
+    }
+
+    return fetchCoinGeckoQuotes(symbols);
+  } catch {
+    return fetchCoinGeckoQuotes(symbols);
+  }
+}
+
+async function fetchCoinGeckoQuotes(symbols: string[]): Promise<BinanceQuote[]> {
+  const map: Record<string, string> = {
+    BTCUSDT: "bitcoin",
+    ETHUSDT: "ethereum",
+    SOLUSDT: "solana",
+    DOGEUSDT: "dogecoin",
+    XRPUSDT: "ripple",
+    BNBUSDT: "binancecoin",
+    ADAUSDT: "cardano",
+  };
+  const ids = symbols.map((symbol) => map[symbol]).filter(Boolean);
+  if (ids.length === 0) return [];
+
+  try {
+    const url = new URL("https://api.coingecko.com/api/v3/simple/price");
+    url.searchParams.set("ids", ids.join(","));
+    url.searchParams.set("vs_currencies", "usd");
+    url.searchParams.set("include_24hr_change", "true");
+    const response = await fetch(url.toString(), {
+      headers: { "User-Agent": "globalpulse-worker/0.1" },
+    });
+    if (!response.ok) return [];
+    const payload = await response.json() as Record<string, { usd?: number; usd_24h_change?: number }>;
+
+    return Object.entries(map).flatMap(([symbol, id]) => {
+      const record = payload[id];
+      if (!record || !Number.isFinite(record.usd) || !Number.isFinite(record.usd_24h_change)) {
+        return [];
+      }
+      return [{
+        symbol,
+        price: Number(record.usd),
+        changePercent: Number(record.usd_24h_change),
+      }];
+    }).filter((row) => symbols.includes(row.symbol));
   } catch {
     return [];
   }
