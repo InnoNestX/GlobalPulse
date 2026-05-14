@@ -533,7 +533,7 @@ const adminHtml = `<!doctype html>
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(340px, 430px);
       gap: 18px;
-      align-items: start;
+      align-items: stretch;
     }
     .login-info {
       display: grid;
@@ -597,14 +597,17 @@ const adminHtml = `<!doctype html>
       background: color-mix(in srgb, var(--surface) 95%, #fff 5%);
       border: 1px solid color-mix(in srgb, var(--line) 80%, var(--accent) 20%);
       box-shadow: 0 20px 44px rgba(7, 19, 36, .24);
-      display: grid;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
       gap: 12px;
-      position: sticky;
-      top: 92px;
+      align-self: stretch;
+      min-height: 100%;
     }
     .login-panel h2 {
       font-size: 18px;
       line-height: 1.2;
+      text-align: center;
     }
     .login-extra-tags {
       display: flex;
