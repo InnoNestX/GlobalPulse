@@ -301,10 +301,38 @@ const adminHtml = `<!doctype html>
       background: var(--surface-2);
       border-radius: 8px;
       padding: 10px;
-      display: flex;
+      display: grid;
+      grid-template-columns: 1fr auto;
       justify-content: space-between;
       gap: 8px;
       align-items: center;
+      cursor: pointer;
+      transition: border-color .15s, box-shadow .15s, background .15s;
+    }
+    .provider-card .provider-title {
+      display: grid;
+      gap: 2px;
+      text-align: left;
+      color: var(--text);
+      font-weight: 760;
+      font-size: 15px;
+    }
+    .provider-card .provider-hint {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .provider-card.configured {
+      border-color: color-mix(in srgb, var(--ok) 40%, var(--line));
+      background: color-mix(in srgb, var(--ok) 9%, var(--surface-2));
+    }
+    .provider-card.unconfigured {
+      border-color: color-mix(in srgb, var(--danger) 40%, var(--line));
+      background: color-mix(in srgb, var(--danger) 8%, var(--surface-2));
+    }
+    .provider-card.active {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
     }
     .badge {
       display: inline-flex;
@@ -318,7 +346,10 @@ const adminHtml = `<!doctype html>
       font-weight: 760;
     }
     .badge.ok { color: var(--ok); }
-    .badge.warn { color: var(--accent-2); }
+    .badge.warn {
+      color: color-mix(in srgb, var(--danger) 80%, #ffcc8a);
+      background: color-mix(in srgb, var(--danger) 10%, var(--chip));
+    }
     .target-list {
       display: grid;
       gap: 8px;
@@ -1130,12 +1161,13 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
   </footer>
 
   <script>
-    const providers = ["feishu", "wechat_official_account", "wechat_clawbot", "telegram"];
+    const providers = ["feishu", "wechat_official_account", "wechat_clawbot", "telegram", "email"];
     const providerLabels = {
       feishu: "Feishu",
       wechat_official_account: "微信公众号",
       wechat_clawbot: "wechat clawbot",
-      telegram: "Telegram"
+      telegram: "Telegram",
+      email: "Email"
     };
     const marketOptions = [
       ["everyday", "Every day"],
@@ -1200,7 +1232,11 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         wechatClawbotWebhookKey: "wechat clawbot Webhook Key",
         telegramBotToken: "Telegram Bot Token",
         telegramChatId: "Telegram Chat ID",
+        brevoApiKey: "BREVO_API_KEY",
+        emailFrom: "EMAIL_FROM（发件人）",
         emailFromOverride: "发件人地址（可选，覆盖全局）",
+        clickToEdit: "点击编辑",
+        clickToSaveAndClose: "再次点击自动保存并收起",
         emailAddressBook: "邮件地址簿",
         addEmailRecipient: "添加",
         removeEmailRecipient: "移除",
@@ -1353,8 +1389,12 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         wechatClawbotWebhookKey: "wechat clawbot webhook key",
         telegramBotToken: "Telegram bot token",
         telegramChatId: "Telegram chat ID",
+        brevoApiKey: "BREVO_API_KEY",
+        emailFrom: "EMAIL_FROM (sender)",
         emailRecipients: "Email recipients (comma-separated)",
         emailFromOverride: "Sender address (optional, overrides global)",
+        clickToEdit: "Click to edit",
+        clickToSaveAndClose: "Click again to save and close",
         emailAddressBook: "Email Address Book",
         addEmailRecipient: "Add",
         removeEmailRecipient: "Remove",
@@ -1482,6 +1522,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
     };
     let state = null;
     let providerStatus = [];
+    let activeProvider = null;
     let password = localStorage.getItem("globalpulse_admin_password") || "";
     let uiLanguage = localStorage.getItem("globalpulse_ui_language") || "en";
     let theme = "";
@@ -1560,6 +1601,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       const body = await api("/api/admin/settings");
       state = body.settings;
       providerStatus = body.providers || [];
+      activeProvider = null;
       $("loginView").classList.add("hidden");
       $("adminView").classList.remove("hidden");
       $("logoutButton").classList.remove("hidden");
@@ -1593,7 +1635,11 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       $("providerStatus").innerHTML = providers.map((provider) => {
         const status = providerStatus.find((entry) => entry.name === provider);
         const ok = status && status.configured;
-        return '<div class="provider-card"><strong>' + providerLabels[provider] + '</strong><span class="badge ' + (ok ? "ok" : "warn") + '">' + (ok ? t("configured") : t("notConfigured")) + '</span></div>';
+        const isActive = activeProvider === provider;
+        return '<button type="button" class="provider-card ' + (ok ? "configured" : "unconfigured") + (isActive ? " active" : "") + '" data-provider-card="' + provider + '">' +
+          '<span class="provider-title">' + escapeHtml(providerLabels[provider]) + '<span class="provider-hint">' + escapeHtml(isActive ? t("clickToSaveAndClose") : t("clickToEdit")) + '</span></span>' +
+          '<span class="badge ' + (ok ? "ok" : "warn") + '">' + (ok ? t("configured") : t("notConfigured")) + '</span>' +
+          '</button>';
       }).join("");
     }
 
@@ -1601,20 +1647,20 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       const el = $("emailProviderStatus");
       if (!el) return;
       const emailConfigured = providerStatus.find((p) => p.name === "email")?.configured ?? false;
-      el.innerHTML = '<div class="provider-config"><h3><span>Resend API</span><span class="badge ' + (emailConfigured ? "ok" : "warn") + '">' + (emailConfigured ? t("configured") : t("notConfigured")) + '</span></h3><p class="muted">' + t("providerHelp") + '</p></div>';
+      el.innerHTML = '<div class="provider-config"><h3><span>Brevo / Resend API</span><span class="badge ' + (emailConfigured ? "ok" : "warn") + '">' + (emailConfigured ? t("configured") : t("notConfigured")) + '</span></h3><p class="muted">' + t("providerHelp") + '</p></div>';
     }
 
     function renderProviderSettings() {
       const values = state.providerSettings || {};
-      const groups = [
-        {
+      const groups = {
+        feishu: {
           name: "Feishu",
           fields: [
-            ["feishuWebhookUrl", t("feishuWebhookUrl"), "url"],
+            ["feishuWebhookUrl", t("feishuWebhookUrl"), "text"],
             ["feishuSigningSecret", t("feishuSigningSecret"), "password"]
           ]
         },
-        {
+        wechat_official_account: {
           name: "微信公众号",
           fields: [
             ["wechatOfficialAppId", t("wechatOfficialAppId"), "password"],
@@ -1622,33 +1668,53 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
             ["wechatOfficialOpenId", t("wechatOfficialOpenId"), "password"]
           ]
         },
-        {
+        wechat_clawbot: {
           name: "wechat clawbot",
           fields: [
-            ["wechatClawbotWebhookUrl", t("wechatClawbotWebhookUrl"), "url"],
+            ["wechatClawbotWebhookUrl", t("wechatClawbotWebhookUrl"), "text"],
             ["wechatClawbotWebhookKey", t("wechatClawbotWebhookKey"), "password"]
           ]
         },
-        {
+        telegram: {
           name: "Telegram",
           fields: [
             ["telegramBotToken", t("telegramBotToken"), "password"],
             ["telegramChatId", t("telegramChatId"), "text"]
           ]
         },
-        {
+        email: {
           name: "Email",
           fields: [
+            ["brevoApiKey", t("brevoApiKey"), "password"],
+            ["emailFrom", t("emailFrom"), "text"],
             ["emailFromOverride", t("emailFromOverride"), "text"]
           ]
         }
-      ];
-      $("providerSettingsForm").innerHTML = groups.map((group) =>
-        '<div class="provider-config"><h3><span>' + group.name + '</span><span class="badge">' + t("providerConfig") + '</span></h3>' +
-        group.fields.map(([key, label, type]) =>
-          '<label>' + label + '<input type="' + type + '" autocomplete="off" spellcheck="false" data-provider-setting="' + key + '" value="' + escapeAttr(values[key] || "") + '"></label>'
-        ).join("") + '</div>'
-      ).join("");
+      };
+
+      if (!activeProvider || !groups[activeProvider]) {
+        $("providerSettingsForm").innerHTML = '<div class="provider-config"><h3><span>' + t("providerConfig") + '</span><span class="badge">' + t("providers") + '</span></h3><p class="muted">' + t("clickToEdit") + '</p></div>';
+        return;
+      }
+
+      const group = groups[activeProvider];
+      $("providerSettingsForm").innerHTML = '<div class="provider-config" data-provider-group="' + activeProvider + '"><h3><span>' + group.name + '</span><span class="badge">' + t("providerConfig") + '</span></h3>' +
+        group.fields.map(([key, label, type]) => renderMaskedProviderField(values, key, label, type)).join("") + '</div>';
+    }
+
+    function renderMaskedProviderField(values, key, label, type) {
+      const raw = String(values[key] || "");
+      const masked = maskProviderValue(raw);
+      const maskedFlag = raw ? "1" : "0";
+      const renderedValue = raw ? masked : "";
+      return '<label>' + label + '<input type="' + type + '" autocomplete="off" spellcheck="false" data-provider-setting="' + key + '" data-masked="' + maskedFlag + '" value="' + escapeAttr(renderedValue) + '"></label>';
+    }
+
+    function maskProviderValue(value) {
+      const trimmed = String(value || "").trim();
+      if (!trimmed) return "";
+      if (trimmed.length <= 4) return "••••";
+      return "••••••" + trimmed.slice(-4);
     }
 
     // ─── Email Address Book ───────────────────────────────────────────────────
@@ -1865,7 +1931,12 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       state.defaultTargets = checkedValues("default");
       state.providerSettings = state.providerSettings || {};
       document.querySelectorAll("[data-provider-setting]").forEach((node) => {
-        state.providerSettings[node.dataset.providerSetting] = node.value;
+        const key = node.dataset.providerSetting;
+        if (!key) return;
+        if (node.dataset.masked === "1") {
+          return;
+        }
+        state.providerSettings[key] = node.value.trim();
       });
       state.schedules.forEach((schedule) => {
         schedule.marketHolidayDates = Array.isArray(schedule.marketHolidayDates) ? schedule.marketHolidayDates : parseDates(schedule.marketHolidayDates);
@@ -1906,6 +1977,47 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
 
     function checkedValues(name) {
       return Array.from(document.querySelectorAll('input[name="' + name + '"]:checked')).map((node) => node.value);
+    }
+
+    function validateActiveProviderSettings() {
+      if (!activeProvider) return { ok: true };
+      const form = document.querySelector('[data-provider-group="' + activeProvider + '"]');
+      if (!form) return { ok: true };
+      const fields = Array.from(form.querySelectorAll("[data-provider-setting]"));
+      for (const node of fields) {
+        const key = node.dataset.providerSetting;
+        if (!key || node.dataset.masked === "1") continue;
+        const value = node.value.trim();
+        if (!value) continue;
+        if (key.toLowerCase().includes("webhookurl") && !/^https?:\/\//i.test(value)) {
+          return { ok: false, message: key + " must start with http:// or https://" };
+        }
+        if ((key === "emailFrom" || key === "emailFromOverride") && (!value.includes("@") || !(/[<>]/.test(value) || /@[^\s]+\.[^\s]+/.test(value)))) {
+          return { ok: false, message: key + " is not a valid email sender format" };
+        }
+      }
+      return { ok: true };
+    }
+
+    async function toggleProviderEditor(provider) {
+      if (!provider) return;
+      if (activeProvider === provider) {
+        const validation = validateActiveProviderSettings();
+        if (!validation.ok) {
+          $("saveStatus").textContent = validation.message || "Invalid provider field";
+          return;
+        }
+        await saveSettings();
+        activeProvider = null;
+        $("saveStatus").textContent = t("saved");
+        renderProviderStatus();
+        renderProviderSettings();
+        return;
+      }
+      activeProvider = provider;
+      $("saveStatus").textContent = "";
+      renderProviderStatus();
+      renderProviderSettings();
     }
 
     async function saveSettings() {
@@ -2184,7 +2296,10 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       const providerSetting = event.target.dataset && event.target.dataset.providerSetting;
       if (providerSetting) {
         state.providerSettings = state.providerSettings || {};
-        state.providerSettings[providerSetting] = event.target.value;
+        if (event.target.dataset.masked === "1") {
+          return;
+        }
+        state.providerSettings[providerSetting] = event.target.value.trim();
         return;
       }
       const fieldName = event.target.dataset && event.target.dataset.field;
@@ -2213,7 +2328,24 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         }
       }
     });
+    document.addEventListener("focusin", (event) => {
+      const providerSetting = event.target.dataset && event.target.dataset.providerSetting;
+      if (!providerSetting) return;
+      if (event.target.dataset.masked === "1") {
+        event.target.value = "";
+        event.target.dataset.masked = "0";
+      }
+    });
     document.addEventListener("click", async (event) => {
+      const providerCard = event.target.closest("[data-provider-card]");
+      if (providerCard) {
+        try {
+          await toggleProviderEditor(providerCard.dataset.providerCard);
+        } catch (error) {
+          $("saveStatus").textContent = error.message || "Failed";
+        }
+        return;
+      }
       const action = event.target.dataset && event.target.dataset.action;
       const index = Number(event.target.dataset && event.target.dataset.index);
       if (action === "remove") {
