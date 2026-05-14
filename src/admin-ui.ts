@@ -664,8 +664,8 @@ const adminHtml = `<!doctype html>
     }
     .login-reference {
       display: grid;
-      gap: 10px;
-      padding: 14px 16px;
+      gap: 6px;
+      padding: 8px 12px;
       border-radius: 10px;
       background: var(--surface);
       border: 1px solid var(--line);
@@ -749,59 +749,13 @@ const adminHtml = `<!doctype html>
       padding: 16px 0 12px;
       margin-top: auto;
     }
-    .page-footer {
-      width: min(1400px, calc(100vw - 32px));
-      margin: 0 auto;
-      display: flex;
-      justify-content: center;
-    }
-    .page-footer-links {
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-    .page-footer-links a {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 13px;
-      color: var(--text);
-      text-decoration: none;
-      transition: color 0.15s;
-    }
-    .page-footer-links a:hover { color: var(--accent); }
     .page-footer-copy {
       width: min(1400px, calc(100vw - 32px));
-      margin: 10px auto 0;
+      margin: 0 auto;
       text-align: center;
       font-size: 12px;
       color: var(--muted);
-      padding-top: 10px;
-      border-top: 1px solid var(--line);
     }
-    /* Login panel Contribute+Support footer */
-    .contribute-support-footer {
-      border-top: 1px solid var(--line);
-      padding-top: 8px;
-      margin-top: 4px;
-    }
-    .footer-links {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .footer-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-      font-size: 12px;
-      color: var(--text);
-      text-decoration: none;
-      opacity: 0.8;
-      transition: opacity 0.15s, color 0.15s;
-    }
-    .footer-link:hover { opacity: 1; color: var(--accent); }
     .sidebar-toggle { display: none; }
     @media (max-width: 1024px) {
       .sidebar-toggle { display: flex; }
@@ -887,14 +841,6 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
               <button class="primary" id="loginButton" data-i18n="login">登录</button>
             </div>
             <span class="status" id="loginStatus"></span>
-            <div class="contribute-support-footer">
-              <div class="footer-links">
-                <a class="footer-link" href="https://github.com/InnoNestX/GlobalPulse/issues?q=is%3Aissue+is%3Aopen+label%3Abug" target="_blank" rel="noreferrer">🐛 <span data-i18n="reportBug">Report Bug</span></a>
-                <a class="footer-link" href="https://github.com/sponsors/InnoNestX" target="_blank" rel="noreferrer">💖 <span data-i18n="sponsor">Sponsor</span></a>
-                <a class="footer-link" href="https://www.buymeacoffee.com/xuxuclassmate" target="_blank" rel="noreferrer">☕ <span data-i18n="buyCoffee">Buy Me a Coffee</span></a>
-                <a class="footer-link" href="https://github.com/InnoNestX/GlobalPulse/discussions" target="_blank" rel="noreferrer">💬 <span data-i18n="discussions">Discussions</span></a>
-              </div>
-            </div>
           </section>
         </div>
 
@@ -1093,15 +1039,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
   </main>
 
   <footer>
-    <div class="page-footer">
-      <div class="page-footer-links">
-        <a href="https://github.com/InnoNestX/GlobalPulse/issues?q=is%3Aissue+is%3Aopen+label%3Abug" target="_blank" rel="noreferrer">🐛 <span data-i18n="reportBug">Report Bug</span></a>
-        <a href="https://github.com/sponsors/InnoNestX" target="_blank" rel="noreferrer">💖 <span data-i18n="sponsor">Sponsor</span></a>
-        <a href="https://www.buymeacoffee.com/xuxuclassmate" target="_blank" rel="noreferrer">☕ <span data-i18n="buyCoffee">Buy Me a Coffee</span></a>
-        <a href="https://github.com/InnoNestX/GlobalPulse/discussions" target="_blank" rel="noreferrer">💬 <span data-i18n="discussions">Discussions</span></a>
-      </div>
-    </div>
-    <div class="page-footer-copy">© 2026 InnoNestX · Built with ❤️ on Cloudflare Workers</div>
+    <div class="page-footer-copy">© 2026 InnoNestX · Made with ❤️ for the community</div>
   </footer>
 
   <script>
