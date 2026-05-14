@@ -576,9 +576,13 @@ async function fetchBinanceQuotes(symbols: string[]): Promise<BinanceQuote[]> {
       return parsed;
     }
 
-    return fetchCoinGeckoQuotes(symbols);
+    const cg = await fetchCoinGeckoQuotes(symbols);
+    if (cg.length > 0) return cg;
+    return fetchAlternativeTickerQuotes(symbols);
   } catch {
-    return fetchCoinGeckoQuotes(symbols);
+    const cg = await fetchCoinGeckoQuotes(symbols);
+    if (cg.length > 0) return cg;
+    return fetchAlternativeTickerQuotes(symbols);
   }
 }
 
@@ -617,6 +621,53 @@ async function fetchCoinGeckoQuotes(symbols: string[]): Promise<BinanceQuote[]> 
         changePercent: Number(record.usd_24h_change),
       }];
     }).filter((row) => symbols.includes(row.symbol));
+  } catch {
+    return [];
+  }
+}
+
+async function fetchAlternativeTickerQuotes(symbols: string[]): Promise<BinanceQuote[]> {
+  try {
+    const response = await fetch("https://api.alternative.me/v2/ticker/?limit=200&convert=USD", {
+      headers: { "User-Agent": "globalpulse-worker/0.1" },
+    });
+    if (!response.ok) return [];
+    const payload = await response.json() as {
+      data?: Record<string, {
+        symbol?: string;
+        quotes?: {
+          USD?: {
+            price?: number;
+            percentage_change_24h?: number;
+          };
+        };
+      }>;
+    };
+
+    if (!payload.data) return [];
+    const lookup = new Map<string, { price: number; changePercent: number }>();
+
+    for (const entry of Object.values(payload.data)) {
+      const symbol = entry.symbol?.toUpperCase();
+      const usd = entry.quotes?.USD;
+      if (!symbol || !usd || !Number.isFinite(usd.price) || !Number.isFinite(usd.percentage_change_24h)) {
+        continue;
+      }
+      lookup.set(`${symbol}USDT`, {
+        price: Number(usd.price),
+        changePercent: Number(usd.percentage_change_24h),
+      });
+    }
+
+    return symbols.flatMap((symbol) => {
+      const row = lookup.get(symbol);
+      if (!row) return [];
+      return [{
+        symbol,
+        price: row.price,
+        changePercent: row.changePercent,
+      }];
+    });
   } catch {
     return [];
   }
