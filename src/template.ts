@@ -15,6 +15,7 @@ export function renderDigest(schedule: PulseSchedule, context: DigestContext): {
   title: string;
   body: string;
 } {
+  const displayItems = context.items.slice(0, 6);
   const title = schedule.language === "zh"
     ? `GlobalPulse：${schedule.name}`
     : `GlobalPulse: ${schedule.name}`;
@@ -23,9 +24,9 @@ export function renderDigest(schedule: PulseSchedule, context: DigestContext): {
     timezone: context.timezone,
     topicQuery: context.topicQuery,
     sourceUrl: context.sourceUrl,
-    itemsMarkdown: renderItemsMarkdown(context.items, schedule.language),
-    itemsText: renderItemsText(context.items, schedule.language),
-    itemsJson: JSON.stringify(context.items, null, 2),
+    itemsMarkdown: renderItemsMarkdown(displayItems, schedule.language),
+    itemsText: renderItemsText(displayItems, schedule.language),
+    itemsJson: JSON.stringify(displayItems, null, 2),
     marketReport: context.marketReport ?? "",
   };
   const body = renderByFormat(schedule.template, variables, context.format);
