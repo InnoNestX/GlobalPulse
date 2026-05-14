@@ -747,15 +747,74 @@ const adminHtml = `<!doctype html>
     footer {
       border-top: 1px solid var(--line);
       background: var(--surface);
-      padding: 16px 0 12px;
+      padding: 24px 0 14px;
       margin-top: auto;
     }
-    .page-footer-copy {
+    .page-footer {
       width: min(1400px, calc(100vw - 32px));
       margin: 0 auto;
+      display: grid;
+      gap: 16px;
+    }
+    .page-footer-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 28px;
+      padding-bottom: 8px;
+    }
+    .page-footer-col {
+      display: grid;
+      gap: 10px;
+    }
+    .page-footer-col h3 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+    .page-footer-desc {
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+    .page-footer-links {
+      display: grid;
+      gap: 8px;
+    }
+    .page-footer-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 600;
+      transition: color .15s;
+    }
+    .page-footer-link:hover {
+      color: var(--text);
+    }
+    .page-footer-bottom {
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+    }
+    .page-footer-copy {
+      margin: 0;
       text-align: center;
       font-size: 12px;
       color: var(--muted);
+    }
+    @media (max-width: 780px) {
+      .page-footer-grid {
+        grid-template-columns: 1fr;
+        gap: 18px;
+      }
+      .page-footer-col h3 {
+        font-size: 24px;
+      }
+      .page-footer-desc {
+        font-size: 14px;
+      }
     }
     .sidebar-toggle { display: none; }
     @media (max-width: 1024px) {
@@ -1040,7 +1099,31 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
   </main>
 
   <footer>
-    <div class="page-footer-copy">© 2026 InnoNestX · Made with ❤️ for the community</div>
+    <div class="page-footer">
+      <div class="page-footer-grid">
+        <section class="page-footer-col">
+          <h3 data-i18n="footerContribute">Contribute</h3>
+          <p class="page-footer-desc" data-i18n="footerContributeDesc">Found a bug or want to contribute?</p>
+          <div class="page-footer-links">
+            <a class="page-footer-link" href="https://github.com/InnoNestX/GlobalPulse/issues/new/choose" target="_blank" rel="noreferrer" data-i18n="footerBug">🐛 Report Bug</a>
+            <a class="page-footer-link" href="https://github.com/InnoNestX/GlobalPulse/pulls" target="_blank" rel="noreferrer" data-i18n="footerPR">🔧 Submit PR</a>
+            <a class="page-footer-link" href="https://github.com/InnoNestX/GlobalPulse/stargazers" target="_blank" rel="noreferrer" data-i18n="footerStar">⭐ Star Repo</a>
+          </div>
+        </section>
+        <section class="page-footer-col">
+          <h3 data-i18n="footerSupport">Support</h3>
+          <p class="page-footer-desc" data-i18n="footerSupportDesc">Enjoy the API? Support the project!</p>
+          <div class="page-footer-links">
+            <a class="page-footer-link" href="https://github.com/sponsors/InnoNestX" target="_blank" rel="noreferrer" data-i18n="footerSponsor">💖 Sponsor</a>
+            <a class="page-footer-link" href="https://github.com/sponsors/InnoNestX" target="_blank" rel="noreferrer" data-i18n="footerCoffee">☕ Buy Me a Coffee</a>
+            <a class="page-footer-link" href="https://github.com/InnoNestX/GlobalPulse/discussions" target="_blank" rel="noreferrer" data-i18n="footerDiscuss">💬 Discussions</a>
+          </div>
+        </section>
+      </div>
+      <div class="page-footer-bottom">
+        <p class="page-footer-copy" data-i18n="footerCopy">© 2026 InnoNestX · Made with ❤️ for the community</p>
+      </div>
+    </div>
   </footer>
 
   <script>
@@ -1202,13 +1285,16 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         step4Title: "访问 Admin 后台",
         step4Desc: "访问 /admin 路径，输入密码登录并配置推送",
         footerContribute: "Contribute",
+        footerContributeDesc: "发现 Bug 或想参与贡献？",
         footerSupport: "Support",
+        footerSupportDesc: "喜欢这个 API？欢迎支持项目！",
         footerBug: "🐛 Report Bug",
         footerPR: "🔧 Submit PR",
         footerStar: "⭐ Star Repo",
         footerSponsor: "💖 Sponsor",
         footerCoffee: "☕ Buy Me a Coffee",
         footerDiscuss: "💬 Discussions",
+        footerCopy: "© 2026 InnoNestX · Made with ❤️ for the community",
         moduleNews: "新闻",
         moduleUsMarket: "美股",
         moduleAShare: "A股",
@@ -1351,13 +1437,16 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         step4Title: "Access Admin panel",
         step4Desc: "Visit /admin, enter password to login and configure push",
         footerContribute: "Contribute",
+        footerContributeDesc: "Found a bug or want to contribute?",
         footerSupport: "Support",
+        footerSupportDesc: "Enjoy the API? Support the project!",
         footerBug: "🐛 Report Bug",
         footerPR: "🔧 Submit PR",
         footerStar: "⭐ Star Repo",
         footerSponsor: "💖 Sponsor",
         footerCoffee: "☕ Buy Me a Coffee",
         footerDiscuss: "💬 Discussions",
+        footerCopy: "© 2026 InnoNestX · Made with ❤️ for the community",
         moduleNews: "News",
         moduleUsMarket: "US Market",
         moduleAShare: "A-Share",
