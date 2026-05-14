@@ -86,6 +86,8 @@ export interface ProviderSettings {
   wechatClawbotWebhookKey?: string;
   telegramBotToken?: string;
   telegramChatId?: string;
+  brevoApiKey?: string;
+  emailFrom?: string;
   /** Optional override of the global EMAIL_FROM for this user */
   emailFromOverride?: string;
 }
@@ -332,6 +334,8 @@ export function mergeProviderSettings(env: Env, settings: AppSettings): Env {
   assignIfMissing(deliveryEnv, "WECHAT_CLAWBOT_WEBHOOK_KEY", providerSettings.wechatClawbotWebhookKey);
   assignIfMissing(deliveryEnv, "TELEGRAM_BOT_TOKEN", providerSettings.telegramBotToken);
   assignIfMissing(deliveryEnv, "TELEGRAM_CHAT_ID", providerSettings.telegramChatId);
+  assignIfMissing(deliveryEnv, "BREVO_API_KEY", providerSettings.brevoApiKey);
+  assignIfMissing(deliveryEnv, "EMAIL_FROM", providerSettings.emailFrom);
 
   if (providerSettings.emailFromOverride) {
     (deliveryEnv as Env & { EMAIL_FROM_OVERRIDE?: string }).EMAIL_FROM_OVERRIDE = providerSettings.emailFromOverride;
@@ -472,6 +476,8 @@ function readProviderSettings(value: unknown): ProviderSettings {
     ...readOptionalSecret(value.wechatClawbotWebhookKey ?? value.wechatAiAgentWebhookKey, "wechatClawbotWebhookKey", 260),
     ...readOptionalSecret(value.telegramBotToken, "telegramBotToken", 260),
     ...readOptionalSecret(value.telegramChatId, "telegramChatId", 180),
+    ...readOptionalSecret(value.brevoApiKey, "brevoApiKey", 260),
+    ...readOptionalSecret(value.emailFrom, "emailFrom", 200),
     ...readOptionalSecret(value.emailFromOverride, "emailFromOverride", 200),
   };
 }

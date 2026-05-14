@@ -4,10 +4,11 @@ import { formatPlainText } from "./format";
 import { jsonApiResponseToResult, providerNotConfigured } from "./shared";
 
 /**
- * Email provider via Resend (https://resend.com)
+ * Email provider via Brevo (preferred) or Resend (fallback compatibility)
  *
  * Required env vars:
- *   RESEND_API_KEY       — Resend API key (free at resend.com)
+ *   BREVO_API_KEY        — Brevo API key (preferred)
+ *   RESEND_API_KEY       — Resend API key (fallback compatibility)
  *   EMAIL_FROM           — Sender address, e.g. "GlobalPulse <hello@yourdomain.com>"
  *   EMAIL_TO             — Default recipient (overridden by providerSettings.emailRecipients if set)
  *
@@ -20,10 +21,10 @@ import { jsonApiResponseToResult, providerNotConfigured } from "./shared";
 export const emailProvider: Provider = {
   name: "email",
   isConfigured(env) {
-    return Boolean(env.RESEND_API_KEY) && Boolean(env.EMAIL_FROM);
+    return Boolean(env.EMAIL_FROM) && (Boolean(env.BREVO_API_KEY) || Boolean(env.RESEND_API_KEY));
   },
   async send(message, env) {
-    if (!env.RESEND_API_KEY || !env.EMAIL_FROM) {
+    if (!env.EMAIL_FROM || (!env.BREVO_API_KEY && !env.RESEND_API_KEY)) {
       return providerNotConfigured("email");
     }
 
@@ -66,13 +67,39 @@ export const emailProvider: Provider = {
 
     // Build HTML email body — markdown-ish rendering
     const htmlBody = buildHtmlEmail(message.title, message.body);
+    const plainTextBody = formatPlainText(message);
+
+    if (env.BREVO_API_KEY) {
+      const sender = parseSender(fromAddress);
+      const payload = {
+        sender,
+        to: toAddresses.map((email) => ({ email })),
+        subject: message.title,
+        htmlContent: htmlBody,
+        textContent: plainTextBody,
+        tags: message.tags?.slice(0, 10) ?? [],
+      };
+
+      const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "api-key": env.BREVO_API_KEY,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      return jsonApiResponseToResult("email", response, (body) => {
+        return Boolean(body.messageId || body.messageIds);
+      });
+    }
 
     const payload = {
       from: fromAddress,
       to: toAddresses,
       subject: message.title,
       html: htmlBody,
-      text: formatPlainText(message),
+      text: plainTextBody,
       tags: message.tags?.slice(0, 5) ?? [],
     };
 
@@ -91,6 +118,17 @@ export const emailProvider: Provider = {
     });
   },
 };
+
+function parseSender(input: string): { email: string; name?: string } {
+  const trimmed = input.trim();
+  const match = /^(.*?)<([^>]+)>$/.exec(trimmed);
+  if (!match) {
+    return { email: trimmed };
+  }
+  const name = match[1].trim().replace(/^"|"$/g, "");
+  const email = match[2].trim();
+  return name ? { email, name } : { email };
+}
 
 function buildHtmlEmail(title: string, body: string): string {
   // Convert markdown-like body to basic HTML

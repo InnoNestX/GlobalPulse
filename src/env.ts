@@ -17,6 +17,7 @@ export interface Env {
   WECHAT_AI_AGENT_WEBHOOK_KEY?: string;
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_CHAT_ID?: string;
+  BREVO_API_KEY?: string;
   RESEND_API_KEY?: string;
   EMAIL_FROM?: string;
   EMAIL_TO?: string;
