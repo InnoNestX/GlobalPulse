@@ -46,8 +46,9 @@ async function fetchItemsWithFallback(schedule: PulseSchedule): Promise<{
   sourceUrl: string;
   items: TopicItem[];
 }> {
+  const effectiveQuery = buildEffectiveQuery(schedule);
   try {
-    const topicData = await fetchTopicItems(schedule.topicQuery, schedule.language, schedule.sourceUrl);
+    const topicData = await fetchTopicItems(effectiveQuery, schedule.language, schedule.sourceUrl);
 
     if (!topicData.items.length) {
       throw new Error("all live sources returned empty items");
@@ -72,6 +73,29 @@ async function fetchItemsWithFallback(schedule: PulseSchedule): Promise<{
       items: fallbackItems,
     };
   }
+}
+
+function buildEffectiveQuery(schedule: PulseSchedule): string {
+  const symbols = dedupeSymbols([...schedule.focusSymbols, ...schedule.positionSymbols]).slice(0, 5);
+  const symbolQuery = symbols.join(" OR ");
+  const base = schedule.topicQuery.trim();
+
+  let marketQuery = "";
+  if (schedule.reportType === "us_stock") {
+    marketQuery = "US stock OR Nasdaq OR S&P 500 OR Dow OR Fed OR earnings";
+  } else if (schedule.reportType === "a_share") {
+    marketQuery = "A股 OR 上证 OR 深证 OR 沪深300 OR 央行 OR 政策";
+  } else if (schedule.reportType === "crypto") {
+    marketQuery = "Bitcoin OR Ethereum OR crypto OR ETF OR regulation OR stablecoin";
+  } else {
+    marketQuery = "global market OR macro OR policy";
+  }
+
+  const merged = symbolQuery
+    ? `${base} (${marketQuery}) (${symbolQuery})`
+    : `${base} (${marketQuery})`;
+
+  return merged.slice(0, 300);
 }
 
 async function maybeTranslateItems(env: Env, items: TopicItem[], language: PulseSchedule["language"]): Promise<TopicItem[]> {
