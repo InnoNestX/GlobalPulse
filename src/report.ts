@@ -546,7 +546,14 @@ async function buildMarketReportSection(schedule: PulseSchedule, items: TopicIte
 
 async function buildUsStockReport(schedule: PulseSchedule, items: TopicItem[], generatedAt: string): Promise<string> {
   const benchmarks = await fetchTencentUsQuotes(["SPY", "QQQ", "DIA", "IWM"]);
+  const marketUniverse = dedupeSymbols([
+    "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "BRK.B", "JPM", "V",
+    "LLY", "UNH", "XOM", "WMT", "MA", "ORCL", "AVGO", "HD", "COST", "NFLX",
+    "KO", "PEP", "BAC", "CSCO", "CRM", "ABBV", "AMD", "ADBE", "MCD", "TMO",
+    "INTC", "QCOM", "TXN", "DIS", "PFE", "NKE", "CMCSA", "GE", "CAT", "GS",
+  ]);
   const watchSymbols = dedupeSymbols([
+    ...marketUniverse,
     ...schedule.focusSymbols,
     ...schedule.positionSymbols,
     "TSLA",
@@ -595,6 +602,7 @@ async function buildUsStockReport(schedule: PulseSchedule, items: TopicItem[], g
     lines.push(`**宏观背景:** ${buildMacroHint(items)}`);
   }
 
+  lines.push(...buildZeroMoveSection(watchQuotes, schedule.focusSymbols, schedule.positionSymbols, "us_stock"));
   lines.push(...buildSessionSection(schedule, generatedAt, watchQuotes, items));
   lines.push(...buildSummarySection("us_stock", marketSentiment, topWinners, topLosers, items));
 
@@ -649,6 +657,10 @@ async function buildCryptoReport(schedule: PulseSchedule, items: TopicItem[], ge
     }
   }
 
+  lines.push(...buildZeroMoveSection(quotes.map((row) => ({
+    symbol: row.symbol.replace("USDT", ""),
+    changePercent: row.changePercent,
+  })), schedule.focusSymbols, schedule.positionSymbols, "crypto"));
   lines.push(...buildSessionSection(schedule, generatedAt, quotes, items));
   lines.push(...buildSummarySection("crypto", marketSentiment, topWinners, topLosers, items));
 
@@ -661,10 +673,17 @@ async function buildCryptoReport(schedule: PulseSchedule, items: TopicItem[], ge
 
 async function buildAShareReport(schedule: PulseSchedule, items: TopicItem[], generatedAt: string): Promise<string> {
   const indices = await fetchTencentIndexQuotes(["sh000001", "sz399001", "sh000300"]);
+  const marketUniverse = [
+    "sh600519", "sz000858", "sh601318", "sh600036", "sz300750",
+    "sh601166", "sh601398", "sh600030", "sz002594", "sh688981",
+    "sh600276", "sz000333", "sh601012", "sh601899", "sz000651",
+    "sh600887", "sz300059", "sh600900", "sz002415", "sh600309",
+  ];
   const watchCodes = dedupeSymbols([
+    ...marketUniverse,
     ...schedule.focusSymbols,
     ...schedule.positionSymbols,
-  ]).slice(0, 10).map(normalizeAShareCode).filter(Boolean) as string[];
+  ]).slice(0, 40).map(normalizeAShareCode).filter(Boolean) as string[];
   const watchQuotes = watchCodes.length > 0 ? await fetchTencentIndexQuotes(watchCodes) : [];
   const momentumRows = watchQuotes.length > 0 ? watchQuotes : indices;
   const topWinners = momentumRows.filter((row) => Number.isFinite(row.changePercent)).slice().sort((a, b) => b.changePercent - a.changePercent).slice(0, 3);
@@ -699,6 +718,7 @@ async function buildAShareReport(schedule: PulseSchedule, items: TopicItem[], ge
     );
   }
 
+  lines.push(...buildZeroMoveSection(watchQuotes, schedule.focusSymbols, schedule.positionSymbols, "a_share"));
   lines.push(...buildSessionSection(schedule, generatedAt, watchQuotes, items));
   lines.push(...buildSummarySection("a_share", marketSentiment, topWinners, topLosers, items));
   return lines.join("\n");
@@ -999,6 +1019,62 @@ function buildSimpleTechnicalSignals(rows: Array<{ symbol: string; changePercent
     const signal = abs >= 1.8 ? "HOLD" : row.changePercent >= 0 ? "BUY" : "SELL";
     return `- ${row.symbol} 波动 ${formatSignedPct(row.changePercent)}，${signal} 信号`;
   });
+}
+
+function buildZeroMoveSection(
+  rows: Array<{ symbol: string; changePercent: number }>,
+  focusSymbols: string[],
+  positionSymbols: string[],
+  reportType: ReportTypeForSummary,
+): string[] {
+  const normalizedRows = rows
+    .map((row) => ({
+      symbol: normalizeSymbolForCompare(row.symbol, reportType),
+      rawSymbol: row.symbol,
+      changePercent: row.changePercent,
+    }))
+    .filter((row) => row.symbol && Number.isFinite(row.changePercent));
+  const flatRows = normalizedRows.filter((row) => isFlatChange(row.changePercent));
+  const flatSet = new Set(flatRows.map((row) => row.symbol));
+
+  const normalizeInputSymbol = (symbol: string) => normalizeSymbolForCompare(symbol, reportType);
+  const marketFlat = flatRows.slice(0, 10).map((row) => displaySymbol(row.rawSymbol, reportType));
+  const focusFlat = dedupeSymbols(focusSymbols).map(normalizeInputSymbol).filter((symbol) => flatSet.has(symbol));
+  const positionFlat = dedupeSymbols(positionSymbols).map(normalizeInputSymbol).filter((symbol) => flatSet.has(symbol));
+
+  return [
+    "",
+    "**零涨零跌监控:**",
+    `- 市场监控池：${marketFlat.length > 0 ? marketFlat.join("、") : "无"}`,
+    `- 特别关注：${focusFlat.length > 0 ? focusFlat.join("、") : "无"}`,
+    `- 持仓：${positionFlat.length > 0 ? positionFlat.join("、") : "无"}`,
+  ];
+}
+
+function isFlatChange(changePercent: number): boolean {
+  return Number.isFinite(changePercent) && Math.abs(changePercent) < 0.01;
+}
+
+function normalizeSymbolForCompare(symbol: string, reportType: ReportTypeForSummary): string {
+  const upper = symbol.trim().toUpperCase().replace(/\s+/g, "");
+  if (!upper) return "";
+  if (reportType === "us_stock") {
+    return upper.replace(/^US/, "").split(".")[0] ?? upper;
+  }
+  if (reportType === "crypto") {
+    return upper.replace(/USDT$/, "");
+  }
+  return normalizeAShareCode(symbol)?.toUpperCase() ?? upper;
+}
+
+function displaySymbol(symbol: string, reportType: ReportTypeForSummary): string {
+  if (reportType === "a_share") {
+    return resolveAShareDisplayName(symbol);
+  }
+  if (reportType === "crypto") {
+    return symbol.toUpperCase().replace(/USDT$/, "");
+  }
+  return symbol.toUpperCase().replace(/^US/, "").split(".")[0] ?? symbol.toUpperCase();
 }
 
 type ReportTypeForSummary = "us_stock" | "a_share" | "crypto";
