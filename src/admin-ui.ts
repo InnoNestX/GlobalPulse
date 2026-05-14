@@ -606,6 +606,35 @@ const adminHtml = `<!doctype html>
       font-size: 18px;
       line-height: 1.2;
     }
+    .login-extra-tags {
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 2px;
+    }
+    .tag-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: opacity 0.15s;
+    }
+    .tag-chip:hover { opacity: 0.8; }
+    .bug-tag {
+      background: color-mix(in srgb, #ef4444 12%, transparent);
+      color: #ef4444;
+      border: 1px solid color-mix(in srgb, #ef4444 30%, transparent);
+    }
+    .sponsor-tag {
+      background: color-mix(in srgb, #f97316 12%, transparent);
+      color: #f97316;
+      border: 1px solid color-mix(in srgb, #f97316 30%, transparent);
+    }
     .login-brand-stack {
       display: grid;
       justify-items: center;
@@ -713,56 +742,92 @@ const adminHtml = `<!doctype html>
       background: var(--line);
       margin: 6px 0;
     }
-    /* Footer */
+    /* Page-level footer */
     footer {
       border-top: 1px solid var(--line);
       background: var(--surface);
-      padding: 24px 0;
-      margin-top: 20px;
+      padding: 20px 0 16px;
+      margin-top: auto;
     }
-    .footer-inner {
+    .page-footer {
       width: min(1400px, calc(100vw - 32px));
       margin: 0 auto;
-      display: grid;
-      grid-template-columns: auto auto;
+      display: flex;
       gap: 32px;
-      align-items: start;
+      align-items: flex-start;
       flex-wrap: wrap;
     }
-    .footer-brand { display: flex; align-items: center; gap: 10px; }
-    .footer-brand-logo {
-      width: 28px;
-      height: 28px;
-      border-radius: 6px;
-      border: 1px solid var(--line);
-      object-fit: cover;
+    .page-footer-section {
+      display: grid;
+      gap: 8px;
     }
-    .footer-section { display: grid; gap: 8px; }
-    .footer-section h4 {
-      margin: 0;
+    .page-footer-label {
       font-size: 12px;
-      font-weight: 760;
+      font-weight: 700;
       color: var(--muted);
       text-transform: uppercase;
-      letter-spacing: .5px;
+      letter-spacing: 0.5px;
     }
-    .footer-section a {
+    .page-footer-links {
       display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .page-footer-links a {
+      display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 4px;
       font-size: 13px;
       color: var(--text);
-      padding: 3px 0;
+      text-decoration: none;
+      transition: color 0.15s;
     }
-    .footer-section a:hover { color: var(--accent); }
-    .footer-copy {
+    .page-footer-links a:hover { color: var(--accent); }
+    .page-footer-copy {
+      width: min(1400px, calc(100vw - 32px));
+      margin: 12px auto 0;
       text-align: center;
       font-size: 12px;
       color: var(--muted);
-      padding-top: 16px;
+      padding-top: 12px;
       border-top: 1px solid var(--line);
-      grid-column: 1 / -1;
     }
+    /* Login panel Contribute+Support footer */
+    .contribute-support-footer {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+      margin-top: 6px;
+    }
+    .contribute-support-footer .footer-section {
+      display: grid;
+      gap: 6px;
+    }
+    .footer-section-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .footer-links {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .footer-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 12px;
+      color: var(--text);
+      text-decoration: none;
+      opacity: 0.8;
+      transition: opacity 0.15s, color 0.15s;
+    }
+    .footer-link:hover { opacity: 1; color: var(--accent); }
     .sidebar-toggle { display: none; }
     @media (max-width: 1024px) {
       .sidebar-toggle { display: flex; }
@@ -848,6 +913,24 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
               <button class="primary" id="loginButton" data-i18n="login">登录</button>
             </div>
             <span class="status" id="loginStatus"></span>
+            <div class="contribute-support-footer">
+              <div class="footer-section">
+                <span class="footer-section-label" data-i18n="contributeTitle">Contribute</span>
+                <div class="footer-links">
+                  <a class="footer-link" href="https://github.com/InnoNestX/GlobalPulse/issues?q=is%3Aissue+is%3Aopen+label%3Abug" target="_blank" rel="noreferrer">🐛 <span data-i18n="reportBug">Report Bug</span></a>
+                  <a class="footer-link" href="https://github.com/InnoNestX/GlobalPulse/pulls" target="_blank" rel="noreferrer">🔧 <span data-i18n="submitPR">Submit PR</span></a>
+                  <a class="footer-link" href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noreferrer">⭐ <span data-i18n="starRepo">Star Repo</span></a>
+                </div>
+              </div>
+              <div class="footer-section">
+                <span class="footer-section-label" data-i18n="supportTitle">Support</span>
+                <div class="footer-links">
+                  <a class="footer-link" href="https://github.com/sponsors/InnoNestX" target="_blank" rel="noreferrer">💖 <span data-i18n="sponsor">Sponsor</span></a>
+                  <a class="footer-link" href="https://www.buymeacoffee.com/xuxuclassmate" target="_blank" rel="noreferrer">☕ <span data-i18n="buyCoffee">Buy Me a Coffee</span></a>
+                  <a class="footer-link" href="https://github.com/InnoNestX/GlobalPulse/discussions" target="_blank" rel="noreferrer">💬 <span data-i18n="discussions">Discussions</span></a>
+                </div>
+              </div>
+            </div>
           </section>
         </div>
 
@@ -1046,21 +1129,25 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
   </main>
 
   <footer>
-    <div class="footer-inner">
-      <div class="footer-section">
-        <h4 data-i18n="footerContribute">Contribute</h4>
-        <a href="https://github.com/InnoNestX/GlobalPulse/issues" target="_blank" rel="noreferrer" data-i18n="footerBug">🐛 Report Bug</a>
-        <a href="https://github.com/InnoNestX/GlobalPulse/pulls" target="_blank" rel="noreferrer" data-i18n="footerPR">🔧 Submit PR</a>
-        <a href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noreferrer" data-i18n="footerStar">⭐ Star Repo</a>
+    <div class="page-footer">
+      <div class="page-footer-section">
+        <span class="page-footer-label" data-i18n="contributeTitle">Contribute</span>
+        <div class="page-footer-links">
+          <a href="https://github.com/InnoNestX/GlobalPulse/issues?q=is%3Aissue+is%3Aopen+label%3Abug" target="_blank" rel="noreferrer">🐛 <span data-i18n="reportBug">Report Bug</span></a>
+          <a href="https://github.com/InnoNestX/GlobalPulse/pulls" target="_blank" rel="noreferrer">🔧 <span data-i18n="submitPR">Submit PR</span></a>
+          <a href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noreferrer">⭐ <span data-i18n="starRepo">Star Repo</span></a>
+        </div>
       </div>
-      <div class="footer-section">
-        <h4 data-i18n="footerSupport">Support</h4>
-        <a href="https://github.com/sponsors/InnoNestX" target="_blank" rel="noreferrer" data-i18n="footerSponsor">💖 Sponsor</a>
-        <a href="https://buymeacoffee.com/xuxuclassmate" target="_blank" rel="noreferrer" data-i18n="footerCoffee">☕ Buy Me a Coffee</a>
-        <a href="https://github.com/InnoNestX/GlobalPulse/discussions" target="_blank" rel="noreferrer" data-i18n="footerDiscuss">💬 Discussions</a>
+      <div class="page-footer-section">
+        <span class="page-footer-label" data-i18n="supportTitle">Support</span>
+        <div class="page-footer-links">
+          <a href="https://github.com/sponsors/InnoNestX" target="_blank" rel="noreferrer">💖 <span data-i18n="sponsor">Sponsor</span></a>
+          <a href="https://www.buymeacoffee.com/xuxuclassmate" target="_blank" rel="noreferrer">☕ <span data-i18n="buyCoffee">Buy Me a Coffee</span></a>
+          <a href="https://github.com/InnoNestX/GlobalPulse/discussions" target="_blank" rel="noreferrer">💬 <span data-i18n="discussions">Discussions</span></a>
+        </div>
       </div>
-      <div class="footer-copy">© 2026 InnoNestX · Built with ❤️ on Cloudflare Workers</div>
     </div>
+    <div class="page-footer-copy">© 2026 InnoNestX · Built with ❤️ on Cloudflare Workers</div>
   </footer>
 
   <script>
@@ -1190,6 +1277,15 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         heroDesc: "多市场交易日历 · 多渠道实时推送 · 灵活模板配置 · 定时简报发送",
         starGithub: "⭐ Star on GitHub",
         submitPR: "🔧 Submit PR",
+        bugLabel: "Bug",
+        sponsorLabel: "请我喝咖啡",
+        contributeTitle: "Contribute",
+        reportBug: "Report Bug",
+        starRepo: "Star Repo",
+        supportTitle: "Support",
+        sponsor: "Sponsor",
+        buyCoffee: "Buy Me a Coffee",
+        discussions: "Discussions",
         feat1Title: "多平台推送",
         feat1Desc: "支持飞书、微信公众号、Telegram、WeChat Clawbot 等多种渠道",
         feat2Title: "定时简报",
@@ -1330,6 +1426,15 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         heroDesc: "Multi-market trading calendars · Multi-channel real-time push · Flexible template config · Scheduled digest delivery",
         starGithub: "⭐ Star on GitHub",
         submitPR: "🔧 Submit PR",
+        bugLabel: "Bug",
+        sponsorLabel: "Buy me a coffee",
+        contributeTitle: "Contribute",
+        reportBug: "Report Bug",
+        starRepo: "Star Repo",
+        supportTitle: "Support",
+        sponsor: "Sponsor",
+        buyCoffee: "Buy Me a Coffee",
+        discussions: "Discussions",
         feat1Title: "Multi-Platform Push",
         feat1Desc: "Supports Feishu, WeChat Official Account, Telegram, WeChat Clawbot and more",
         feat2Title: "Scheduled Digests",
@@ -1383,7 +1488,11 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
     let uiLanguage = localStorage.getItem("globalpulse_ui_language") || "en";
     let theme = "";
 
-    const $ = (id) => document.getElementById(id);
+    const $ = (id) => {
+      const el = document.getElementById(id);
+      if (!el) console.warn("[admin-ui] Element not found:", id);
+      return el;
+    };
 
     function t(key) {
       return (dict[uiLanguage] && dict[uiLanguage][key]) || dict.zh[key] || key;
@@ -1398,7 +1507,8 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       }
       document.documentElement.dataset.theme = theme;
       const icon = theme === "dark" ? "🌙" : theme === "light" ? "☀️" : "💻";
-      $("themeButton").textContent = icon;
+      const themeBtn = $("themeButton");
+      if (themeBtn) themeBtn.textContent = icon;
     }
 
     function cycleTheme() {
@@ -2017,9 +2127,11 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       localStorage.removeItem("globalpulse_admin_password");
       location.reload();
     });
-    $("themeButton").addEventListener("click", cycleTheme);
-    $("themeButton").title = t("themeToggle");
-    $("#sidebar").addEventListener("click", (event) => {
+    const themeBtn = $("themeButton");
+    if (themeBtn) themeBtn.addEventListener("click", cycleTheme);
+    if (themeBtn) themeBtn.title = t("themeToggle");
+    const sidebar = $("sidebar");
+    if (sidebar) sidebar.addEventListener("click", (event) => {
       const item = event.target.closest(".sidebar-item");
       if (!item || !item.dataset.section) return;
       const sectionId = "section-" + item.dataset.section;
@@ -2103,11 +2215,25 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       }
     });
 
-    applyTheme();
-    applyI18n();
-    if (password) {
-      $("passwordInput").value = password;
-      loadSettings().catch(() => localStorage.removeItem("globalpulse_admin_password"));
+    // ── Global error handlers ──────────────────────────────────
+    window.addEventListener("error", (event) => {
+      console.error("[GlobalPulse]", event.error);
+    });
+    window.addEventListener("unhandledrejection", (event) => {
+      console.error("[GlobalPulse] Unhandled rejection:", event.reason);
+    });
+
+    // ── Bootstrap ─────────────────────────────────────────────
+    try {
+      applyTheme();
+      applyI18n();
+      if (password) {
+        const pwdInput = $("passwordInput");
+        if (pwdInput) pwdInput.value = password;
+        loadSettings().catch(() => localStorage.removeItem("globalpulse_admin_password"));
+      }
+    } catch (err) {
+      console.error("[GlobalPulse] Init error:", err);
     }
   </script>
 </body>
