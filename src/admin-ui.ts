@@ -932,7 +932,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
               <input id="passwordInput" type="password" autocomplete="current-password">
             </label>
             <div class="login-actions">
-              <button type="button" class="primary" id="loginButton" data-i18n="login">登录</button>
+              <button type="button" class="primary" id="loginButton" onclick="window.__gpLogin && window.__gpLogin()" data-i18n="login">登录</button>
             </div>
             <span class="status" id="loginStatus"></span>
           </section>
@@ -1585,7 +1585,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
     }
 
     async function login() {
-      password = $("passwordInput").value;
+      password = $("passwordInput").value.trim();
       $("loginStatus").textContent = "";
       try {
         await api("/api/admin/login", { method: "POST", body: JSON.stringify({ password }) });
@@ -1593,9 +1593,11 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         $("loginStatus").textContent = t("loginOk");
         await loadSettings();
       } catch (error) {
-        $("loginStatus").textContent = t("loginFailed");
+        const reason = (error && error.message) ? error.message : t("loginFailed");
+        $("loginStatus").textContent = t("loginFailed") + " (" + reason + ")";
       }
     }
+    window.__gpLogin = login;
 
     async function loadSettings() {
       const body = await api("/api/admin/settings");
