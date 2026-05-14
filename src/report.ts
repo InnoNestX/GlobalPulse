@@ -561,6 +561,7 @@ async function buildUsStockReport(schedule: PulseSchedule, items: TopicItem[], g
     : [];
   const topWinners = watchQuotes.filter((row) => Number.isFinite(row.changePercent)).sort((a, b) => b.changePercent - a.changePercent).slice(0, 3);
   const topLosers = watchQuotes.filter((row) => Number.isFinite(row.changePercent)).sort((a, b) => a.changePercent - b.changePercent).slice(0, 2);
+  const marketSentiment = buildMarketSentiment(watchQuotes.length > 0 ? watchQuotes : benchmarks, items, "us_stock");
 
   const lines = [
     "**美股市场报告生成并推送成功**",
@@ -588,12 +589,14 @@ async function buildUsStockReport(schedule: PulseSchedule, items: TopicItem[], g
   if (schedule.moduleSwitches?.sentiment) {
     lines.push(`**💡 综合情绪**: ${buildNewsSentimentLabel(items)}`);
   }
+  lines.push(`**市场情绪:** ${marketSentiment.stance} (置信度${marketSentiment.confidence}%)，${marketSentiment.commentary}`);
 
   if (schedule.moduleSwitches?.macro) {
     lines.push(`**宏观背景:** ${buildMacroHint(items)}`);
   }
 
   lines.push(...buildSessionSection(schedule, generatedAt, watchQuotes, items));
+  lines.push(...buildSummarySection("us_stock", marketSentiment, topWinners, topLosers, items));
 
   if (xSentiment.length > 0) {
     lines.push("", "### X 情绪跟踪", ...xSentiment.map((entry) => `- ${entry}`));
@@ -614,6 +617,7 @@ async function buildCryptoReport(schedule: PulseSchedule, items: TopicItem[], ge
   const quotes = await fetchBinanceQuotes(baseSymbols);
   const topWinners = quotes.slice().sort((a, b) => b.changePercent - a.changePercent).slice(0, 3);
   const topLosers = quotes.slice().sort((a, b) => a.changePercent - b.changePercent).slice(0, 3);
+  const marketSentiment = buildMarketSentiment(quotes, items, "crypto");
   const xSentiment = schedule.moduleSwitches?.x_sentiment
     ? await fetchXSentimentSummary(schedule, baseSymbols.map((symbol) => symbol.replace("USDT", "")))
     : [];
@@ -629,6 +633,13 @@ async function buildCryptoReport(schedule: PulseSchedule, items: TopicItem[], ge
     "",
     `**涨幅领先:** ${formatLeaders(topWinners)}`,
     `**跌幅较大:** ${formatLeaders(topLosers)}`,
+    "",
+    "**技术信号:**",
+    ...buildSimpleTechnicalSignals(quotes.slice(0, 4).map((row) => ({
+      symbol: row.symbol.replace("USDT", ""),
+      changePercent: row.changePercent,
+    }))),
+    `**市场情绪:** ${marketSentiment.stance} (置信度${marketSentiment.confidence}%)，${marketSentiment.commentary}`,
   ];
 
   if (schedule.moduleSwitches?.fear_greed) {
@@ -639,6 +650,7 @@ async function buildCryptoReport(schedule: PulseSchedule, items: TopicItem[], ge
   }
 
   lines.push(...buildSessionSection(schedule, generatedAt, quotes, items));
+  lines.push(...buildSummarySection("crypto", marketSentiment, topWinners, topLosers, items));
 
   if (xSentiment.length > 0) {
     lines.push("", "### X 情绪跟踪", ...xSentiment.map((entry) => `- ${entry}`));
@@ -654,6 +666,10 @@ async function buildAShareReport(schedule: PulseSchedule, items: TopicItem[], ge
     ...schedule.positionSymbols,
   ]).slice(0, 10).map(normalizeAShareCode).filter(Boolean) as string[];
   const watchQuotes = watchCodes.length > 0 ? await fetchTencentIndexQuotes(watchCodes) : [];
+  const momentumRows = watchQuotes.length > 0 ? watchQuotes : indices;
+  const topWinners = momentumRows.filter((row) => Number.isFinite(row.changePercent)).slice().sort((a, b) => b.changePercent - a.changePercent).slice(0, 3);
+  const topLosers = momentumRows.filter((row) => Number.isFinite(row.changePercent)).slice().sort((a, b) => a.changePercent - b.changePercent).slice(0, 3);
+  const marketSentiment = buildMarketSentiment(momentumRows, items, "a_share");
 
   const lines = [
     "**A股市场报告生成并推送成功**",
@@ -663,6 +679,16 @@ async function buildAShareReport(schedule: PulseSchedule, items: TopicItem[], ge
     "| 指数 | 点位 | 涨跌 |",
     "|------|------|------|",
     ...indices.map((row) => `| ${resolveAShareDisplayName(row.symbol, row.name)} | ${row.price.toFixed(2)} | ${formatPctCell(row.changePercent)} |`),
+    "",
+    `**涨幅领先:** ${formatNamedLeaders(topWinners)}`,
+    `**跌幅较大:** ${formatNamedLeaders(topLosers)}`,
+    "",
+    "**技术信号:**",
+    ...buildSimpleTechnicalSignals(indices.map((row) => ({
+      symbol: resolveAShareDisplayName(row.symbol, row.name),
+      changePercent: row.changePercent,
+    }))),
+    `**市场情绪:** ${marketSentiment.stance} (置信度${marketSentiment.confidence}%)，${marketSentiment.commentary}`,
   ];
 
   if (watchQuotes.length > 0) {
@@ -674,6 +700,7 @@ async function buildAShareReport(schedule: PulseSchedule, items: TopicItem[], ge
   }
 
   lines.push(...buildSessionSection(schedule, generatedAt, watchQuotes, items));
+  lines.push(...buildSummarySection("a_share", marketSentiment, topWinners, topLosers, items));
   return lines.join("\n");
 }
 
@@ -957,6 +984,11 @@ function formatLeaders(rows: Array<{ symbol: string; changePercent: number }>): 
   return rows.map((row) => `${row.symbol} ${formatSignedPct(row.changePercent)}`).join(", ");
 }
 
+function formatNamedLeaders(rows: Array<{ symbol: string; name?: string; changePercent: number }>): string {
+  if (rows.length === 0) return "暂无";
+  return rows.map((row) => `${resolveAShareDisplayName(row.symbol, row.name)} ${formatSignedPct(row.changePercent)}`).join(", ");
+}
+
 function buildSimpleTechnicalSignals(rows: Array<{ symbol: string; changePercent: number }>): string[] {
   if (rows.length === 0) {
     return ["- 数据不足，暂无法判断技术信号"];
@@ -967,6 +999,68 @@ function buildSimpleTechnicalSignals(rows: Array<{ symbol: string; changePercent
     const signal = abs >= 1.8 ? "HOLD" : row.changePercent >= 0 ? "BUY" : "SELL";
     return `- ${row.symbol} 波动 ${formatSignedPct(row.changePercent)}，${signal} 信号`;
   });
+}
+
+type ReportTypeForSummary = "us_stock" | "a_share" | "crypto";
+
+function buildMarketSentiment(
+  rows: Array<{ changePercent: number }>,
+  items: TopicItem[],
+  reportType: ReportTypeForSummary,
+): { stance: "看多" | "看空" | "中性"; confidence: number; commentary: string } {
+  const validRows = rows.filter((row) => Number.isFinite(row.changePercent));
+  const avgChange = validRows.length > 0
+    ? validRows.reduce((sum, row) => sum + row.changePercent, 0) / validRows.length
+    : 0;
+  const upCount = validRows.filter((row) => row.changePercent > 0).length;
+  const downCount = validRows.filter((row) => row.changePercent < 0).length;
+  const breadth = validRows.length > 0 ? (upCount - downCount) / validRows.length : 0;
+  const sentimentScore = classifySentiment(items.map((item) => `${item.title}\n${item.summary ?? ""}`.toUpperCase()).join("\n"));
+
+  const score = (avgChange * 8) + (breadth * 35) + (sentimentScore * 20);
+  const confidence = clamp(Math.round(42 + Math.abs(score) * 0.65 + Math.min(validRows.length, 8) * 1.5), 35, 92);
+  const stance: "看多" | "看空" | "中性" = score > 12 ? "看多" : score < -12 ? "看空" : "中性";
+  const volatility = Math.abs(avgChange) >= 1.6 ? "波动放大" : "波动可控";
+  const trend = avgChange >= 0.8 ? "上行动能较强" : avgChange <= -0.8 ? "下行动能占优" : "方向仍在博弈";
+  const riskBias = reportType === "crypto" ? "注意仓位与止损纪律" : "建议控制追高节奏";
+
+  return {
+    stance,
+    confidence,
+    commentary: `${trend}，${volatility}，${riskBias}`,
+  };
+}
+
+function buildSummarySection(
+  reportType: ReportTypeForSummary,
+  sentiment: { stance: "看多" | "看空" | "中性"; confidence: number; commentary: string },
+  winners: Array<{ symbol: string; changePercent: number }>,
+  losers: Array<{ symbol: string; changePercent: number }>,
+  items: TopicItem[],
+): string[] {
+  const fearGreed = readFearGreedItem(items);
+  const strongest = winners[0];
+  const weakest = losers[0];
+  const movers = strongest || weakest
+    ? `领涨/领跌线索：${strongest ? `${strongest.symbol} ${formatSignedPct(strongest.changePercent)}` : "暂无"}；${weakest ? `${weakest.symbol} ${formatSignedPct(weakest.changePercent)}` : "暂无"}。`
+    : "领涨/领跌线索暂不充分。";
+  const riskHint = sentiment.stance === "看多"
+    ? "可关注回踩后的顺势机会，避免高位追涨。"
+    : sentiment.stance === "看空"
+      ? "优先防守与仓位管理，等待风险释放后再评估。"
+      : "维持均衡配置，等待明确信号后再扩大仓位。";
+  const fgHint = fearGreed ? `恐惧贪婪指数参考：${fearGreed}。` : "";
+  const marketLabel = reportType === "crypto" ? "加密市场" : reportType === "a_share" ? "A股市场" : "美股市场";
+
+  return [
+    "",
+    "### 📝 小结",
+    `${marketLabel}当前偏${sentiment.stance}，置信度${sentiment.confidence}%。${movers}${fgHint} ${riskHint}`.replace(/\s+/g, " ").trim(),
+  ];
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
 function readFearGreedItem(items: TopicItem[]): string | undefined {
@@ -1202,11 +1296,22 @@ function buildSymbolSummary(items: TopicItem[], symbols: string[], mode: "focus"
         : negative > positive
           ? "偏利空"
           : "中性";
+    const directionalScore = positive - negative;
+    const view = hitCount === 0
+      ? "中性"
+      : directionalScore > 0
+        ? "看多"
+        : directionalScore < 0
+          ? "看空"
+          : "中性";
+    const confidence = hitCount === 0
+      ? 36
+      : clamp(Math.round(48 + Math.abs(directionalScore) * 14 + Math.min(hitCount, 4) * 6), 40, 90);
     const opportunity = hitCount === 0 ? "机会信号弱" : (positive >= negative ? "机会信号中等" : "机会信号偏弱");
     const risk = hitCount === 0 ? "风险未知" : (negative > 0 ? "风险因子偏高" : "风险因子可控");
     const correlation = hitCount >= 3 ? "高" : hitCount >= 1 ? "中" : "低";
 
-    return `${prefix} ${symbol}：命中 ${hitCount} 条（${refsText}），主叙事 ${narrative}，机会 ${opportunity}，风险 ${risk}，相关性 ${correlation}`;
+    return `${prefix} ${symbol}：观点 ${view}（置信度 ${confidence}%），命中 ${hitCount} 条（${refsText}），主叙事 ${narrative}，机会 ${opportunity}，风险 ${risk}，相关性 ${correlation}`;
   });
 }
 
