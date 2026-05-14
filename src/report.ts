@@ -544,20 +544,60 @@ async function buildMarketReportSection(schedule: PulseSchedule, items: TopicIte
   return "";
 }
 
+const US_MARKET_LAYER_POOL = [
+  // Broad index and style ETFs.
+  "SPY", "QQQ", "DIA", "IWM", "VTI", "VOO",
+  // Sector ETFs.
+  "XLK", "XLF", "XLE", "XLI", "XLV", "XLY", "XLP", "XLU", "XLB", "XLRE", "XLC", "SMH",
+  // Core mega caps and leaders.
+  "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "BRK.B", "JPM", "V",
+  "MA", "UNH", "LLY", "XOM", "AVGO", "COST", "WMT", "HD", "ORCL", "CRM",
+  // AI / semis / internet / cyclicals.
+  "AMD", "INTC", "QCOM", "TSM", "ASML", "MU", "NFLX", "ADBE", "UBER", "PDD",
+  "BABA", "NIO", "PLTR", "SNOW", "COIN", "MSTR", "BA", "CAT", "GS", "BAC",
+];
+
+const A_SHARE_MARKET_LAYER_POOL = [
+  // Core indices and style proxies.
+  "sh000001", "sz399001", "sh000300", "sz399006", "sh000905", "sh000852",
+  // High-liquidity large caps.
+  "sh600519", "sz000858", "sh601318", "sh600036", "sz300750", "sh601166", "sh601398", "sh600030",
+  "sz002594", "sh688981", "sh600276", "sz000333", "sh601012", "sh601899", "sz000651", "sh600887",
+  // Sector leaders and active names.
+  "sz300059", "sh600900", "sz002415", "sh600309", "sh601888", "sh603259", "sz002371", "sh601668",
+  "sh600036", "sz300308", "sh600703", "sz002241", "sh601225", "sz000568", "sh600809", "sh600031",
+];
+
+const CRYPTO_MARKET_LAYER_POOL = [
+  // Majors.
+  "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "TRXUSDT",
+  // Large-cap alts.
+  "AVAXUSDT", "LINKUSDT", "TONUSDT", "DOTUSDT", "MATICUSDT", "LTCUSDT", "BCHUSDT", "NEARUSDT",
+  // Exchange and ecosystem beta.
+  "UNIUSDT", "ATOMUSDT", "APTUSDT", "ARBUSDT", "OPUSDT", "SUIUSDT", "INJUSDT", "SEIUSDT",
+  // Memes / high-beta basket.
+  "PEPEUSDT", "SHIBUSDT", "WIFUSDT", "BONKUSDT", "FLOKIUSDT", "TIAUSDT", "FILUSDT", "ETCUSDT",
+];
+
 async function buildUsStockReport(schedule: PulseSchedule, items: TopicItem[], generatedAt: string): Promise<string> {
   const benchmarks = await fetchTencentUsQuotes(["SPY", "QQQ", "DIA", "IWM"]);
   const watchSymbols = dedupeSymbols([
+    ...US_MARKET_LAYER_POOL,
     ...schedule.focusSymbols,
     ...schedule.positionSymbols,
-    "TSLA",
-    "NVDA",
-    "MSFT",
-    "AAPL",
-    "GOOGL",
-  ]).slice(0, 12);
+  ]).slice(0, 72);
   const watchQuotes = await fetchTencentUsQuotes(watchSymbols);
   const xSentiment = schedule.moduleSwitches?.x_sentiment
-    ? await fetchXSentimentSummary(schedule, watchSymbols)
+    ? await fetchXSentimentSummary(schedule, dedupeSymbols([
+      ...schedule.focusSymbols,
+      ...schedule.positionSymbols,
+      "SPY",
+      "QQQ",
+      "NVDA",
+      "TSLA",
+      "AAPL",
+      "MSFT",
+    ]).slice(0, 8))
     : [];
   const topWinners = watchQuotes.filter((row) => Number.isFinite(row.changePercent)).sort((a, b) => b.changePercent - a.changePercent).slice(0, 3);
   const topLosers = watchQuotes.filter((row) => Number.isFinite(row.changePercent)).sort((a, b) => a.changePercent - b.changePercent).slice(0, 2);
@@ -608,13 +648,10 @@ async function buildUsStockReport(schedule: PulseSchedule, items: TopicItem[], g
 
 async function buildCryptoReport(schedule: PulseSchedule, items: TopicItem[], generatedAt: string): Promise<string> {
   const baseSymbols = dedupeSymbols([
+    ...CRYPTO_MARKET_LAYER_POOL,
     ...schedule.focusSymbols.map(toCryptoPair),
     ...schedule.positionSymbols.map(toCryptoPair),
-    "BTCUSDT",
-    "ETHUSDT",
-    "SOLUSDT",
-    "DOGEUSDT",
-  ]).slice(0, 14);
+  ]).slice(0, 40);
   const quotes = await fetchBinanceQuotes(baseSymbols);
   const topWinners = quotes.slice().sort((a, b) => b.changePercent - a.changePercent).slice(0, 3);
   const topLosers = quotes.slice().sort((a, b) => a.changePercent - b.changePercent).slice(0, 3);
@@ -667,9 +704,10 @@ async function buildCryptoReport(schedule: PulseSchedule, items: TopicItem[], ge
 async function buildAShareReport(schedule: PulseSchedule, items: TopicItem[], generatedAt: string): Promise<string> {
   const indices = await fetchTencentIndexQuotes(["sh000001", "sz399001", "sh000300"]);
   const watchCodes = dedupeSymbols([
+    ...A_SHARE_MARKET_LAYER_POOL,
     ...schedule.focusSymbols,
     ...schedule.positionSymbols,
-  ]).slice(0, 10).map(normalizeAShareCode).filter(Boolean) as string[];
+  ]).slice(0, 60).map(normalizeAShareCode).filter(Boolean) as string[];
   const watchQuotes = watchCodes.length > 0 ? await fetchTencentIndexQuotes(watchCodes) : [];
   const momentumRows = watchQuotes.length > 0 ? watchQuotes : indices;
   const topWinners = momentumRows.filter((row) => Number.isFinite(row.changePercent)).slice().sort((a, b) => b.changePercent - a.changePercent).slice(0, 3);
@@ -713,17 +751,24 @@ async function buildAShareReport(schedule: PulseSchedule, items: TopicItem[], ge
 async function fetchTencentUsQuotes(symbols: string[]): Promise<QuoteRow[]> {
   if (symbols.length === 0) return [];
   try {
-    const query = symbols.map((symbol) => `us${symbol.toUpperCase()}`).join(",");
-    const raw = await fetch(`https://qt.gtimg.cn/q=${query}`, {
-      headers: { "User-Agent": "globalpulse-worker/0.1" },
-    }).then((res) => res.text());
-    return parseTencentQuoteLines(raw).map((row) => ({
-      symbol: normalizeUsSymbol(row.code),
-      name: row.name,
-      price: row.price,
-      change: row.change,
-      changePercent: row.changePercent,
-    })).filter((row) => Number.isFinite(row.price));
+    const chunks = chunkArray(dedupeSymbols(symbols), 36);
+    const rows: QuoteRow[] = [];
+
+    for (const chunk of chunks) {
+      const query = chunk.map((symbol) => `us${symbol.toUpperCase()}`).join(",");
+      const raw = await fetch(`https://qt.gtimg.cn/q=${query}`, {
+        headers: { "User-Agent": "globalpulse-worker/0.1" },
+      }).then((res) => res.text());
+      rows.push(...parseTencentQuoteLines(raw).map((row) => ({
+        symbol: normalizeUsSymbol(row.code),
+        name: row.name,
+        price: row.price,
+        change: row.change,
+        changePercent: row.changePercent,
+      })).filter((row) => Number.isFinite(row.price)));
+    }
+
+    return dedupeQuoteRows(rows, "us_stock");
   } catch {
     return [];
   }
@@ -732,17 +777,24 @@ async function fetchTencentUsQuotes(symbols: string[]): Promise<QuoteRow[]> {
 async function fetchTencentIndexQuotes(symbols: string[]): Promise<QuoteRow[]> {
   if (symbols.length === 0) return [];
   try {
-    const query = symbols.join(",");
-    const raw = await fetch(`https://qt.gtimg.cn/q=${query}`, {
-      headers: { "User-Agent": "globalpulse-worker/0.1" },
-    }).then((res) => res.text());
-    return parseTencentQuoteLines(raw).map((row) => ({
-      symbol: row.code,
-      name: row.name,
-      price: row.price,
-      change: row.change,
-      changePercent: row.changePercent,
-    })).filter((row) => Number.isFinite(row.price));
+    const chunks = chunkArray(Array.from(new Set(symbols.map((symbol) => symbol.trim().toLowerCase()).filter(Boolean))), 48);
+    const rows: QuoteRow[] = [];
+
+    for (const chunk of chunks) {
+      const query = chunk.join(",");
+      const raw = await fetch(`https://qt.gtimg.cn/q=${query}`, {
+        headers: { "User-Agent": "globalpulse-worker/0.1" },
+      }).then((res) => res.text());
+      rows.push(...parseTencentQuoteLines(raw).map((row) => ({
+        symbol: row.code,
+        name: row.name,
+        price: row.price,
+        change: row.change,
+        changePercent: row.changePercent,
+      })).filter((row) => Number.isFinite(row.price)));
+    }
+
+    return dedupeQuoteRows(rows, "a_share");
   } catch {
     return [];
   }
@@ -968,6 +1020,27 @@ function toCryptoPair(symbol: string): string {
 
 function dedupeSymbols(symbols: string[]): string[] {
   return Array.from(new Set(symbols.map((symbol) => symbol.trim().toUpperCase()).filter(Boolean)));
+}
+
+function chunkArray<T>(values: T[], size: number): T[][] {
+  if (values.length === 0 || size <= 0) return [];
+  const chunks: T[][] = [];
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+  return chunks;
+}
+
+function dedupeQuoteRows(rows: QuoteRow[], reportType: ReportTypeForSummary): QuoteRow[] {
+  const seen = new Set<string>();
+  const output: QuoteRow[] = [];
+  for (const row of rows) {
+    const key = normalizeSymbolForCompare(row.symbol, reportType);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    output.push(row);
+  }
+  return output;
 }
 
 function formatUsd(value: number): string {
