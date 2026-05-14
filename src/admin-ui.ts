@@ -402,8 +402,12 @@ const adminHtml = `<!doctype html>
       flex-wrap: wrap;
     }
     .schedule-chevron {
-      color: var(--muted);
-      font-size: 12px;
+      color: color-mix(in srgb, var(--text) 72%, var(--muted));
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1;
+      min-width: 20px;
+      text-align: center;
       transition: transform .15s ease;
       transform-origin: center;
     }
@@ -487,8 +491,12 @@ const adminHtml = `<!doctype html>
     }
     .collapsible-section summary .chevron {
       transition: transform 0.2s;
-      color: var(--muted);
-      font-size: 12px;
+      color: color-mix(in srgb, var(--text) 72%, var(--muted));
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1;
+      min-width: 20px;
+      text-align: center;
     }
     .collapsible-section[open] summary .chevron {
       transform: rotate(180deg);
