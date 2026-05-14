@@ -49,7 +49,7 @@ export const emailProvider: Provider = {
 
     const toAddresses = recipientList
       .split(",")
-      .map((s) => s.trim())
+      .map((s: string) => s.trim())
       .filter(Boolean);
 
     if (!toAddresses.length) {

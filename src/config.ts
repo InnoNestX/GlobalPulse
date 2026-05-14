@@ -410,7 +410,7 @@ function readEmailRecipientIds(value: unknown): string[] {
 }
 
 function readModuleSwitches(value: unknown): ReportModuleSwitches {
-  const defaults: ReportModuleSwitches = {
+  const defaults: Required<ReportModuleSwitches> = {
     us_market: true,
     a_share: false,
     crypto: false,
