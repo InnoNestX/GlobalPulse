@@ -302,7 +302,7 @@ const adminHtml = `<!doctype html>
       border-radius: 8px;
       padding: 10px;
       display: grid;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: minmax(0, 1fr) auto;
       justify-content: space-between;
       gap: 8px;
       align-items: center;
@@ -312,6 +312,7 @@ const adminHtml = `<!doctype html>
     .provider-card .provider-title {
       display: grid;
       gap: 2px;
+      min-width: 0;
       text-align: left;
       color: var(--text);
       font-weight: 760;
@@ -321,6 +322,12 @@ const adminHtml = `<!doctype html>
       color: var(--muted);
       font-size: 11px;
       font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .provider-card .badge {
+      white-space: nowrap;
     }
     .provider-card.configured {
       border-color: color-mix(in srgb, var(--ok) 40%, var(--line));
@@ -1165,7 +1172,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
     const providerLabels = {
       feishu: "Feishu",
       wechat_official_account: "微信公众号",
-      wechat_clawbot: "wechat clawbot",
+      wechat_clawbot: "WeChat Bot",
       telegram: "Telegram",
       email: "Email"
     };
