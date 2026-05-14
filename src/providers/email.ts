@@ -131,43 +131,8 @@ function parseSender(input: string): { email: string; name?: string } {
 }
 
 function buildHtmlEmail(title: string, body: string): string {
-  // Convert markdown-like body to basic HTML
   const escapedTitle = escapeHtml(title);
-  const escapedBody = escapeHtml(body);
-
-  // Convert line breaks and basic markdown
-  const htmlLines = escapedBody
-    .split("\n")
-    .map((line) => {
-      const trimmed = line.trim();
-      if (!trimmed) return "<br>";
-      // Bold headings: ## text → <h2>text</h2>
-      if (trimmed.startsWith("## ")) return `<h2 style="margin:16px 0 8px;font-size:16px;font-weight:600;color:#f4f7fb;">${trimmed.slice(3)}</h2>`;
-      // Bold items: **text** → <strong>text</strong>
-      const bolded = trimmed.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-      // Tables — wrap in basic table structure
-      if (trimmed.startsWith("|")) {
-        return `<div style="overflow-x:auto;"><table style="border-collapse:collapse;width:100%;font-size:13px;">${bolded
-          .split("|")
-          .filter(Boolean)
-          .map((cell, i, arr) =>
-            i === 0
-              ? `<tr>${arr.map((c) => `<th style="border:1px solid #263548;padding:6px 10px;background:#141f2e;">${c.trim()}</th>`).join("")}</tr>`
-              : `<tr>${arr.map((c) => `<td style="border:1px solid #263548;padding:6px 10px;">${c.trim()}</td>`).join("")}</tr>`
-          )
-          .join("")}</table></div>`;
-      }
-      // Lists
-      if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
-        return `<li style="margin:4px 0 4px 20px;">${bolded.slice(2)}</li>`;
-      }
-      // Numbered lists
-      if (/^\d+\.\s/.test(trimmed)) {
-        return `<li style="margin:4px 0 4px 20px;list-style-type:decimal;">${bolded.replace(/^\d+\.\s/, "")}</li>`;
-      }
-      return `<p style="margin:6px 0;">${bolded}</p>`;
-    })
-    .join("");
+  const htmlLines = renderMarkdownLikeBody(body);
 
   return `<!DOCTYPE html>
 <html lang="zh">
@@ -193,6 +158,118 @@ function buildHtmlEmail(title: string, body: string): string {
   </div>
 </body>
 </html>`;
+}
+
+function renderMarkdownLikeBody(markdown: string): string {
+  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+  const blocks: string[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const rawLine = lines[i] ?? "";
+    const line = rawLine.trim();
+
+    if (!line) {
+      i += 1;
+      continue;
+    }
+
+    if (isTableLine(line)) {
+      const tableLines: string[] = [];
+      while (i < lines.length && isTableLine((lines[i] ?? "").trim())) {
+        tableLines.push((lines[i] ?? "").trim());
+        i += 1;
+      }
+      const tableHtml = renderTable(tableLines);
+      if (tableHtml) blocks.push(tableHtml);
+      continue;
+    }
+
+    const ordered = /^\d+\.\s+/.exec(line);
+    if (ordered) {
+      const items: string[] = [];
+      while (i < lines.length) {
+        const candidate = (lines[i] ?? "").trim();
+        if (!/^\d+\.\s+/.test(candidate)) break;
+        items.push(candidate.replace(/^\d+\.\s+/, ""));
+        i += 1;
+      }
+      blocks.push(
+        `<ol style="margin:8px 0 10px 22px;padding:0;">${
+          items.map((item) => `<li style="margin:4px 0;">${renderInline(item)}</li>`).join("")
+        }</ol>`
+      );
+      continue;
+    }
+
+    if (/^[-*]\s+/.test(line)) {
+      const items: string[] = [];
+      while (i < lines.length) {
+        const candidate = (lines[i] ?? "").trim();
+        if (!/^[-*]\s+/.test(candidate)) break;
+        items.push(candidate.replace(/^[-*]\s+/, ""));
+        i += 1;
+      }
+      blocks.push(
+        `<ul style="margin:8px 0 10px 20px;padding:0;">${
+          items.map((item) => `<li style="margin:4px 0;">${renderInline(item)}</li>`).join("")
+        }</ul>`
+      );
+      continue;
+    }
+
+    if (line.startsWith("### ")) {
+      blocks.push(`<h3 style="margin:16px 0 8px;font-size:15px;font-weight:700;color:#f8fafc;">${renderInline(line.slice(4))}</h3>`);
+      i += 1;
+      continue;
+    }
+    if (line.startsWith("## ")) {
+      blocks.push(`<h2 style="margin:16px 0 8px;font-size:16px;font-weight:700;color:#f8fafc;">${renderInline(line.slice(3))}</h2>`);
+      i += 1;
+      continue;
+    }
+    if (line.startsWith("# ")) {
+      blocks.push(`<h1 style="margin:16px 0 8px;font-size:18px;font-weight:700;color:#f8fafc;">${renderInline(line.slice(2))}</h1>`);
+      i += 1;
+      continue;
+    }
+
+    blocks.push(`<p style="margin:6px 0;">${renderInline(line)}</p>`);
+    i += 1;
+  }
+
+  return blocks.join("");
+}
+
+function isTableLine(line: string): boolean {
+  return line.startsWith("|") && line.endsWith("|");
+}
+
+function renderTable(lines: string[]): string {
+  if (lines.length === 0) return "";
+  const rows = lines.map((line) => line.split("|").map((cell) => cell.trim()).filter(Boolean));
+  const normalizedRows = rows.filter((row) => row.length > 0 && !row.every((cell) => /^-+$/.test(cell)));
+  if (normalizedRows.length === 0) return "";
+
+  const header = normalizedRows[0] ?? [];
+  const bodyRows = normalizedRows.slice(1);
+
+  return `<div style="overflow-x:auto;margin:8px 0 12px;"><table style="border-collapse:collapse;width:100%;font-size:13px;">
+    <thead><tr>${header.map((cell) => `<th style="border:1px solid #263548;padding:6px 10px;background:#141f2e;text-align:left;">${renderInline(cell)}</th>`).join("")}</tr></thead>
+    <tbody>${bodyRows.map((row) => `<tr>${row.map((cell) => `<td style="border:1px solid #263548;padding:6px 10px;">${renderInline(cell)}</td>`).join("")}</tr>`).join("")}</tbody>
+  </table></div>`;
+}
+
+function renderInline(value: string): string {
+  const escaped = escapeHtml(value);
+
+  const linked = escaped.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (_match, text, url) => {
+    return `<a href="${url}" style="color:#60a5fa;text-decoration:none;">${text}</a>`;
+  });
+
+  const bolded = linked.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+
+  return bolded.replace(/`([^`]+)`/g, `<code style="background:#1e293b;border:1px solid #334155;border-radius:4px;padding:0 4px;">$1</code>`);
 }
 
 function escapeHtml(str: string): string {
