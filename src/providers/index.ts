@@ -5,12 +5,14 @@ import { telegramProvider } from "./telegram";
 import type { Provider } from "./types";
 import { wechatClawbotProvider } from "./wechat-ai-agent";
 import { wechatOfficialAccountProvider } from "./wechat-official-account";
+import { emailProvider } from "./email";
 
 export const providers = [
   feishuProvider,
   wechatOfficialAccountProvider,
   wechatClawbotProvider,
   telegramProvider,
+  emailProvider,
 ] satisfies Provider[];
 
 export function getProvider(name: ProviderName): Provider {

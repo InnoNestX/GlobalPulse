@@ -1,4 +1,4 @@
-export const providerNames = ["feishu", "wechat_official_account", "wechat_clawbot", "telegram"] as const;
+export const providerNames = ["feishu", "wechat_official_account", "wechat_clawbot", "telegram", "email"] as const;
 
 export type ProviderName = (typeof providerNames)[number];
 
@@ -31,6 +31,8 @@ export interface IncomingMessageBody {
   actions?: Array<{ label: string; url: string }>;
   tags?: string[];
   metadata?: Record<string, string | number | boolean | null>;
+  /** Override email recipients for this message (resolved addresses, comma-separated) */
+  emailRecipientOverride?: string;
 }
 
 export class HttpError extends Error {

@@ -9,6 +9,34 @@ export type OutputFormat = "markdown" | "text" | "json";
 export type TriggerMode = "slots" | "cron";
 export type ReportType = "a_share" | "us_stock" | "crypto" | "daily_hot" | "custom";
 
+/** All available report modules — each can be toggled on/off independently. */
+export type ReportModule =
+  | "us_market"    // US stock ETF quotes + movers
+  | "a_share"      // A-share index quotes
+  | "crypto"       // Crypto spot prices
+  | "fear_greed"   // Fear & Greed Index
+  | "technicals"   // RSI / MA technical signals
+  | "sentiment"    // News-based sentiment scoring
+  | "news"         // News summary (Google News + Sina + HN)
+  | "catalysts"    // Key policy / event catalysts extracted from news
+  | "x_sentiment"  // X/Twitter sentiment (requires API token)
+  | "positions"    // Position holders: live quotes + news narrative
+  | "macro";       // Macro background (Fed, CPI, earnings season)
+
+export interface ReportModuleSwitches {
+  us_market?: boolean;   // default: true
+  a_share?: boolean;     // default: false
+  crypto?: boolean;      // default: false
+  fear_greed?: boolean;  // default: false
+  technicals?: boolean;  // default: false
+  sentiment?: boolean;   // default: false
+  news?: boolean;        // default: true
+  catalysts?: boolean;   // default: false
+  x_sentiment?: boolean; // default: false
+  positions?: boolean;   // default: false
+  macro?: boolean;       // default: false
+}
+
 export interface PulseSchedule {
   id: string;
   name: string;
@@ -24,6 +52,9 @@ export interface PulseSchedule {
   reportType: ReportType;
   focusSymbols: string[];
   positionSymbols: string[];
+  moduleSwitches: ReportModuleSwitches;
+  /** IDs of email recipients to send to for this schedule. Empty = no email for this schedule. */
+  emailRecipientIds: string[];
   targets: ProviderName[];
   marketCalendar: MarketCalendar;
   tradingDaySource: TradingDaySource;
@@ -31,6 +62,14 @@ export interface PulseSchedule {
   topicQuery: string;
   sourceUrl?: string;
   template: string;
+}
+
+/** Single email recipient entry in the global address book. */
+export interface EmailRecipient {
+  id: string;       // unique stable ID (nanoid or uuid)
+  address: string;  // email address
+  note: string;     // display label / remark, e.g. "主送" or "量化团队"
+  enabled: boolean; // soft delete — false = hidden from UI
 }
 
 export interface ProviderSettings {
@@ -43,6 +82,8 @@ export interface ProviderSettings {
   wechatClawbotWebhookKey?: string;
   telegramBotToken?: string;
   telegramChatId?: string;
+  /** Optional override of the global EMAIL_FROM for this user */
+  emailFromOverride?: string;
 }
 
 export interface AppSettings {
@@ -53,6 +94,8 @@ export interface AppSettings {
   outputFormat: OutputFormat;
   topicFocus: string;
   providerSettings: ProviderSettings;
+  /** Global email address book — used by all schedules that send email */
+  emailRecipients: EmailRecipient[];
   template: string;
   schedules: PulseSchedule[];
 }
@@ -108,6 +151,7 @@ export function createDefaultSettings(): AppSettings {
     outputFormat: "markdown",
     topicFocus: "全球金融市场、宏观经济、地缘政治与国际热点",
     providerSettings: {},
+    emailRecipients: [],
     template: zhTemplate,
     schedules: [
       {
@@ -124,6 +168,20 @@ export function createDefaultSettings(): AppSettings {
         reportType: "a_share",
         focusSymbols: [],
         positionSymbols: [],
+        emailRecipientIds: [],
+        moduleSwitches: {
+          news: true,
+          us_market: false,
+          a_share: false,
+          crypto: false,
+          fear_greed: false,
+          technicals: false,
+          sentiment: false,
+          catalysts: false,
+          x_sentiment: false,
+          positions: false,
+          macro: false,
+        },
         targets: ["feishu"],
         marketCalendar: "a_share",
         tradingDaySource: "external",
@@ -145,6 +203,20 @@ export function createDefaultSettings(): AppSettings {
         reportType: "us_stock",
         focusSymbols: [],
         positionSymbols: [],
+        emailRecipientIds: [],
+        moduleSwitches: {
+          news: true,
+          us_market: true,
+          fear_greed: true,
+          technicals: true,
+          sentiment: true,
+          catalysts: true,
+          positions: true,
+          macro: true,
+          a_share: false,
+          crypto: false,
+          x_sentiment: false,
+        },
         targets: ["feishu"],
         marketCalendar: "us_stock",
         tradingDaySource: "external",
@@ -227,6 +299,7 @@ export function normalizeSettings(value: unknown): AppSettings {
     outputFormat: readOutputFormat(value.outputFormat, defaults.outputFormat),
     topicFocus: readString(value.topicFocus, defaults.topicFocus).slice(0, 500),
     providerSettings: readProviderSettings(value.providerSettings),
+    emailRecipients: readEmailRecipients(value.emailRecipients),
     template: readString(value.template, defaults.template).slice(0, 8000),
     schedules: readSchedules(value.schedules, defaults.schedules),
   };
@@ -248,7 +321,27 @@ export function mergeProviderSettings(env: Env, settings: AppSettings): Env {
   assignIfMissing(deliveryEnv, "TELEGRAM_BOT_TOKEN", providerSettings.telegramBotToken);
   assignIfMissing(deliveryEnv, "TELEGRAM_CHAT_ID", providerSettings.telegramChatId);
 
+  if (providerSettings.emailFromOverride) {
+    (deliveryEnv as Env & { EMAIL_FROM_OVERRIDE?: string }).EMAIL_FROM_OVERRIDE = providerSettings.emailFromOverride;
+  }
+
   return deliveryEnv;
+}
+
+function readEmailRecipients(value: unknown): EmailRecipient[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry): EmailRecipient[] => {
+    if (!isRecord(entry)) return [];
+    const id = String(entry.id ?? Math.random().toString(36).slice(2));
+    const address = readString(entry.address, "").trim();
+    if (!address || !address.includes("@")) return [];
+    return [{
+      id,
+      address,
+      note: readString(entry.note, "").trim().slice(0, 100),
+      enabled: typeof entry.enabled === "boolean" ? entry.enabled : true,
+    }];
+  });
 }
 
 function readSchedules(value: unknown, fallback: PulseSchedule[]): PulseSchedule[] {
@@ -276,6 +369,8 @@ function readSchedules(value: unknown, fallback: PulseSchedule[]): PulseSchedule
       reportType: readReportType(entry.reportType, inferReportType(entry)),
       focusSymbols: readSymbols(entry.focusSymbols),
       positionSymbols: readSymbols(entry.positionSymbols),
+      emailRecipientIds: readEmailRecipientIds(entry.emailRecipientIds),
+      moduleSwitches: readModuleSwitches(entry.moduleSwitches),
       targets: readTargets(entry.targets, ["feishu"]),
       marketCalendar: readMarketCalendar(entry.marketCalendar, inferMarketCalendar(entry)),
       tradingDaySource: readTradingDaySource(entry.tradingDaySource, inferTradingDaySource(entry)),
@@ -309,6 +404,45 @@ function readSchedules(value: unknown, fallback: PulseSchedule[]): PulseSchedule
   return schedules.slice(0, 20);
 }
 
+function readEmailRecipientIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((id) => String(id)).filter(Boolean).slice(0, 50);
+}
+
+function readModuleSwitches(value: unknown): ReportModuleSwitches {
+  const defaults: ReportModuleSwitches = {
+    us_market: true,
+    a_share: false,
+    crypto: false,
+    fear_greed: false,
+    technicals: false,
+    sentiment: false,
+    news: true,
+    catalysts: false,
+    x_sentiment: false,
+    positions: false,
+    macro: false,
+  };
+
+  if (!isRecord(value)) {
+    return defaults;
+  }
+
+  return {
+    us_market: typeof value.us_market === "boolean" ? value.us_market : defaults.us_market,
+    a_share: typeof value.a_share === "boolean" ? value.a_share : defaults.a_share,
+    crypto: typeof value.crypto === "boolean" ? value.crypto : defaults.crypto,
+    fear_greed: typeof value.fear_greed === "boolean" ? value.fear_greed : defaults.fear_greed,
+    technicals: typeof value.technicals === "boolean" ? value.technicals : defaults.technicals,
+    sentiment: typeof value.sentiment === "boolean" ? value.sentiment : defaults.sentiment,
+    news: typeof value.news === "boolean" ? value.news : defaults.news,
+    catalysts: typeof value.catalysts === "boolean" ? value.catalysts : defaults.catalysts,
+    x_sentiment: typeof value.x_sentiment === "boolean" ? value.x_sentiment : defaults.x_sentiment,
+    positions: typeof value.positions === "boolean" ? value.positions : defaults.positions,
+    macro: typeof value.macro === "boolean" ? value.macro : defaults.macro,
+  };
+}
+
 function readProviderSettings(value: unknown): ProviderSettings {
   if (!isRecord(value)) {
     return {};
@@ -324,6 +458,7 @@ function readProviderSettings(value: unknown): ProviderSettings {
     ...readOptionalSecret(value.wechatClawbotWebhookKey ?? value.wechatAiAgentWebhookKey, "wechatClawbotWebhookKey", 260),
     ...readOptionalSecret(value.telegramBotToken, "telegramBotToken", 260),
     ...readOptionalSecret(value.telegramChatId, "telegramChatId", 180),
+    ...readOptionalSecret(value.emailFromOverride, "emailFromOverride", 200),
   };
 }
 

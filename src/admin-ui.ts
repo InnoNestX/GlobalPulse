@@ -717,7 +717,18 @@ const adminHtml = `<!doctype html>
     @media (max-width: 1024px) {
       .sidebar-toggle { display: flex; }
     }
-  </style>
+  
+    /* Email address book */
+    #emailAddressBook { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+    #emailAddressBook h3 { margin: 0 0 8px; font-size: 14px; color: var(--text); }
+    #emailRecipientsList { margin-bottom: 8px; }
+    .email-recipient-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+    .email-recipient-row:last-child { border-bottom: none; }
+    .email-recipient-address { flex: 1; font-size: 13px; }
+    .email-recipient-note { font-size: 12px; color: var(--muted); }
+    .email-recipient-row button { font-size: 11px; padding: 2px 6px; }
+    .email-recipient-select { display: flex; flex-direction: column; gap: 4px; }
+</style>
 </head>
 <body>
   <header>
@@ -850,6 +861,15 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
               <div>
                 <h3 data-i18n="defaultTargets">默认推送目标</h3>
                 <div class="target-list" id="defaultTargets"></div>
+              </div>
+              <div id="emailAddressBook">
+                <h3 data-i18n="emailAddressBook">邮件地址簿</h3>
+                <div id="emailRecipientsList"></div>
+                <div class="row">
+                  <input id="newEmailAddress" placeholder="address@example.com" type="email" style="flex:1">
+                  <input id="newEmailNote" placeholder="备注（可选）" style="flex:1">
+                  <button class="secondary" id="addEmailRecipient" data-i18n="add">添加</button>
+                </div>
               </div>
               <div class="row">
                 <button class="primary" id="saveButton" data-i18n="save">保存</button>
@@ -1012,7 +1032,12 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         wechatClawbotWebhookKey: "wechat clawbot Webhook Key",
         telegramBotToken: "Telegram Bot Token",
         telegramChatId: "Telegram Chat ID",
-        schedules: "推送时间表",
+        emailFromOverride: "发件人地址（可选，覆盖全局）",
+        emailAddressBook: "邮件地址簿",
+        addEmailRecipient: "添加",
+        removeEmailRecipient: "移除",
+        noEmailRecipients: "暂无邮件地址，点击添加",
+        emailRecipientsSection: "邮件发送对象",        schedules: "推送时间表",
         addSchedule: "新增时间点",
         scheduleConfigurator: "日报配置器",
         batchBuilder: "批量生成",
@@ -1101,7 +1126,18 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         footerStar: "⭐ Star Repo",
         footerSponsor: "💖 Sponsor",
         footerCoffee: "☕ Buy Me a Coffee",
-        footerDiscuss: "💬 Discussions"
+        footerDiscuss: "💬 Discussions",
+        moduleNews: "新闻",
+        moduleUsMarket: "美股",
+        moduleAShare: "A股",
+        moduleCrypto: "加密货币",
+        moduleFearGreed: "恐慌贪婪",
+        moduleTechnicals: "技术指标",
+        moduleSentiment: "情绪",
+        moduleCatalysts: "催化剂",
+        moduleXSentiment: "X情绪",
+        modulePositions: "持仓",
+        moduleMacro: "宏观"
       },
       en: {
         feedback: "Bug / request",
@@ -1135,7 +1171,13 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         wechatClawbotWebhookKey: "wechat clawbot webhook key",
         telegramBotToken: "Telegram bot token",
         telegramChatId: "Telegram chat ID",
-        schedules: "Schedules",
+        emailRecipients: "Email recipients (comma-separated)",
+        emailFromOverride: "Sender address (optional, overrides global)",
+        emailAddressBook: "Email Address Book",
+        addEmailRecipient: "Add",
+        removeEmailRecipient: "Remove",
+        noEmailRecipients: "No email addresses yet, click Add",
+        emailRecipientsSection: "Email Recipients",        schedules: "Schedules",
         addSchedule: "Add time",
         scheduleConfigurator: "Report configurator",
         batchBuilder: "Batch builder",
@@ -1224,7 +1266,18 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         footerStar: "⭐ Star Repo",
         footerSponsor: "💖 Sponsor",
         footerCoffee: "☕ Buy Me a Coffee",
-        footerDiscuss: "💬 Discussions"
+        footerDiscuss: "💬 Discussions",
+        moduleNews: "News",
+        moduleUsMarket: "US Market",
+        moduleAShare: "A-Share",
+        moduleCrypto: "Crypto",
+        moduleFearGreed: "Fear & Greed",
+        moduleTechnicals: "Technicals",
+        moduleSentiment: "Sentiment",
+        moduleCatalysts: "Catalysts",
+        moduleXSentiment: "X Sentiment",
+        modulePositions: "Positions",
+        moduleMacro: "Macro"
       }
     };
     const dayLabels = {
@@ -1327,6 +1380,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       renderTargetList($("defaultTargets"), state.defaultTargets, "default");
       renderProviderStatus();
       renderProviderSettings();
+      renderEmailAddressBook();
       renderSlotBuilder();
       renderSchedules();
       renderPreviewSelect();
@@ -1372,6 +1426,12 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
             ["telegramBotToken", t("telegramBotToken"), "password"],
             ["telegramChatId", t("telegramChatId"), "text"]
           ]
+        },
+        {
+          name: "Email",
+          fields: [
+            ["emailFromOverride", t("emailFromOverride"), "text"]
+          ]
         }
       ];
       $("providerSettingsForm").innerHTML = groups.map((group) =>
@@ -1380,6 +1440,78 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
           '<label>' + label + '<input type="' + type + '" autocomplete="off" spellcheck="false" data-provider-setting="' + key + '" value="' + escapeAttr(values[key] || "") + '"></label>'
         ).join("") + '</div>'
       ).join("");
+
+    // ─── Email Address Book ───────────────────────────────────────────────────
+
+    function renderEmailAddressBook() {
+      const list = $("emailRecipientsList");
+      if (!list) return;
+      const recipients = state.emailRecipients || [];
+      if (!recipients.length) {
+        list.innerHTML = '<div class="muted" data-i18n="noEmailRecipients">' + t("noEmailRecipients") + '</div>';
+        return;
+      }
+      list.innerHTML = recipients.map((r) =>
+        '<div class="email-recipient-row">' +
+          '<span class="email-recipient-address">' + escapeHtml(r.address) + '</span>' +
+          (r.note ? '<span class="email-recipient-note muted">' + escapeHtml(r.note) + '</span>' : '') +
+          '<button class="danger small" data-action="removeEmailRecipient" data-id="' + r.id + '" data-i18n="remove">' + t("remove") + '</button>' +
+        '</div>'
+      ).join("");
+    }
+
+    function addEmailRecipient() {
+      const addressInput = $("newEmailAddress");
+      const noteInput = $("newEmailNote");
+      if (!addressInput || !noteInput) return;
+      const address = addressInput.value.trim();
+      const note = noteInput.value.trim();
+      if (!address || !address.includes("@")) {
+        addressInput.focus();
+        return;
+      }
+      state.emailRecipients = state.emailRecipients || [];
+      state.emailRecipients.push({
+        id: crypto.randomUUID(),
+        address,
+        note,
+        enabled: true,
+      });
+      addressInput.value = "";
+      noteInput.value = "";
+      renderEmailAddressBook();
+    }
+
+    function removeEmailRecipient(id) {
+      state.emailRecipients = (state.emailRecipients || []).filter((r) => r.id !== id);
+      renderEmailAddressBook();
+    }
+
+    // ─── Email recipient selector for a schedule ─────────────────────────────
+
+    function renderScheduleEmailSelect(index) {
+      const recipients = state.emailRecipients || [];
+      if (!recipients.length) return '<div class="muted">' + t("noEmailRecipients") + '</div>';
+      const selected = (state.schedules[index].emailRecipientIds || []);
+      return recipients.map((r) =>
+        '<label class="inline-checkbox">' +
+          '<input type="checkbox" data-index="' + index + '" data-field="emailRecipientIds" value="' + r.id + '"' +
+            (selected.includes(r.id) ? " checked" : "") + '>' +
+          '<span>' + escapeHtml(r.address) + (r.note ? " (" + escapeHtml(r.note) + ")" : "") + '</span>' +
+        '</label>'
+      ).join("");
+    }
+
+    function collectEmailRecipientIds(schedule) {
+      const checkboxes = document.querySelectorAll(
+        'input[data-index][data-field="emailRecipientIds"]:checked'
+      );
+      // Only collect for the specific schedule index
+      schedule.emailRecipientIds = Array.from(checkboxes)
+        .filter((cb) => Number(cb.dataset.index) === state.schedules.indexOf(schedule))
+        .map((cb) => cb.value);
+    }
+
     }
 
     function renderTimezoneSelect(select, value) {
@@ -1461,6 +1593,20 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
           '</div>' +
           (schedule.triggerMode === "slots" ? ('<div><h3>' + t("days") + '</h3><div class="days">' + days + '</div></div>') : "") +
           '<div><h3>' + t("targets") + '</h3><div class="target-list">' + targets + '</div></div>' +
+          '<div><h3>' + t("emailRecipientsSection") + '</h3><div class="email-recipient-select">' + renderScheduleEmailSelect(index) + '</div></div>' +
+          '<div class="module-switches row">' +
+          '<label class="inline-checkbox"><input type="checkbox" data-index="' + index + '" data-field="moduleSwitches_news" ' + (schedule.moduleSwitches?.news ? "checked" : "") + '>' + t("moduleNews") + '</label>' +
+          '<label class="inline-checkbox"><input type="checkbox" data-index="' + index + '" data-field="moduleSwitches_us_market" ' + (schedule.moduleSwitches?.us_market ? "checked" : "") + '>' + t("moduleUsMarket") + '</label>' +
+          '<label class="inline-checkbox"><input type="checkbox" data-index="' + index + '" data-field="moduleSwitches_a_share" ' + (schedule.moduleSwitches?.a_share ? "checked" : "") + '>' + t("moduleAShare") + '</label>' +
+          '<label class="inline-checkbox"><input type="checkbox" data-index="' + index + '" data-field="moduleSwitches_crypto" ' + (schedule.moduleSwitches?.crypto ? "checked" : "") + '>' + t("moduleCrypto") + '</label>' +
+          '<label class="inline-checkbox"><input type="checkbox" data-index="' + index + '" data-field="moduleSwitches_fear_greed" ' + (schedule.moduleSwitches?.fear_greed ? "checked" : "") + '>' + t("moduleFearGreed") + '</label>' +
+          '<label class="inline-checkbox"><input type="checkbox" data-index="' + index + '" data-field="moduleSwitches_technicals" ' + (schedule.moduleSwitches?.technicals ? "checked" : "") + '>' + t("moduleTechnicals") + '</label>' +
+          '<label class="inline-checkbox"><input type="checkbox" data-index="' + index + '" data-field="moduleSwitches_sentiment" ' + (schedule.moduleSwitches?.sentiment ? "checked" : "") + '>' + t("moduleSentiment") + '</label>' +
+          '<label class="inline-checkbox"><input type="checkbox" data-index="' + index + '" data-field="moduleSwitches_catalysts" ' + (schedule.moduleSwitches?.catalysts ? "checked" : "") + '>' + t("moduleCatalysts") + '</label>' +
+          '<label class="inline-checkbox"><input type="checkbox" data-index="' + index + '" data-field="moduleSwitches_x_sentiment" ' + (schedule.moduleSwitches?.x_sentiment ? "checked" : "") + '>' + t("moduleXSentiment") + '</label>' +
+          '<label class="inline-checkbox"><input type="checkbox" data-index="' + index + '" data-field="moduleSwitches_positions" ' + (schedule.moduleSwitches?.positions ? "checked" : "") + '>' + t("modulePositions") + '</label>' +
+          '<label class="inline-checkbox"><input type="checkbox" data-index="' + index + '" data-field="moduleSwitches_macro" ' + (schedule.moduleSwitches?.macro ? "checked" : "") + '>' + t("moduleMacro") + '</label>' +
+          '</div>' +
           '<label>' + t("scheduleTemplate") + '<textarea data-index="' + index + '" data-field="template">' + escapeHtml(schedule.template) + '</textarea></label>' +
           '<div class="row"><button class="primary" data-action="run" data-index="' + index + '">' + t("testSend") + '</button><button class="danger" data-action="remove" data-index="' + index + '">' + t("remove") + '</button><span class="status" id="scheduleStatus-' + index + '"></span></div>' +
           '</div>' +
@@ -1515,6 +1661,33 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         schedule.positionSymbols = Array.isArray(schedule.positionSymbols) ? schedule.positionSymbols : parseSymbols(schedule.positionSymbolsText || "");
         delete schedule.focusSymbolsText;
         delete schedule.positionSymbolsText;
+        // Rebuild moduleSwitches from flattened form fields
+        schedule.moduleSwitches = {
+          news: !!schedule.moduleSwitches_news,
+          us_market: !!schedule.moduleSwitches_us_market,
+          a_share: !!schedule.moduleSwitches_a_share,
+          crypto: !!schedule.moduleSwitches_crypto,
+          fear_greed: !!schedule.moduleSwitches_fear_greed,
+          technicals: !!schedule.moduleSwitches_technicals,
+          sentiment: !!schedule.moduleSwitches_sentiment,
+          catalysts: !!schedule.moduleSwitches_catalysts,
+          x_sentiment: !!schedule.moduleSwitches_x_sentiment,
+          positions: !!schedule.moduleSwitches_positions,
+          macro: !!schedule.moduleSwitches_macro,
+        };
+        delete schedule.moduleSwitches_news;
+        delete schedule.moduleSwitches_us_market;
+        delete schedule.moduleSwitches_a_share;
+        delete schedule.moduleSwitches_crypto;
+        delete schedule.moduleSwitches_fear_greed;
+        delete schedule.moduleSwitches_technicals;
+        delete schedule.moduleSwitches_sentiment;
+        delete schedule.moduleSwitches_catalysts;
+        delete schedule.moduleSwitches_x_sentiment;
+        delete schedule.moduleSwitches_positions;
+        delete schedule.moduleSwitches_macro;
+        // Collect emailRecipientIds from form checkboxes
+        collectEmailRecipientIds(schedule);
       });
       return state;
     }
@@ -1600,6 +1773,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         reportType: "a_share",
         focusSymbols: [],
         positionSymbols: [],
+        emailRecipientIds: [],
         targets: state.defaultTargets,
         marketCalendar: "a_share",
         tradingDaySource: "external",
@@ -1734,6 +1908,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
     $("refreshButton").addEventListener("click", loadSettings);
     $("loadLogsButton").addEventListener("click", loadLogs);
     $("addScheduleButton").addEventListener("click", addSchedule);
+    $("addEmailRecipient").addEventListener("click", addEmailRecipient);
     $("builderReportType").addEventListener("change", renderSlotBuilder);
     $("applySlotTemplateButton").addEventListener("click", applySlotTemplate);
     $("buildSchedulesButton").addEventListener("click", buildSchedulesFromBuilder);
@@ -1778,6 +1953,12 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         state.schedules.splice(index, 1);
         render();
       }
+      if (action === "removeEmailRecipient") {
+        const id = event.target.dataset && event.target.dataset.id;
+        if (id) {
+          removeEmailRecipient(id);
+        }
+      }
       if (action === "run") {
         try {
           await runSchedule(index);
@@ -1797,3 +1978,4 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
   </script>
 </body>
 </html>`;
+
