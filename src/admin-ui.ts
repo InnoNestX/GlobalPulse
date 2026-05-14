@@ -524,10 +524,10 @@ const adminHtml = `<!doctype html>
     }
     .login-screen {
       display: grid;
-      gap: 12px;
-      min-height: calc(100vh - 150px);
+      gap: 10px;
+      min-height: 0;
       align-items: start;
-      padding: 4px 0 12px;
+      padding: 2px 0 6px;
     }
     .login-shell {
       display: grid;
@@ -538,7 +538,7 @@ const adminHtml = `<!doctype html>
     .login-info {
       display: grid;
       gap: 14px;
-      min-height: 360px;
+      min-height: 300px;
       align-content: start;
     }
     .login-title {
@@ -664,26 +664,27 @@ const adminHtml = `<!doctype html>
     }
     .login-reference {
       display: grid;
-      gap: 6px;
-      padding: 8px 12px;
+      gap: 8px;
+      padding: 12px 16px;
       border-radius: 10px;
       background: var(--surface);
       border: 1px solid var(--line);
     }
     .login-reference h3 {
-      font-size: 14px;
+      font-size: 15px;
+      font-weight: 700;
       margin: 0;
     }
     .login-reference-list {
       margin: 0;
       padding-left: 18px;
       display: grid;
-      gap: 4px;
+      gap: 6px;
       color: var(--muted);
-      font-size: 12px;
+      font-size: 13px;
     }
     .login-reference-list li {
-      line-height: 1.35;
+      line-height: 1.5;
     }
     @media (max-width: 1024px) {
       .login-shell {
@@ -2130,4 +2131,3 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
   </script>
 </body>
 </html>`;
-
