@@ -634,7 +634,7 @@ async function buildAShareReport(schedule: PulseSchedule, items: TopicItem[], ge
     "",
     "| 指数 | 点位 | 涨跌 |",
     "|------|------|------|",
-    ...indices.map((row) => `| ${row.name || row.symbol} | ${row.price.toFixed(2)} | ${formatPctCell(row.changePercent)} |`),
+    ...indices.map((row) => `| ${resolveAShareDisplayName(row.symbol, row.name)} | ${row.price.toFixed(2)} | ${formatPctCell(row.changePercent)} |`),
   ];
 
   if (watchQuotes.length > 0) {
@@ -868,6 +868,34 @@ function normalizeAShareCode(code: string): string | undefined {
     return cleaned.startsWith("6") ? `sh${cleaned}` : `sz${cleaned}`;
   }
   return undefined;
+}
+
+function resolveAShareDisplayName(symbol: string, sourceName?: string): string {
+  const normalized = symbol.trim().toLowerCase();
+  const fixedNameMap: Record<string, string> = {
+    sh000001: "上证指数",
+    sz399001: "深证成指",
+    sh000300: "沪深300",
+    sz399006: "创业板指",
+    sh000688: "科创50",
+  };
+
+  const mapped = fixedNameMap[normalized];
+  if (mapped) {
+    return mapped;
+  }
+
+  const raw = (sourceName ?? "").trim();
+  if (!raw) {
+    return symbol.toUpperCase();
+  }
+
+  // Tencent quote lines occasionally decode with mojibake in Workers; fallback to symbol for safety.
+  if (raw.includes("�")) {
+    return symbol.toUpperCase();
+  }
+
+  return raw;
 }
 
 function toCryptoPair(symbol: string): string {
