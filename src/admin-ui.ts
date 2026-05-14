@@ -408,6 +408,56 @@ const adminHtml = `<!doctype html>
     }
     .log.ok { border-left-color: var(--ok); }
     .log.fail { border-left-color: var(--danger); }
+    .collapsible-section {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .collapsible-section summary {
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      cursor: pointer;
+      background: var(--surface);
+      user-select: none;
+      border-bottom: 1px solid transparent;
+      transition: background 0.15s;
+    }
+    .collapsible-section summary:hover {
+      background: var(--surface-2);
+    }
+    .collapsible-section[open] summary {
+      border-bottom-color: var(--line);
+    }
+    .collapsible-section summary::-webkit-details-marker {
+      display: none;
+    }
+    .collapsible-section summary .section-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 15px;
+      font-weight: 700;
+    }
+    .collapsible-section summary .section-title .emoji {
+      font-size: 18px;
+    }
+    .collapsible-section summary .chevron {
+      transition: transform 0.2s;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .collapsible-section[open] summary .chevron {
+      transform: rotate(180deg);
+    }
+    .collapsible-section .section-body {
+      padding: 16px;
+    }
     .preview-list {
       display: grid;
       gap: 12px;
@@ -824,8 +874,8 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
 
       <section class="layout">
         <nav class="sidebar" id="sidebar">
-          <button class="sidebar-item active" data-section="globalSettings">
-            <span>⚙️</span> <span data-i18n="globalSettings">全局设置</span>
+          <button class="sidebar-item active" data-section="system">
+            <span>⚙️</span> <span>系统设置</span>
           </button>
           <button class="sidebar-item" data-section="schedules">
             <span>📅</span> <span data-i18n="schedules">推送时间表</span>
@@ -839,113 +889,156 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
           <button class="sidebar-item" data-section="providers">
             <span>📡</span> <span data-i18n="providers">通知渠道</span>
           </button>
+          <button class="sidebar-item" data-section="email">
+            <span>📧</span> <span>邮件配置</span>
+          </button>
           <button class="sidebar-item" data-section="logs">
-            <span>📜</span> <span data-i18n="logs">最近记录</span>
+            <span>📜</span> <span data-i18n="logs">发送记录</span>
           </button>
         </nav>
 
         <div class="admin-main">
-          <aside class="stack" id="sidebar-globalSettings">
-            <section class="panel stack">
-              <div class="section-head">
-                <h2 data-i18n="globalSettings">全局设置</h2>
-                <span class="badge" data-i18n="localOnly">配置保存在 KV</span>
-              </div>
-              <label><span data-i18n="appName">应用名称</span><input id="appName"></label>
-              <div class="cols">
-                <label><span data-i18n="contentLanguage">内容语言</span><select id="language"><option value="zh">中文</option><option value="en">English</option></select></label>
-                <label><span data-i18n="format">默认格式</span><select id="outputFormat"><option value="markdown">Markdown</option><option value="text">Text</option><option value="json">JSON</option></select></label>
-              </div>
-              <label><span data-i18n="timezone">时区</span><select id="timezone"></select></label>
-              <label><span data-i18n="topicFocus">关注主题</span><textarea id="topicFocus"></textarea></label>
-              <div>
-                <h3 data-i18n="defaultTargets">默认推送目标</h3>
-                <div class="target-list" id="defaultTargets"></div>
-              </div>
-              <div id="emailAddressBook">
-                <h3 data-i18n="emailAddressBook">邮件地址簿</h3>
-                <div id="emailRecipientsList"></div>
+          <aside class="stack" id="sidebar-system">
+            <details class="collapsible-section" id="section-globalSettings" open>
+              <summary>
+                <span class="section-title"><span class="emoji">⚙️</span> <span data-i18n="globalSettings">系统设置</span></span>
+                <span class="chevron">▾</span>
+              </summary>
+              <div class="section-body stack">
+                <label><span data-i18n="appName">应用名称</span><input id="appName"></label>
+                <div class="cols">
+                  <label><span data-i18n="contentLanguage">内容语言</span><select id="language"><option value="zh">中文</option><option value="en">English</option></select></label>
+                  <label><span data-i18n="format">默认格式</span><select id="outputFormat"><option value="markdown">Markdown</option><option value="text">Text</option><option value="json">JSON</option></select></label>
+                </div>
+                <label><span data-i18n="timezone">时区</span><select id="timezone"></select></label>
+                <label><span data-i18n="topicFocus">关注主题</span><textarea id="topicFocus"></textarea></label>
+                <div>
+                  <h3 data-i18n="defaultTargets">默认推送目标</h3>
+                  <div class="target-list" id="defaultTargets"></div>
+                </div>
                 <div class="row">
-                  <input id="newEmailAddress" placeholder="address@example.com" type="email" style="flex:1">
-                  <input id="newEmailNote" placeholder="备注（可选）" style="flex:1">
-                  <button class="secondary" id="addEmailRecipient" data-i18n="add">添加</button>
+                  <button class="primary" id="saveButton" data-i18n="save">保存</button>
+                  <button class="secondary" id="refreshButton" data-i18n="refresh">刷新</button>
+                </div>
+                <div class="status" id="saveStatus"></div>
+              </div>
+            </details>
+
+            <details class="collapsible-section" id="section-email">
+              <summary>
+                <span class="section-title"><span class="emoji">📧</span> 邮件配置</span>
+                <span class="chevron">▾</span>
+              </summary>
+              <div class="section-body stack">
+                <div class="provider-config">
+                  <h3><span>邮件发送配置</span><span class="badge">Resend API</span></h3>
+                  <div id="emailProviderStatus"></div>
+                </div>
+                <div id="emailAddressBook">
+                  <h3 data-i18n="emailAddressBook">邮件地址簿</h3>
+                  <div id="emailRecipientsList"></div>
+                  <div class="row">
+                    <input id="newEmailAddress" placeholder="address@example.com" type="email" style="flex:1">
+                    <input id="newEmailNote" placeholder="备注（可选）" style="flex:1">
+                    <button class="secondary" id="addEmailRecipient" data-i18n="add">添加</button>
+                  </div>
                 </div>
               </div>
-              <div class="row">
-                <button class="primary" id="saveButton" data-i18n="save">保存</button>
-                <button class="secondary" id="refreshButton" data-i18n="refresh">刷新</button>
-              </div>
-              <div class="status" id="saveStatus"></div>
-            </section>
+            </details>
 
-            <section class="panel stack" id="section-providers">
-              <h2 data-i18n="providers">通知渠道</h2>
-              <p class="muted" data-i18n="providerHelp">这里配置的 token / webhook 会存入 KV；Cloudflare secrets 也会继续生效。</p>
-              <div class="provider-grid" id="providerStatus"></div>
-              <div class="provider-form" id="providerSettingsForm"></div>
-            </section>
+            <details class="collapsible-section" id="section-providers" open>
+              <summary>
+                <span class="section-title"><span class="emoji">📡</span> <span data-i18n="providers">通知渠道</span></span>
+                <span class="chevron">▾</span>
+              </summary>
+              <div class="section-body stack">
+                <p class="muted" data-i18n="providerHelp">这里配置的 token / webhook 会存入 KV；Cloudflare secrets 也会继续生效。</p>
+                <div class="provider-grid" id="providerStatus"></div>
+                <div class="provider-form" id="providerSettingsForm"></div>
+              </div>
+            </details>
           </aside>
 
           <div class="stack">
-            <section class="panel stack" id="section-schedules">
-              <div class="section-head">
-                <h2 data-i18n="schedules">推送时间表</h2>
-                <button class="secondary" id="addScheduleButton" data-i18n="addSchedule">新增时间点</button>
-              </div>
-              <div class="provider-config">
-                <h3><span data-i18n="scheduleConfigurator">日报配置器</span><span class="badge" data-i18n="batchBuilder">批量生成</span></h3>
-                <div class="cols">
-                  <label><span data-i18n="reportType">日报类型</span>
-                    <select id="builderReportType">
-                      <option value="a_share">A股</option>
-                      <option value="us_stock">美股</option>
-                      <option value="crypto">加密</option>
-                      <option value="daily_hot">每日热点</option>
-                      <option value="custom">自定义</option>
-                    </select>
+            <details class="collapsible-section" id="section-schedules" open>
+              <summary>
+                <span class="section-title"><span class="emoji">📅</span> <span data-i18n="schedules">推送时间表</span></span>
+                <span class="chevron">▾</span>
+              </summary>
+              <div class="section-body stack">
+                <div class="section-head">
+                  <button class="secondary" id="addScheduleButton" data-i18n="addSchedule">新增时间点</button>
+                </div>
+                <div class="provider-config">
+                  <h3><span data-i18n="scheduleConfigurator">日报配置器</span><span class="badge" data-i18n="batchBuilder">批量生成</span></h3>
+                  <div class="cols">
+                    <label><span data-i18n="reportType">日报类型</span>
+                      <select id="builderReportType">
+                        <option value="a_share">A股</option>
+                        <option value="us_stock">美股</option>
+                        <option value="crypto">加密</option>
+                        <option value="daily_hot">每日热点</option>
+                        <option value="custom">自定义</option>
+                      </select>
+                    </label>
+                    <label><span data-i18n="customReportName">自定义名称</span><input id="builderCustomName" placeholder="例如：AI 热点"></label>
+                  </div>
+                  <label><span data-i18n="slotTimes">时间点（多选后一次生成）</span>
+                    <div class="target-list" id="builderSlots"></div>
                   </label>
-                  <label><span data-i18n="customReportName">自定义名称</span><input id="builderCustomName" placeholder="例如：AI 热点"></label>
+                  <div class="row">
+                    <button class="secondary" id="applySlotTemplateButton" data-i18n="applySlotTemplate">套用预置时间</button>
+                    <button class="primary" id="buildSchedulesButton" data-i18n="buildSchedules">按所选时间生成计划</button>
+                    <span class="status" id="builderStatus"></span>
+                  </div>
                 </div>
-                <label><span data-i18n="slotTimes">时间点（多选后一次生成）</span>
-                  <div class="target-list" id="builderSlots"></div>
-                </label>
-                <div class="row">
-                  <button class="secondary" id="applySlotTemplateButton" data-i18n="applySlotTemplate">套用预置时间</button>
-                  <button class="primary" id="buildSchedulesButton" data-i18n="buildSchedules">按所选时间生成计划</button>
-                  <span class="status" id="builderStatus"></span>
-                </div>
+                <div class="stack" id="schedules"></div>
               </div>
-              <div class="stack" id="schedules"></div>
-            </section>
+            </details>
 
-            <section class="panel stack" id="section-preview">
-              <div class="section-head">
-                <div>
-                  <h2 data-i18n="previewTitle">推送预览</h2>
-                  <div class="muted" data-i18n="previewHelp">查看当前配置会发送到各渠道的实际内容。</div>
+            <details class="collapsible-section" id="section-preview">
+              <summary>
+                <span class="section-title"><span class="emoji">📊</span> <span data-i18n="previewTitle">推送预览</span></span>
+                <span class="chevron">▾</span>
+              </summary>
+              <div class="section-body">
+                <div class="section-head">
+                  <div>
+                    <div class="muted" data-i18n="previewHelp">查看当前配置会发送到各渠道的实际内容。</div>
+                  </div>
+                  <div class="row">
+                    <select id="previewScheduleSelect" aria-label="Preview schedule"></select>
+                    <button class="secondary" id="refreshPreviewButton" data-i18n="refreshPreview">刷新预览</button>
+                  </div>
                 </div>
-                <div class="row">
-                  <select id="previewScheduleSelect" aria-label="Preview schedule"></select>
-                  <button class="secondary" id="refreshPreviewButton" data-i18n="refreshPreview">刷新预览</button>
+                <div class="status" id="previewStatus"></div>
+                <div class="preview-list" id="previewList"></div>
+              </div>
+            </details>
+
+            <details class="collapsible-section" id="section-template">
+              <summary>
+                <span class="section-title"><span class="emoji">📝</span> <span data-i18n="template">全局模板</span></span>
+                <span class="chevron">▾</span>
+              </summary>
+              <div class="section-body">
+                <textarea id="template"></textarea>
+                <div class="muted" data-i18n="variables">变量：{{generatedAt}}, {{timezone}}, {{topicQuery}}, {{sourceUrl}}, {{itemsMarkdown}}, {{itemsText}}, {{itemsJson}}</div>
+              </div>
+            </details>
+
+            <details class="collapsible-section" id="section-logs">
+              <summary>
+                <span class="section-title"><span class="emoji">📜</span> <span data-i18n="logs">发送记录</span></span>
+                <span class="chevron">▾</span>
+              </summary>
+              <div class="section-body">
+                <div class="section-head">
+                  <button class="secondary" id="loadLogsButton" data-i18n="refreshLogs">刷新记录</button>
                 </div>
+                <div class="logs" id="logs"></div>
               </div>
-              <div class="status" id="previewStatus"></div>
-              <div class="preview-list" id="previewList"></div>
-            </section>
-
-            <section class="panel stack" id="section-template">
-              <h2 data-i18n="template">全局模板</h2>
-              <textarea id="template"></textarea>
-              <div class="muted" data-i18n="variables">变量：{{generatedAt}}, {{timezone}}, {{topicQuery}}, {{sourceUrl}}, {{itemsMarkdown}}, {{itemsText}}, {{itemsJson}}</div>
-            </section>
-
-            <section class="panel stack" id="section-logs">
-              <div class="section-head">
-                <h2 data-i18n="logs">最近记录</h2>
-                <button class="secondary" id="loadLogsButton" data-i18n="refreshLogs">刷新记录</button>
-              </div>
-              <div class="logs" id="logs"></div>
-            </section>
+            </details>
           </div>
         </div>
       </section>
@@ -1379,6 +1472,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       renderTimezoneSelect($("timezone"), state.timezone);
       renderTargetList($("defaultTargets"), state.defaultTargets, "default");
       renderProviderStatus();
+      renderEmailProviderStatus();
       renderProviderSettings();
       renderEmailAddressBook();
       renderSlotBuilder();
@@ -1393,6 +1487,13 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         const ok = status && status.configured;
         return '<div class="provider-card"><strong>' + providerLabels[provider] + '</strong><span class="badge ' + (ok ? "ok" : "warn") + '">' + (ok ? t("configured") : t("notConfigured")) + '</span></div>';
       }).join("");
+    }
+
+    function renderEmailProviderStatus() {
+      const el = $("emailProviderStatus");
+      if (!el) return;
+      const emailConfigured = providerStatus.find((p) => p.name === "email")?.configured ?? false;
+      el.innerHTML = '<div class="provider-config"><h3><span>Resend API</span><span class="badge ' + (emailConfigured ? "ok" : "warn") + '">' + (emailConfigured ? t("configured") : t("notConfigured")) + '</span></h3><p class="muted">' + t("providerHelp") + '</p></div>';
     }
 
     function renderProviderSettings() {
@@ -1775,6 +1876,19 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         positionSymbols: [],
         emailRecipientIds: [],
         targets: state.defaultTargets,
+        moduleSwitches: {
+          news: true,
+          us_market: false,
+          a_share: true,
+          crypto: false,
+          fear_greed: false,
+          technicals: false,
+          sentiment: false,
+          catalysts: false,
+          x_sentiment: false,
+          positions: false,
+          macro: false,
+        },
         marketCalendar: "a_share",
         tradingDaySource: "external",
         marketHolidayDates: [],
@@ -1807,6 +1921,20 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       };
       const baseName = reportType === "custom" ? (customName || "Custom Report") : reportTypeLabel(reportType);
 
+      const defaultModuleSwitches = {
+        news: true,
+        us_market: reportType === "us_stock",
+        a_share: reportType === "a_share",
+        crypto: reportType === "crypto",
+        fear_greed: false,
+        technicals: false,
+        sentiment: false,
+        catalysts: false,
+        x_sentiment: false,
+        positions: false,
+        macro: false,
+      };
+
       selectedSlots.forEach((time, offset) => {
         state.schedules.push({
           id: "schedule-" + Date.now() + "-" + offset,
@@ -1823,7 +1951,9 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
           reportType,
           focusSymbols: [],
           positionSymbols: [],
+          emailRecipientIds: [],
           targets: state.defaultTargets,
+          moduleSwitches: { ...defaultModuleSwitches },
           marketCalendar: calendarByReport[reportType] || "everyday",
           tradingDaySource: reportType === "a_share" || reportType === "us_stock" ? "external" : "weekday",
           marketHolidayDates: [],
@@ -1889,12 +2019,16 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
     });
     $("themeButton").addEventListener("click", cycleTheme);
     $("themeButton").title = t("themeToggle");
-    $("sidebar").addEventListener("click", (event) => {
+    $("#sidebar").addEventListener("click", (event) => {
       const item = event.target.closest(".sidebar-item");
       if (!item || !item.dataset.section) return;
       const sectionId = "section-" + item.dataset.section;
       const section = document.getElementById(sectionId);
       if (!section) return;
+      // Open the details element if it's closed
+      if (section.tagName === "DETAILS" && !section.hasAttribute("open")) {
+        section.setAttribute("open", "");
+      }
       document.querySelectorAll(".sidebar-item[data-section]").forEach((el) => el.classList.remove("active"));
       item.classList.add("active");
       section.scrollIntoView({ behavior: "smooth", block: "start" });
