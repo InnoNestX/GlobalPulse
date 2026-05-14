@@ -1804,6 +1804,40 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         .map((cb) => cb.value);
     }
 
+    function collectModuleSwitches(index, schedule) {
+      const readChecked = (field) => {
+        const node = document.querySelector('input[data-index="' + index + '"][data-field="' + field + '"]');
+        return !!(node && node.checked);
+      };
+
+      schedule.moduleSwitches = {
+        news: readChecked("moduleSwitches_news"),
+        us_market: readChecked("moduleSwitches_us_market"),
+        a_share: readChecked("moduleSwitches_a_share"),
+        crypto: readChecked("moduleSwitches_crypto"),
+        fear_greed: readChecked("moduleSwitches_fear_greed"),
+        technicals: readChecked("moduleSwitches_technicals"),
+        sentiment: readChecked("moduleSwitches_sentiment"),
+        catalysts: readChecked("moduleSwitches_catalysts"),
+        x_sentiment: readChecked("moduleSwitches_x_sentiment"),
+        positions: readChecked("moduleSwitches_positions"),
+        macro: readChecked("moduleSwitches_macro"),
+      };
+
+      // Cleanup flattened transient fields used during editing
+      delete schedule.moduleSwitches_news;
+      delete schedule.moduleSwitches_us_market;
+      delete schedule.moduleSwitches_a_share;
+      delete schedule.moduleSwitches_crypto;
+      delete schedule.moduleSwitches_fear_greed;
+      delete schedule.moduleSwitches_technicals;
+      delete schedule.moduleSwitches_sentiment;
+      delete schedule.moduleSwitches_catalysts;
+      delete schedule.moduleSwitches_x_sentiment;
+      delete schedule.moduleSwitches_positions;
+      delete schedule.moduleSwitches_macro;
+    }
+
     function renderTimezoneSelect(select, value) {
       select.innerHTML = timezones.map((zone) => '<option value="' + zone + '">' + zone + '</option>').join("");
       select.value = value || "Asia/Hong_Kong";
@@ -1955,36 +1989,13 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         state.providerSettings[key] = node.value.trim();
       });
       state.schedules.forEach((schedule) => {
+        const scheduleIndex = state.schedules.indexOf(schedule);
         schedule.marketHolidayDates = Array.isArray(schedule.marketHolidayDates) ? schedule.marketHolidayDates : parseDates(schedule.marketHolidayDates);
         schedule.focusSymbols = Array.isArray(schedule.focusSymbols) ? schedule.focusSymbols : parseSymbols(schedule.focusSymbolsText || "");
         schedule.positionSymbols = Array.isArray(schedule.positionSymbols) ? schedule.positionSymbols : parseSymbols(schedule.positionSymbolsText || "");
         delete schedule.focusSymbolsText;
         delete schedule.positionSymbolsText;
-        // Rebuild moduleSwitches from flattened form fields
-        schedule.moduleSwitches = {
-          news: !!schedule.moduleSwitches_news,
-          us_market: !!schedule.moduleSwitches_us_market,
-          a_share: !!schedule.moduleSwitches_a_share,
-          crypto: !!schedule.moduleSwitches_crypto,
-          fear_greed: !!schedule.moduleSwitches_fear_greed,
-          technicals: !!schedule.moduleSwitches_technicals,
-          sentiment: !!schedule.moduleSwitches_sentiment,
-          catalysts: !!schedule.moduleSwitches_catalysts,
-          x_sentiment: !!schedule.moduleSwitches_x_sentiment,
-          positions: !!schedule.moduleSwitches_positions,
-          macro: !!schedule.moduleSwitches_macro,
-        };
-        delete schedule.moduleSwitches_news;
-        delete schedule.moduleSwitches_us_market;
-        delete schedule.moduleSwitches_a_share;
-        delete schedule.moduleSwitches_crypto;
-        delete schedule.moduleSwitches_fear_greed;
-        delete schedule.moduleSwitches_technicals;
-        delete schedule.moduleSwitches_sentiment;
-        delete schedule.moduleSwitches_catalysts;
-        delete schedule.moduleSwitches_x_sentiment;
-        delete schedule.moduleSwitches_positions;
-        delete schedule.moduleSwitches_macro;
+        collectModuleSwitches(scheduleIndex, schedule);
         // Collect emailRecipientIds from form checkboxes
         collectEmailRecipientIds(schedule);
       });
