@@ -930,8 +930,8 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
 
       <section class="layout">
         <nav class="sidebar" id="sidebar">
-          <button class="sidebar-item active" data-section="system">
-            <span>⚙️</span> <span>系统设置</span>
+          <button class="sidebar-item active" data-section="globalSettings">
+            <span>⚙️</span> <span data-i18n="globalSettings">全局设置</span>
           </button>
           <button class="sidebar-item" data-section="schedules">
             <span>📅</span> <span data-i18n="schedules">推送时间表</span>
@@ -957,7 +957,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
           <aside class="stack" id="sidebar-system">
             <details class="collapsible-section" id="section-globalSettings" open>
               <summary>
-                <span class="section-title"><span class="emoji">⚙️</span> <span data-i18n="globalSettings">系统设置</span></span>
+                <span class="section-title"><span class="emoji">⚙️</span> <span data-i18n="globalSettings">全局设置</span></span>
                 <span class="chevron">▾</span>
               </summary>
               <div class="section-body stack">
@@ -1636,6 +1636,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
           '<label>' + label + '<input type="' + type + '" autocomplete="off" spellcheck="false" data-provider-setting="' + key + '" value="' + escapeAttr(values[key] || "") + '"></label>'
         ).join("") + '</div>'
       ).join("");
+    }
 
     // ─── Email Address Book ───────────────────────────────────────────────────
 
@@ -1706,8 +1707,6 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       schedule.emailRecipientIds = Array.from(checkboxes)
         .filter((cb) => Number(cb.dataset.index) === state.schedules.indexOf(schedule))
         .map((cb) => cb.value);
-    }
-
     }
 
     function renderTimezoneSelect(select, value) {
@@ -2119,7 +2118,11 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
     if (sidebar) sidebar.addEventListener("click", (event) => {
       const item = event.target.closest(".sidebar-item");
       if (!item || !item.dataset.section) return;
-      const sectionId = "section-" + item.dataset.section;
+      const legacySectionMap = {
+        system: "globalSettings"
+      };
+      const sectionName = legacySectionMap[item.dataset.section] || item.dataset.section;
+      const sectionId = "section-" + sectionName;
       const section = document.getElementById(sectionId);
       if (!section) return;
       // Open the details element if it's closed
@@ -2165,15 +2168,20 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       else if (fieldName === "skipNonTradingInCron") schedule.skipNonTradingInCron = event.target.checked;
       else if (fieldName === "days") schedule.days = Array.from(document.querySelectorAll('input[data-index="' + index + '"][data-field="days"]:checked')).map((node) => Number(node.value));
       else if (fieldName === "targets") schedule.targets = Array.from(document.querySelectorAll('input[data-index="' + index + '"][data-field="targets"]:checked')).map((node) => node.value);
+      else if (fieldName === "emailRecipientIds") schedule.emailRecipientIds = Array.from(document.querySelectorAll('input[data-index="' + index + '"][data-field="emailRecipientIds"]:checked')).map((node) => node.value);
       else if (fieldName === "focusSymbolsText") schedule.focusSymbols = parseSymbols(event.target.value);
       else if (fieldName === "positionSymbolsText") schedule.positionSymbols = parseSymbols(event.target.value);
+      else if (fieldName.startsWith("moduleSwitches_")) schedule[fieldName] = event.target.checked;
       else {
-        schedule[fieldName] = event.target.value;
+        schedule[fieldName] = event.target.type === "checkbox" ? event.target.checked : event.target.value;
         if (fieldName === "marketCalendar") {
           schedule.tradingDaySource = (schedule.marketCalendar === "a_share" || schedule.marketCalendar === "us_stock") ? "external" : "weekday";
           if (schedule.tradingDaySource === "external") {
             schedule.marketHolidayDates = [];
           }
+        }
+        if (fieldName === "triggerMode" || fieldName === "reportType" || fieldName === "marketCalendar") {
+          renderSchedules();
         }
       }
     });
