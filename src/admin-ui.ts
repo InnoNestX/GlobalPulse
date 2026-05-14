@@ -1991,11 +1991,21 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         if (!key || node.dataset.masked === "1") continue;
         const value = node.value.trim();
         if (!value) continue;
-        if (key.toLowerCase().includes("webhookurl") && !/^https?:\/\//i.test(value)) {
-          return { ok: false, message: key + " must start with http:// or https://" };
+        if (key.toLowerCase().includes("webhookurl")) {
+          const lower = value.toLowerCase();
+          if (!(lower.startsWith("http://") || lower.startsWith("https://"))) {
+            return { ok: false, message: key + " must start with http:// or https://" };
+          }
         }
-        if ((key === "emailFrom" || key === "emailFromOverride") && (!value.includes("@") || !(/[<>]/.test(value) || /@[^\s]+\.[^\s]+/.test(value)))) {
-          return { ok: false, message: key + " is not a valid email sender format" };
+        if (key === "emailFrom" || key === "emailFromOverride") {
+          const bracketMatch = /<([^>]+)>/.exec(value);
+          const emailCandidate = (bracketMatch && bracketMatch[1] ? bracketMatch[1] : value).trim();
+          const parts = emailCandidate.split("@");
+          const local = parts[0] || "";
+          const domain = parts[1] || "";
+          if (parts.length !== 2 || !local || !domain || !domain.includes(".")) {
+            return { ok: false, message: key + " is not a valid email sender format" };
+          }
         }
       }
       return { ok: true };
