@@ -125,8 +125,8 @@ function parseSender(input: string): { email: string; name?: string } {
   if (!match) {
     return { email: trimmed };
   }
-  const name = match[1].trim().replace(/^"|"$/g, "");
-  const email = match[2].trim();
+  const name = (match[1] ?? "").trim().replace(/^"|"$/g, "");
+  const email = (match[2] ?? trimmed).trim();
   return name ? { email, name } : { email };
 }
 
