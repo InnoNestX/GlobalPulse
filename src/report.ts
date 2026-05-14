@@ -506,32 +506,40 @@ async function buildAShareReport(schedule: PulseSchedule, items: TopicItem[], ge
 
 async function fetchTencentUsQuotes(symbols: string[]): Promise<QuoteRow[]> {
   if (symbols.length === 0) return [];
-  const query = symbols.map((symbol) => `us${symbol.toUpperCase()}`).join(",");
-  const raw = await fetch(`https://qt.gtimg.cn/q=${query}`, {
-    headers: { "User-Agent": "globalpulse-worker/0.1" },
-  }).then((res) => res.text());
-  return parseTencentQuoteLines(raw).map((row) => ({
-    symbol: normalizeUsSymbol(row.code),
-    name: row.name,
-    price: row.price,
-    change: row.change,
-    changePercent: row.changePercent,
-  })).filter((row) => Number.isFinite(row.price));
+  try {
+    const query = symbols.map((symbol) => `us${symbol.toUpperCase()}`).join(",");
+    const raw = await fetch(`https://qt.gtimg.cn/q=${query}`, {
+      headers: { "User-Agent": "globalpulse-worker/0.1" },
+    }).then((res) => res.text());
+    return parseTencentQuoteLines(raw).map((row) => ({
+      symbol: normalizeUsSymbol(row.code),
+      name: row.name,
+      price: row.price,
+      change: row.change,
+      changePercent: row.changePercent,
+    })).filter((row) => Number.isFinite(row.price));
+  } catch {
+    return [];
+  }
 }
 
 async function fetchTencentIndexQuotes(symbols: string[]): Promise<QuoteRow[]> {
   if (symbols.length === 0) return [];
-  const query = symbols.join(",");
-  const raw = await fetch(`https://qt.gtimg.cn/q=${query}`, {
-    headers: { "User-Agent": "globalpulse-worker/0.1" },
-  }).then((res) => res.text());
-  return parseTencentQuoteLines(raw).map((row) => ({
-    symbol: row.code,
-    name: row.name,
-    price: row.price,
-    change: row.change,
-    changePercent: row.changePercent,
-  })).filter((row) => Number.isFinite(row.price));
+  try {
+    const query = symbols.join(",");
+    const raw = await fetch(`https://qt.gtimg.cn/q=${query}`, {
+      headers: { "User-Agent": "globalpulse-worker/0.1" },
+    }).then((res) => res.text());
+    return parseTencentQuoteLines(raw).map((row) => ({
+      symbol: row.code,
+      name: row.name,
+      price: row.price,
+      change: row.change,
+      changePercent: row.changePercent,
+    })).filter((row) => Number.isFinite(row.price));
+  } catch {
+    return [];
+  }
 }
 
 interface BinanceQuote {
@@ -542,26 +550,30 @@ interface BinanceQuote {
 
 async function fetchBinanceQuotes(symbols: string[]): Promise<BinanceQuote[]> {
   if (symbols.length === 0) return [];
-  const url = new URL("https://api.binance.com/api/v3/ticker/24hr");
-  url.searchParams.set("symbols", JSON.stringify(symbols));
-  const response = await fetch(url.toString(), {
-    headers: { "User-Agent": "globalpulse-worker/0.1" },
-  });
+  try {
+    const url = new URL("https://api.binance.com/api/v3/ticker/24hr");
+    url.searchParams.set("symbols", JSON.stringify(symbols));
+    const response = await fetch(url.toString(), {
+      headers: { "User-Agent": "globalpulse-worker/0.1" },
+    });
 
-  if (!response.ok) {
-    return [];
-  }
-
-  const payload = await response.json() as Array<{ symbol?: string; lastPrice?: string; priceChangePercent?: string }>;
-  return payload.flatMap((entry) => {
-    const symbol = entry.symbol?.toUpperCase();
-    const price = Number(entry.lastPrice);
-    const changePercent = Number(entry.priceChangePercent);
-    if (!symbol || !Number.isFinite(price) || !Number.isFinite(changePercent)) {
+    if (!response.ok) {
       return [];
     }
-    return [{ symbol, price, changePercent }];
-  });
+
+    const payload = await response.json() as Array<{ symbol?: string; lastPrice?: string; priceChangePercent?: string }>;
+    return payload.flatMap((entry) => {
+      const symbol = entry.symbol?.toUpperCase();
+      const price = Number(entry.lastPrice);
+      const changePercent = Number(entry.priceChangePercent);
+      if (!symbol || !Number.isFinite(price) || !Number.isFinite(changePercent)) {
+        return [];
+      }
+      return [{ symbol, price, changePercent }];
+    });
+  } catch {
+    return [];
+  }
 }
 
 async function fetchXSentimentSummary(schedule: PulseSchedule, symbols: string[]): Promise<string[]> {
@@ -569,13 +581,17 @@ async function fetchXSentimentSummary(schedule: PulseSchedule, symbols: string[]
   const summaries: string[] = [];
 
   for (const symbol of top) {
-    const rss = buildGoogleNewsRssUrl(`site:x.com ${symbol} (stock OR crypto OR market)`, schedule.language);
-    const scoped = await fetchTopicItems(schedule.topicQuery, schedule.language, rss);
-    const texts = scoped.items.slice(0, 6).map((item) => `${item.title}\n${item.summary ?? ""}`).join("\n").toUpperCase();
-    if (!texts.trim()) continue;
-    const score = classifySentiment(texts);
-    const label = score > 0 ? "偏多" : score < 0 ? "偏空" : "中性";
-    summaries.push(`${symbol}: ${label}（样本${scoped.items.length}条）`);
+    try {
+      const rss = buildGoogleNewsRssUrl(`site:x.com ${symbol} (stock OR crypto OR market)`, schedule.language);
+      const scoped = await fetchTopicItems(schedule.topicQuery, schedule.language, rss);
+      const texts = scoped.items.slice(0, 6).map((item) => `${item.title}\n${item.summary ?? ""}`).join("\n").toUpperCase();
+      if (!texts.trim()) continue;
+      const score = classifySentiment(texts);
+      const label = score > 0 ? "偏多" : score < 0 ? "偏空" : "中性";
+      summaries.push(`${symbol}: ${label}（样本${scoped.items.length}条）`);
+    } catch {
+      // ignore per-symbol sentiment fetch failures
+    }
   }
 
   return summaries;
