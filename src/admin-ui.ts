@@ -983,9 +983,6 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
           <button class="sidebar-item" data-section="providers">
             <span>📡</span> <span data-i18n="providers">通知渠道</span>
           </button>
-          <button class="sidebar-item" data-section="email">
-            <span>📧</span> <span>邮件配置</span>
-          </button>
           <button class="sidebar-item" data-section="logs">
             <span>📜</span> <span data-i18n="logs">发送记录</span>
           </button>
@@ -1018,28 +1015,6 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
               </div>
             </details>
 
-            <details class="collapsible-section" id="section-email">
-              <summary>
-                <span class="section-title"><span class="emoji">📧</span> 邮件配置</span>
-                <span class="chevron">▾</span>
-              </summary>
-              <div class="section-body stack">
-                <div class="provider-config">
-                  <h3><span>邮件发送配置</span><span class="badge">Resend API</span></h3>
-                  <div id="emailProviderStatus"></div>
-                </div>
-                <div id="emailAddressBook">
-                  <h3 data-i18n="emailAddressBook">邮件地址簿</h3>
-                  <div id="emailRecipientsList"></div>
-                  <div class="row">
-                    <input id="newEmailAddress" placeholder="address@example.com" type="email" style="flex:1">
-                    <input id="newEmailNote" placeholder="备注（可选）" style="flex:1">
-                    <button class="secondary" id="addEmailRecipient" data-i18n="add">添加</button>
-                  </div>
-                </div>
-              </div>
-            </details>
-
             <details class="collapsible-section" id="section-providers" open>
               <summary>
                 <span class="section-title"><span class="emoji">📡</span> <span data-i18n="providers">通知渠道</span></span>
@@ -1049,6 +1024,21 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
                 <p class="muted" data-i18n="providerHelp">这里配置的 token / webhook 会存入 KV；Cloudflare secrets 也会继续生效。</p>
                 <div class="provider-grid" id="providerStatus"></div>
                 <div class="provider-form" id="providerSettingsForm"></div>
+                <div class="stack hidden" id="providerExtras">
+                  <div class="provider-config">
+                    <h3><span>Email Provider</span><span class="badge">Brevo / Resend</span></h3>
+                    <div id="emailProviderStatus"></div>
+                  </div>
+                  <div id="emailAddressBook">
+                    <h3 data-i18n="emailAddressBook">邮件地址簿</h3>
+                    <div id="emailRecipientsList"></div>
+                    <div class="row">
+                      <input id="newEmailAddress" placeholder="address@example.com" type="email" style="flex:1">
+                      <input id="newEmailNote" placeholder="备注（可选）" style="flex:1">
+                      <button class="secondary" id="addEmailRecipient" data-i18n="add">添加</button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </details>
           </aside>
@@ -1171,7 +1161,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
     const providers = ["feishu", "wechat_official_account", "wechat_clawbot", "telegram", "email"];
     const providerLabels = {
       feishu: "Feishu",
-      wechat_official_account: "微信公众号",
+      wechat_official_account: "WeChat OA",
       wechat_clawbot: "WeChat Bot",
       telegram: "Telegram",
       email: "Email"
@@ -1631,9 +1621,8 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       renderTimezoneSelect($("timezone"), state.timezone);
       renderTargetList($("defaultTargets"), state.defaultTargets, "default");
       renderProviderStatus();
-      renderEmailProviderStatus();
       renderProviderSettings();
-      renderEmailAddressBook();
+      renderProviderExtras();
       renderSlotBuilder();
       renderSchedules();
       renderPreviewSelect();
@@ -1656,7 +1645,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       const el = $("emailProviderStatus");
       if (!el) return;
       const emailConfigured = providerStatus.find((p) => p.name === "email")?.configured ?? false;
-      el.innerHTML = '<div class="provider-config"><h3><span>Brevo / Resend API</span><span class="badge ' + (emailConfigured ? "ok" : "warn") + '">' + (emailConfigured ? t("configured") : t("notConfigured")) + '</span></h3><p class="muted">' + t("providerHelp") + '</p></div>';
+      el.innerHTML = '<div class="row"><span class="badge ' + (emailConfigured ? "ok" : "warn") + '">' + (emailConfigured ? t("configured") : t("notConfigured")) + '</span><span class="muted">BREVO_API_KEY + EMAIL_FROM</span></div>';
     }
 
     function renderProviderSettings() {
@@ -1670,7 +1659,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
           ]
         },
         wechat_official_account: {
-          name: "微信公众号",
+          name: "WeChat OA",
           fields: [
             ["wechatOfficialAppId", t("wechatOfficialAppId"), "password"],
             ["wechatOfficialAppSecret", t("wechatOfficialAppSecret"), "password"],
@@ -1678,7 +1667,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
           ]
         },
         wechat_clawbot: {
-          name: "wechat clawbot",
+          name: "WeChat Bot",
           fields: [
             ["wechatClawbotWebhookUrl", t("wechatClawbotWebhookUrl"), "text"],
             ["wechatClawbotWebhookKey", t("wechatClawbotWebhookKey"), "password"]
@@ -1709,6 +1698,16 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       const group = groups[activeProvider];
       $("providerSettingsForm").innerHTML = '<div class="provider-config" data-provider-group="' + activeProvider + '"><h3><span>' + group.name + '</span><span class="badge">' + t("providerConfig") + '</span></h3>' +
         group.fields.map(([key, label, type]) => renderMaskedProviderField(values, key, label, type)).join("") + '</div>';
+    }
+
+    function renderProviderExtras() {
+      const wrapper = $("providerExtras");
+      if (!wrapper) return;
+      const showEmailExtras = activeProvider === "email";
+      wrapper.classList.toggle("hidden", !showEmailExtras);
+      if (!showEmailExtras) return;
+      renderEmailProviderStatus();
+      renderEmailAddressBook();
     }
 
     function renderMaskedProviderField(values, key, label, type) {
@@ -2031,12 +2030,14 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         $("saveStatus").textContent = t("saved");
         renderProviderStatus();
         renderProviderSettings();
+        renderProviderExtras();
         return;
       }
       activeProvider = provider;
       $("saveStatus").textContent = "";
       renderProviderStatus();
       renderProviderSettings();
+      renderProviderExtras();
     }
 
     async function saveSettings() {
