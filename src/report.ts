@@ -363,7 +363,7 @@ async function buildEnrichedBody(
     format: schedule.outputFormat,
     marketReport,
   });
-  const analysisSection = buildAnalysisSection(schedule, items);
+  const analysisSection = await buildAnalysisSection(schedule, items);
   const bodyWithMarketReport = marketReport && !schedule.template.includes("{{marketReport}}")
     ? `${rendered.body}\n\n${marketReport}`
     : rendered.body;
@@ -1064,15 +1064,15 @@ function normalizeSymbolForCompare(symbol: string, reportType: ReportTypeForSumm
   const upper = symbol.trim().toUpperCase().replace(/\s+/g, "");
   if (!upper) return "";
 
-  if (reportType === "us_stock") {
-    return upper.replace(/^US/, "").split(".")[0] ?? upper;
-  }
-
   if (reportType === "crypto") {
     return upper.replace(/USDT$/, "");
   }
 
-  return normalizeAShareCode(symbol)?.toUpperCase() ?? upper;
+  if (reportType === "a_share") {
+    return normalizeAShareCode(symbol)?.toUpperCase() ?? upper;
+  }
+
+  return upper.replace(/^US/, "").split(".")[0] ?? upper;
 }
 
 function displaySymbol(symbol: string, reportType: ReportTypeForSummary): string {
@@ -1087,7 +1087,7 @@ function displaySymbol(symbol: string, reportType: ReportTypeForSummary): string
   return symbol.toUpperCase().replace(/^US/, "").split(".")[0] ?? symbol.toUpperCase();
 }
 
-type ReportTypeForSummary = "us_stock" | "a_share" | "crypto";
+type ReportTypeForSummary = PulseSchedule["reportType"];
 
 function buildMarketSentiment(
   rows: Array<{ changePercent: number }>,
@@ -1136,7 +1136,13 @@ function buildSummarySection(
       ? "优先防守与仓位管理，等待风险释放后再评估。"
       : "维持均衡配置，等待明确信号后再扩大仓位。";
   const fgHint = fearGreed ? `恐惧贪婪指数参考：${fearGreed}。` : "";
-  const marketLabel = reportType === "crypto" ? "加密市场" : reportType === "a_share" ? "A股市场" : "美股市场";
+  const marketLabel = reportType === "crypto"
+    ? "加密市场"
+    : reportType === "a_share"
+      ? "A股市场"
+      : reportType === "us_stock"
+        ? "美股市场"
+        : "市场";
 
   return [
     "",
@@ -1240,7 +1246,18 @@ function resolveMarketSession(schedule: PulseSchedule, generatedAt: string): Pul
   return schedule.marketSession;
 }
 
-function buildAnalysisSection(schedule: PulseSchedule, items: TopicItem[]): string {
+interface SymbolOutlook {
+  view: "看多" | "看空";
+  confidence: number;
+  hitCount: number;
+  refs: number[];
+  narrative: string;
+  opportunity: string;
+  risk: string;
+  correlation: "高" | "中" | "低";
+}
+
+async function buildAnalysisSection(schedule: PulseSchedule, items: TopicItem[]): Promise<string> {
   const focusSymbols = schedule.focusSymbols ?? [];
   const positionSymbols = schedule.positionSymbols ?? [];
   const allText = items.map((item) => `${item.title}\n${item.summary ?? ""}`.toUpperCase()).join("\n");
@@ -1249,8 +1266,9 @@ function buildAnalysisSection(schedule: PulseSchedule, items: TopicItem[]): stri
   const neutralHitCount = Math.max(items.length - positiveHitCount - negativeHitCount, 0);
 
   if (schedule.language === "zh") {
-    const focusSummary = buildSymbolSummary(items, focusSymbols, "focus");
-    const positionSummary = buildSymbolSummary(items, positionSymbols, "position");
+    const outlookMap = await buildSymbolOutlookMap(schedule, items);
+    const focusSummary = buildSymbolSummary(items, focusSymbols, "focus", schedule.reportType, outlookMap);
+    const positionSummary = buildSymbolSummary(items, positionSymbols, "position", schedule.reportType, outlookMap);
     const base = positiveHitCount >= negativeHitCount
       ? "基准场景：情绪偏中性偏多，关注量能延续与政策边际变化。"
       : "基准场景：情绪偏谨慎，优先关注回撤与波动放大风险。";
@@ -1297,6 +1315,152 @@ function buildAnalysisSection(schedule: PulseSchedule, items: TopicItem[]): stri
     "- Upside: policy support and earnings resilience extend the trend.",
     "- Risk: liquidity shocks or geopolitical headlines trigger fast drawdowns.",
   ].join("\n");
+}
+
+async function buildSymbolOutlookMap(schedule: PulseSchedule, items: TopicItem[]): Promise<Map<string, SymbolOutlook>> {
+  const symbols = dedupeSymbols([...(schedule.focusSymbols ?? []), ...(schedule.positionSymbols ?? [])]).slice(0, 16);
+  const result = new Map<string, SymbolOutlook>();
+  if (symbols.length === 0) {
+    return result;
+  }
+
+  const quoteMap = await fetchSymbolQuoteMap(schedule.reportType, symbols);
+  const marketBias = classifySentiment(items.map((item) => `${item.title}\n${item.summary ?? ""}`.toUpperCase()).join("\n"));
+
+  const symbolOutlooks = await Promise.all(symbols.map(async (symbol) => {
+    const key = normalizeSymbolForCompare(symbol, schedule.reportType);
+    const refs: number[] = [];
+    let positive = 0;
+    let negative = 0;
+
+    items.forEach((item, index) => {
+      const text = `${item.title}\n${item.summary ?? ""}`.toUpperCase();
+      if (!containsSymbolHit(text, symbol, schedule.reportType)) return;
+      refs.push(index + 1);
+      const score = classifySentiment(text);
+      if (score > 0) positive += 1;
+      if (score < 0) negative += 1;
+    });
+
+    const supplemental = refs.length === 0
+      ? await fetchSupplementalSymbolSignal(schedule, symbol)
+      : undefined;
+    const quoteChange = quoteMap.get(key);
+    const momentumSignal = Number.isFinite(quoteChange) ? (quoteChange as number) / 2 : 0;
+    const newsSignal = refs.length > 0
+      ? (positive - negative)
+      : (supplemental?.sentiment ?? 0);
+    const score = (newsSignal * 1.8) + (momentumSignal * 1.2) + (marketBias * 0.6);
+    const view: "看多" | "看空" = score >= 0 ? "看多" : "看空";
+    const confidenceBase = refs.length > 0 ? 58 : 55;
+    const confidence = clamp(
+      Math.round(
+        confidenceBase
+        + Math.min(Math.abs(score) * 10, 20)
+        + Math.min((quoteChange ?? 0) ? Math.abs(quoteChange ?? 0) : 0, 4) * 2
+        + Math.min(refs.length, 4) * 4
+        + (supplemental ? Math.min(supplemental.sampleSize, 6) : 0),
+      ),
+      55,
+      93,
+    );
+    const hitCount = refs.length + (supplemental && refs.length === 0 ? supplemental.sampleSize : 0);
+    const narrative = view === "看多" ? "偏利多" : "偏利空";
+    const opportunity = view === "看多" ? "机会信号中等偏强" : "等待企稳信号后再参与";
+    const risk = view === "看多" ? "防范高位回撤风险" : "下行动能仍在，注意止损纪律";
+    const correlation: "高" | "中" | "低" = hitCount >= 4 ? "高" : hitCount >= 2 ? "中" : "低";
+
+    return {
+      key,
+      outlook: {
+        view,
+        confidence,
+        hitCount,
+        refs,
+        narrative,
+        opportunity,
+        risk,
+        correlation,
+      } satisfies SymbolOutlook,
+    };
+  }));
+
+  for (const row of symbolOutlooks) {
+    if (!row.key) continue;
+    result.set(row.key, row.outlook);
+  }
+
+  return result;
+}
+
+async function fetchSymbolQuoteMap(
+  reportType: PulseSchedule["reportType"],
+  symbols: string[],
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (symbols.length === 0) return map;
+
+  if (reportType === "us_stock") {
+    const rows = await fetchTencentUsQuotes(symbols);
+    rows.forEach((row) => {
+      map.set(normalizeSymbolForCompare(row.symbol, "us_stock"), row.changePercent);
+    });
+    return map;
+  }
+
+  if (reportType === "a_share") {
+    const codes = symbols.map(normalizeAShareCode).filter(Boolean) as string[];
+    const rows = await fetchTencentIndexQuotes(codes);
+    rows.forEach((row) => {
+      map.set(normalizeSymbolForCompare(row.symbol, "a_share"), row.changePercent);
+    });
+    return map;
+  }
+
+  if (reportType === "crypto") {
+    const pairs = symbols.map(toCryptoPair);
+    const rows = await fetchBinanceQuotes(pairs);
+    rows.forEach((row) => {
+      map.set(normalizeSymbolForCompare(row.symbol, "crypto"), row.changePercent);
+    });
+  }
+
+  return map;
+}
+
+async function fetchSupplementalSymbolSignal(
+  schedule: PulseSchedule,
+  symbol: string,
+): Promise<{ sentiment: number; sampleSize: number } | undefined> {
+  try {
+    const marketKeyword = schedule.reportType === "us_stock"
+      ? "stock OR earnings OR guidance"
+      : schedule.reportType === "a_share"
+        ? "A股 OR 业绩 OR 资金"
+        : "crypto OR token OR ETF";
+    const rss = buildGoogleNewsRssUrl(`${symbol} ${marketKeyword}`, schedule.language);
+    const scoped = await fetchTopicItems(`${symbol} ${schedule.topicQuery}`, schedule.language, rss);
+    const sample = scoped.items.slice(0, 6);
+    if (sample.length === 0) return undefined;
+    const scores = sample.map((item) => classifySentiment(`${item.title}\n${item.summary ?? ""}`.toUpperCase()));
+    const aggregate = scores.reduce((sum, score) => sum + score, 0);
+    return {
+      sentiment: aggregate / sample.length,
+      sampleSize: sample.length,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function containsSymbolHit(text: string, symbol: string, reportType: PulseSchedule["reportType"]): boolean {
+  const normalized = normalizeSymbolForCompare(symbol, reportType);
+  if (!normalized) return false;
+  if (text.includes(normalized)) return true;
+  if (reportType === "crypto") {
+    return text.includes(`${normalized}USDT`);
+  }
+  return false;
 }
 
 function countKeywordHits(input: string, keywords: string[]): number {
@@ -1346,7 +1510,13 @@ function normalizeHttpUrl(value: string | undefined): string | undefined {
   }
 }
 
-function buildSymbolSummary(items: TopicItem[], symbols: string[], mode: "focus" | "position"): string[] {
+function buildSymbolSummary(
+  items: TopicItem[],
+  symbols: string[],
+  mode: "focus" | "position",
+  reportType: PulseSchedule["reportType"],
+  outlookMap: Map<string, SymbolOutlook>,
+): string[] {
   const prefix = mode === "focus" ? "- 特别关注" : "- 持仓";
 
   if (symbols.length === 0) {
@@ -1354,50 +1524,16 @@ function buildSymbolSummary(items: TopicItem[], symbols: string[], mode: "focus"
   }
 
   return symbols.map((symbol) => {
-    const upper = symbol.toUpperCase();
-    const refs: number[] = [];
-    let positive = 0;
-    let negative = 0;
+    const key = normalizeSymbolForCompare(symbol, reportType);
+    const outlook = outlookMap.get(key);
+    if (outlook) {
+      const refsText = outlook.refs.length > 0 ? outlook.refs.map((ref) => `#${ref}`).join(" ") : "外部样本";
+      return `${prefix} ${symbol}：观点 ${outlook.view}（置信度 ${outlook.confidence}%），命中 ${outlook.hitCount} 条（${refsText}），主叙事 ${outlook.narrative}，机会 ${outlook.opportunity}，风险 ${outlook.risk}，相关性 ${outlook.correlation}`;
+    }
 
-    items.forEach((item, index) => {
-      const text = `${item.title}\n${item.summary ?? ""}`.toUpperCase();
-
-      if (!text.includes(upper)) {
-        return;
-      }
-
-      refs.push(index + 1);
-      const score = classifySentiment(text);
-
-      if (score > 0) positive += 1;
-      if (score < 0) negative += 1;
-    });
-
-    const hitCount = refs.length;
-    const refsText = hitCount > 0 ? refs.map((ref) => `#${ref}`).join(" ") : "无";
-    const narrative = hitCount === 0
-      ? "待观察"
-      : positive > negative
-        ? "偏利多"
-        : negative > positive
-          ? "偏利空"
-          : "中性";
-    const directionalScore = positive - negative;
-    const view = hitCount === 0
-      ? "中性"
-      : directionalScore > 0
-        ? "看多"
-        : directionalScore < 0
-          ? "看空"
-          : "中性";
-    const confidence = hitCount === 0
-      ? 36
-      : clamp(Math.round(48 + Math.abs(directionalScore) * 14 + Math.min(hitCount, 4) * 6), 40, 90);
-    const opportunity = hitCount === 0 ? "机会信号弱" : (positive >= negative ? "机会信号中等" : "机会信号偏弱");
-    const risk = hitCount === 0 ? "风险未知" : (negative > 0 ? "风险因子偏高" : "风险因子可控");
-    const correlation = hitCount >= 3 ? "高" : hitCount >= 1 ? "中" : "低";
-
-    return `${prefix} ${symbol}：观点 ${view}（置信度 ${confidence}%），命中 ${hitCount} 条（${refsText}），主叙事 ${narrative}，机会 ${opportunity}，风险 ${risk}，相关性 ${correlation}`;
+    const allText = items.map((item) => `${item.title}\n${item.summary ?? ""}`.toUpperCase()).join("\n");
+    const fallbackView: "看多" | "看空" = classifySentiment(allText) >= 0 ? "看多" : "看空";
+    return `${prefix} ${symbol}：观点 ${fallbackView}（置信度 55%），命中 0 条（外部样本不足），主叙事 ${fallbackView === "看多" ? "偏利多" : "偏利空"}，机会 ${fallbackView === "看多" ? "等待回踩确认后跟进" : "等待止跌信号后评估"}，风险 ${fallbackView === "看多" ? "防范冲高回落" : "下行波动可能放大"}，相关性 低`;
   });
 }
 
