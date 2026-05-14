@@ -26,6 +26,7 @@ const providerLabels: Record<ProviderName, string> = {
   wechat_official_account: "微信公众号",
   wechat_clawbot: "wechat clawbot",
   telegram: "Telegram",
+  email: "Email",
 };
 
 export async function createSchedulePreview(env: Env, schedule: PulseSchedule, now = new Date()): Promise<SchedulePreview> {
