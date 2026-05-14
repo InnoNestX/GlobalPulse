@@ -1,6 +1,6 @@
 import type { Env } from "./env";
 import type { PulseSchedule } from "./config";
-import { fetchTopicItems, type TopicItem } from "./sources";
+import { fetchTopicItems, fetchStockQuotes, fetchAShareIndices, type TopicItem, type StockQuote, type MoverGroup, type SentimentResult, type Catalyst } from "./sources";
 import { renderDigest } from "./template";
 import { getLocalTimeParts } from "./time";
 
@@ -37,6 +37,186 @@ export async function buildScheduleReport(env: Env, schedule: PulseSchedule, now
     items: translatedItems,
     actions,
   };
+}
+
+/**
+ * Modular market report builder — fetches live quotes, computes movers & sentiment,
+ * and returns a structured market report. Keeps focusSymbols / positionSymbols
+ * from the schedule config as the watched universe.
+ */
+export async function buildMarketReport(
+  env: Env,
+  schedule: PulseSchedule,
+  now = new Date(),
+): Promise<ReportBuildResult> {
+  const local = getLocalTimeParts(now, schedule.timezone, schedule.language);
+  const focusSymbols = schedule.focusSymbols ?? [];
+  const positionSymbols = schedule.positionSymbols ?? [];
+  const allSymbols = [...new Set([...focusSymbols, ...positionSymbols])];
+
+  // Parallel fetch: US quotes + A-share indices + news items
+  const [usQuotes, aShareIndices, topicData] = await Promise.all([
+    allSymbols.length > 0 ? fetchStockQuotes(allSymbols) : Promise.resolve([]),
+    schedule.reportType === "a_share" ? fetchAShareIndices() : Promise.resolve([]),
+    fetchTopicItems(schedule.topicQuery, schedule.language, schedule.sourceUrl).catch(() => ({
+      sourceUrl: schedule.sourceUrl ?? "",
+      items: [] as TopicItem[],
+    })),
+  ]);
+
+  const items = topicData.items;
+  const sourceUrl = topicData.sourceUrl ?? schedule.sourceUrl ?? "";
+
+  // Compute movers from the watched universe
+  const movers = computeMovers(usQuotes, focusSymbols, positionSymbols);
+
+  // Sentiment and catalyst analysis from news items
+  const sentiment = scoreNewsSentiment(items, schedule.language);
+  const catalysts = extractCatalysts(items, schedule.language);
+
+  // Build market-specific body
+  const body = buildMarketBody(schedule, local.label, usQuotes, aShareIndices, movers, sentiment, catalysts);
+  const title = buildMarketTitle(schedule, local.label);
+  const actions = buildActions(items, schedule.language);
+
+  return {
+    title,
+    body,
+    generatedAt: local.label,
+    sourceUrl,
+    sourceStatus: items.length > 0 ? "live" : "fallback",
+    sourceMessage: items.length > 0
+      ? (schedule.language === "zh" ? "实时市场数据获取成功" : "Live market data fetched")
+      : (schedule.language === "zh" ? "实时数据获取失败，使用本地缓存" : "Live fetch failed, using cached data"),
+    items,
+    actions,
+  };
+}
+
+function buildMarketTitle(schedule: PulseSchedule, generatedAt: string): string {
+  const reportTypeLabel = schedule.reportType === "a_share"
+    ? (schedule.language === "zh" ? "A股" : "A-Share")
+    : schedule.reportType === "us_stock"
+      ? (schedule.language === "zh" ? "美股" : "US Stocks")
+      : schedule.reportType === "crypto"
+        ? "Crypto"
+        : (schedule.language === "zh" ? "市场日报" : "Market Daily");
+
+  return `${reportTypeLabel} ${generatedAt}`;
+}
+
+function buildMarketBody(
+  schedule: PulseSchedule,
+  generatedAt: string,
+  usQuotes: StockQuote[],
+  aShareIndices: Array<{ symbol: string; name: string; price: number; change: number; changePercent: number }>,
+  movers: MoverGroup,
+  sentiment: SentimentResult,
+  catalysts: Catalyst[],
+): string {
+  const isZh = schedule.language === "zh";
+  const sections: string[] = [];
+
+  // ── Market Overview ──────────────────────────────────────────────────────────
+  if (isZh) {
+    sections.push("## 市场概况");
+  } else {
+    sections.push("## Market Overview");
+  }
+
+  // A-share indices
+  if (aShareIndices.length > 0) {
+    const lines = aShareIndices.map((idx) => {
+      const sign = idx.change >= 0 ? "+" : "";
+      return `- ${idx.name}: ${idx.price.toFixed(2)} (${sign}${idx.changePercent.toFixed(2)}%)`;
+    });
+    if (isZh) {
+      sections.push("**A股指数**");
+    } else {
+      sections.push("**A-Share Indices**");
+    }
+    sections.push(...lines);
+    sections.push("");
+  }
+
+  // US ETF trackers
+  if (usQuotes.length > 0) {
+    const lines = usQuotes.map((q) => {
+      const sign = q.change >= 0 ? "+" : "";
+      return `- ${q.symbol}: $${q.price.toFixed(2)} (${sign}${q.changePercent.toFixed(2)}%)`;
+    });
+    if (isZh) {
+      sections.push("**美股/ETF**");
+    } else {
+      sections.push("**US Equities / ETFs**");
+    }
+    sections.push(...lines);
+    sections.push("");
+  }
+
+  // ── Movers ──────────────────────────────────────────────────────────────────
+  if (movers.gainers.length > 0 || movers.losers.length > 0) {
+    if (isZh) {
+      sections.push("## 重点关注标的");
+    } else {
+      sections.push("## Focus Movers");
+    }
+
+    if (movers.gainers.length > 0) {
+      if (isZh) {
+        sections.push("**涨幅榜**");
+      } else {
+        sections.push("**Top Gainers**");
+      }
+      for (const g of movers.gainers) {
+        sections.push(`- ${g.symbol}: +${g.changePercent.toFixed(2)}% @ $${g.price.toFixed(2)}`);
+      }
+    }
+
+    if (movers.losers.length > 0) {
+      if (isZh) {
+        sections.push("**跌幅榜**");
+      } else {
+        sections.push("**Top Losers**");
+      }
+      for (const l of movers.losers) {
+        sections.push(`- ${l.symbol}: ${l.changePercent.toFixed(2)}% @ $${l.price.toFixed(2)}`);
+      }
+    }
+    sections.push("");
+  }
+
+  // ── Sentiment ────────────────────────────────────────────────────────────────
+  if (isZh) {
+    sections.push("## 市场情绪");
+    sections.push(`- 情绪评分：${sentiment.score}/100（${sentiment.label}）`);
+    sections.push(`- 正面线索 ${sentiment.positive}，负面线索 ${sentiment.negative}，中性线索 ${sentiment.neutral}`);
+    sections.push(`- 预判：${sentiment.prediction}`);
+    sections.push("");
+  } else {
+    sections.push("## Sentiment");
+    sections.push(`- Score: ${sentiment.score}/100 (${sentiment.label})`);
+    sections.push(`- Positive ${sentiment.positive}, Negative ${sentiment.negative}, Neutral ${sentiment.neutral}`);
+    sections.push(`- Forecast: ${sentiment.prediction}`);
+    sections.push("");
+  }
+
+  // ── Catalysts ───────────────────────────────────────────────────────────────
+  if (catalysts.length > 0) {
+    if (isZh) {
+      sections.push("## 催化事件");
+    } else {
+      sections.push("## Catalysts");
+    }
+    for (const c of catalysts) {
+      const impactIcon = c.impact === "利好" ? "📈" : c.impact === "利空" ? "📉" : "➡️";
+      sections.push(`- ${impactIcon} [${c.impact}] ${c.title}`);
+      sections.push(`  - 关键词: ${c.summary}`);
+    }
+    sections.push("");
+  }
+
+  return sections.join("\n");
 }
 
 async function fetchItemsWithFallback(schedule: PulseSchedule): Promise<{

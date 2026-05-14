@@ -42,7 +42,14 @@ export async function runSchedule(env: Env, schedule: PulseSchedule, now = new D
 
   try {
     const report = await buildScheduleReport(env, schedule, now);
-    const summary = await sendIncomingMessage({
+    // Resolve email recipient IDs → comma-separated addresses
+    const appSettings = await getSettings(env);
+    const emailToAddresses = schedule.emailRecipientIds
+      .map((id: string) => appSettings.emailRecipients.find((r) => r.id === id && r.enabled)?.address)
+      .filter(Boolean)
+      .join(",") || undefined;
+
+    const messageBody: Record<string, unknown> = {
       target: schedule.targets,
       title: report.title,
       body: report.body,
@@ -60,7 +67,12 @@ export async function runSchedule(env: Env, schedule: PulseSchedule, now = new D
         timezone: schedule.timezone,
         topic_count: report.items.length,
       },
-    }, env);
+    };
+    if (emailToAddresses) {
+      messageBody.emailRecipientOverride = emailToAddresses;
+    }
+
+    const summary = await sendIncomingMessage(messageBody as unknown as Parameters<typeof sendIncomingMessage>[0], env);
 
     await appendLog(env, {
       id: crypto.randomUUID(),
