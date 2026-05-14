@@ -24,8 +24,9 @@ export async function buildScheduleReport(env: Env, schedule: PulseSchedule, now
   const local = getLocalTimeParts(now, schedule.timezone, schedule.language);
   const fetched = await fetchItemsWithFallback(schedule);
   const translatedItems = await maybeTranslateItems(env, fetched.items, schedule.language);
-  const enrichedBody = await buildEnrichedBody(schedule, translatedItems, local.label, fetched.sourceUrl);
-  const actions = buildActions(translatedItems, schedule.language);
+  const catalystItems = selectCatalystItems(schedule, translatedItems, now);
+  const enrichedBody = await buildEnrichedBody(schedule, translatedItems, catalystItems, local.label, fetched.sourceUrl);
+  const actions = buildActions(catalystItems, schedule.language);
 
   return {
     title: enrichedBody.title,
@@ -34,7 +35,7 @@ export async function buildScheduleReport(env: Env, schedule: PulseSchedule, now
     sourceUrl: fetched.sourceUrl,
     sourceStatus: fetched.status,
     sourceMessage: fetched.message,
-    items: translatedItems,
+    items: catalystItems,
     actions,
   };
 }
@@ -316,7 +317,13 @@ function withOptionalSummary(item: TopicItem, summary: string | undefined): Topi
   };
 }
 
-async function buildEnrichedBody(schedule: PulseSchedule, items: TopicItem[], generatedAt: string, sourceUrl: string): Promise<{
+async function buildEnrichedBody(
+  schedule: PulseSchedule,
+  items: TopicItem[],
+  displayItems: TopicItem[],
+  generatedAt: string,
+  sourceUrl: string,
+): Promise<{
   title: string;
   body: string;
 }> {
@@ -328,7 +335,7 @@ async function buildEnrichedBody(schedule: PulseSchedule, items: TopicItem[], ge
     timezone: schedule.timezone,
     topicQuery: schedule.topicQuery,
     sourceUrl,
-    items,
+    items: displayItems,
     format: schedule.outputFormat,
     marketReport,
   });
@@ -341,6 +348,94 @@ async function buildEnrichedBody(schedule: PulseSchedule, items: TopicItem[], ge
     title: rendered.title,
     body: analysisSection ? `${bodyWithMarketReport}\n\n${analysisSection}` : bodyWithMarketReport,
   };
+}
+
+function selectCatalystItems(schedule: PulseSchedule, items: TopicItem[], now: Date): TopicItem[] {
+  if (items.length <= 6) {
+    return items;
+  }
+
+  const focus = dedupeSymbols([...schedule.focusSymbols, ...schedule.positionSymbols]);
+  const primarySymbols = focus.slice(0, 20);
+  const marketKeywords = keywordsByReportType(schedule.reportType, schedule.language);
+  const nowMs = now.getTime();
+
+  const scored = items.map((item, index) => {
+    const text = `${item.title}\n${item.summary ?? ""}`.toUpperCase();
+    const titleText = item.title.toUpperCase();
+    let score = 0;
+
+    const symbolHits = primarySymbols.filter((symbol) => text.includes(symbol)).length;
+    const titleSymbolHits = primarySymbols.filter((symbol) => titleText.includes(symbol)).length;
+    score += symbolHits * 8;
+    score += titleSymbolHits * 6;
+
+    const keywordHits = marketKeywords.filter((keyword) => text.includes(keyword)).length;
+    score += Math.min(keywordHits, 5) * 2;
+
+    if (item.category === "finance" || item.category === "macro" || item.category === "crypto-sentiment") {
+      score += 4;
+    } else if (item.category === "news") {
+      score += 3;
+    } else if (item.category === "international-tech" || item.category === "developer-trend") {
+      score -= symbolHits > 0 ? 1 : 8;
+    }
+
+    const source = (item.source ?? "").toLowerCase();
+    if (source.includes("reuters") || source.includes("bloomberg") || source.includes("sina") || source.includes("investing")) {
+      score += 3;
+    }
+
+    const publishedAtMs = item.publishedAt ? Date.parse(item.publishedAt) : NaN;
+    if (Number.isFinite(publishedAtMs)) {
+      const ageHours = (nowMs - publishedAtMs) / (1000 * 60 * 60);
+      if (ageHours <= 24) score += 4;
+      else if (ageHours <= 72) score += 2;
+      else if (ageHours > 168) score -= 2;
+    }
+
+    const url = normalizeHttpUrl(item.url);
+    if (!url) {
+      score -= 4;
+    }
+
+    return { item, score, index, publishedAtMs };
+  });
+
+  const sorted = scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    const aTime = Number.isFinite(a.publishedAtMs) ? a.publishedAtMs : 0;
+    const bTime = Number.isFinite(b.publishedAtMs) ? b.publishedAtMs : 0;
+    if (bTime !== aTime) return bTime - aTime;
+    return a.index - b.index;
+  });
+
+  const top = sorted.filter((row) => row.score > -2).slice(0, 6).map((row) => row.item);
+
+  if (top.length >= 4) {
+    return top;
+  }
+
+  return sorted.slice(0, 6).map((row) => row.item);
+}
+
+function keywordsByReportType(reportType: PulseSchedule["reportType"], language: PulseSchedule["language"]): string[] {
+  const zh: Record<PulseSchedule["reportType"], string[]> = {
+    us_stock: ["美股", "纳指", "标普", "道指", "美联储", "通胀", "非农", "财报", "收益率", "美元", "期权"],
+    a_share: ["A股", "上证", "深证", "沪深300", "北向资金", "央行", "政策", "地产", "消费", "券商"],
+    crypto: ["比特币", "以太坊", "加密", "稳定币", "ETF", "链上", "监管", "矿工", "质押", "交易所"],
+    daily_hot: ["宏观", "地缘", "政策", "市场", "通胀", "利率", "财报"],
+    custom: ["市场", "宏观", "政策", "热点", "风险", "行情"],
+  };
+  const en: Record<PulseSchedule["reportType"], string[]> = {
+    us_stock: ["NASDAQ", "S&P", "DOW", "FED", "CPI", "EARNINGS", "YIELD", "FOMC", "RATE CUT", "GUIDANCE"],
+    a_share: ["A-SHARE", "SHANGHAI", "SHENZHEN", "CSI300", "PBOC", "POLICY", "PROPERTY", "LIQUIDITY"],
+    crypto: ["BITCOIN", "ETHEREUM", "CRYPTO", "ETF", "ON-CHAIN", "REGULATION", "STABLECOIN", "LIQUIDITY"],
+    daily_hot: ["MACRO", "GEOPOLITICS", "INFLATION", "RATES", "EARNINGS", "RISK"],
+    custom: ["MARKET", "MACRO", "POLICY", "RISK", "TREND"],
+  };
+  const dict = language === "zh" ? zh : en;
+  return dict[reportType].map((entry) => entry.toUpperCase());
 }
 
 interface QuoteRow {
