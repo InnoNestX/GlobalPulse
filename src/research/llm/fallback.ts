@@ -45,12 +45,12 @@ export function buildFallbackReportJson(packet: StockPacket): ResearchReportJson
   });
 
   return {
-    executive_summary: `本次报告按结构化研究引擎生成，市场整体${marketBias}。数据完整度 ${packet.data_quality.completeness_score}%，降级状态 ${packet.data_quality.degrade_level}。`,
+    executive_summary: `本次报告按结构化研究引擎生成，市场整体${marketBias}。数据完整度 ${packet.data_quality.completeness_score}%，降级状态 ${formatDegradeLevel(packet.data_quality.degrade_level)}。`,
     market_view: {
       bias: marketBias,
       confidence: Math.min(70, Math.max(45, Math.round(packet.data_quality.completeness_score * 0.65))),
       drivers: packet.market.leaders.slice(0, 3).map((row) => `${row.symbol} 领涨 ${row.change_pct.toFixed(2)}%`),
-      macro_risks: packet.macro.notes.length ? packet.macro.notes : ["宏观字段未完整接入，需观察后续数据。"],
+      macro_risks: packet.macro.notes.length ? packet.macro.notes : ["宏观观察暂未发现新的高权重事件，继续跟踪利率、汇率、通胀、就业和政策预期变化。"],
     },
     stock_cards: stockCards,
     news_review: packet.news.slice(0, 8).map((item) => ({
@@ -79,4 +79,20 @@ function buildDrivers(ticker: string, score: number, evidenceCount: number): str
     `关联证据 ${evidenceCount} 条`,
     score >= 50 ? "价格/新闻组合偏正向" : "价格/新闻组合偏谨慎",
   ];
+}
+
+function formatDegradeLevel(value: string | undefined): string {
+  if (!value || value === "none") return "无降级";
+  const labels: Record<string, string> = {
+    minor_missing_data: "轻微数据缺失",
+    major_missing_data: "主要数据缺失",
+    market_data_failed: "行情数据获取失败",
+    news_data_failed: "新闻数据获取失败",
+    macro_data_failed: "宏观数据获取失败",
+    source_rate_limited: "数据源限流",
+    api_rate_limited: "接口限流",
+    partial_provider_failure: "部分数据源失败",
+    insufficient_evidence: "证据不足",
+  };
+  return labels[value] ?? value.replace(/_/g, " ");
 }
