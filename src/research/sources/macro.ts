@@ -15,10 +15,20 @@ type FredObservation = {
 };
 
 type FredSeriesResult = {
-  latest?: number;
-  latestDate?: string;
-  previous?: number;
-  yoy?: number;
+  latest?: number | undefined;
+  latestDate?: string | undefined;
+  previous?: number | undefined;
+  yoy?: number | undefined;
+};
+
+type FredMacroBundle = {
+  tenYear: FredSeriesResult;
+  twoYear: FredSeriesResult;
+  fedFunds: FredSeriesResult;
+  vix: FredSeriesResult;
+  dollarIndex: FredSeriesResult;
+  unemployment: FredSeriesResult;
+  cpi: FredSeriesResult;
 };
 
 const FRED_SERIES = {
@@ -61,17 +71,18 @@ export async function fetchMacroData(env: Env, reportType: ReportType, items: To
       fetchFredSeries(env.FRED_API_KEY, FRED_SERIES.cpi, 13),
     ]);
 
-    setRate(rates, "美国10年期国债收益率", tenYear.latest);
-    setRate(rates, "美国2年期国债收益率", twoYear.latest);
-    setRate(rates, "美联储有效联邦基金利率", fedFunds.latest);
-    setRate(rates, "VIX波动率指数", vix.latest);
-    setRate(rates, "美元广义指数", dollarIndex.latest);
-    setRate(rates, "美国失业率", unemployment.latest);
-    setRate(rates, "美国CPI同比", cpi.yoy);
+    const bundle: FredMacroBundle = { tenYear, twoYear, fedFunds, vix, dollarIndex, unemployment, cpi };
+    setRate(rates, "美国10年期国债收益率", bundle.tenYear.latest);
+    setRate(rates, "美国2年期国债收益率", bundle.twoYear.latest);
+    setRate(rates, "美联储有效联邦基金利率", bundle.fedFunds.latest);
+    setRate(rates, "VIX波动率指数", bundle.vix.latest);
+    setRate(rates, "美元广义指数", bundle.dollarIndex.latest);
+    setRate(rates, "美国失业率", bundle.unemployment.latest);
+    setRate(rates, "美国CPI同比", bundle.cpi.yoy);
 
     const notes = dedupeNotes([
       ...newsNotes,
-      ...buildFredMacroNotes(reportType, { tenYear, twoYear, fedFunds, vix, dollarIndex, unemployment, cpi }),
+      ...buildFredMacroNotes(reportType, bundle),
       ...fallbackNotes,
     ]).slice(0, 6);
 
@@ -104,7 +115,7 @@ async function fetchFredSeries(apiKey: string, seriesId: string, limit = 2): Pro
   if (payload.error_message) throw new Error(`FRED ${seriesId}: ${payload.error_message.slice(0, 160)}`);
   const observations = (payload.observations ?? [])
     .map((item) => ({ value: Number(item.value), date: item.date }))
-    .filter((item) => Number.isFinite(item.value) && item.date);
+    .filter((item): item is { value: number; date: string } => Number.isFinite(item.value) && typeof item.date === "string" && item.date.length > 0);
   const latest = observations[0];
   const previous = observations[1];
   const yearAgo = observations.find((_, index) => index >= 11) ?? observations.at(-1);
@@ -125,10 +136,10 @@ function buildNewsMacroNotes(reportType: ReportType, items: TopicItem[]): string
   const notes: string[] = [];
   if (/fed|fomc|powell|美联储|降息|加息|利率/.test(text)) notes.push("新闻线索显示利率与央行预期仍是主要宏观变量。利率上行通常压制成长股估值，利率下行通常改善风险偏好。");
   if (/cpi|ppi|pce|通胀|inflation/.test(text)) notes.push("新闻线索显示通胀数据仍会影响市场对降息节奏和估值水平的判断。");
-  if (/就业|非农|job|payroll|unemployment/.test(text)) notes.push("就业数据会影响美联储政策预期，强就业通常推高利率压力，弱就业则可能增加宽松预期。 ");
+  if (/就业|非农|job|payroll|unemployment/.test(text)) notes.push("就业数据会影响美联储政策预期，强就业通常推高利率压力，弱就业则可能增加宽松预期。");
   if (/美元|汇率|人民币|dollar|usd|dxy/.test(text)) notes.push("汇率与美元走势会影响外资风险偏好、商品价格以及跨市场资金流向。");
-  if (reportType === "a_share" && /政策|刺激|财政|货币|央行|降准|贷款/.test(text)) notes.push("A股宏观主线需要关注政策预期、流动性和财政发力节奏。 ");
-  if (reportType === "crypto" && /liquidity|流动性|etf|资金费率|funding|open interest|清算/.test(text)) notes.push("加密市场对全球流动性、ETF资金流和杠杆指标更敏感。 ");
+  if (reportType === "a_share" && /政策|刺激|财政|货币|央行|降准|贷款/.test(text)) notes.push("A股宏观主线需要关注政策预期、流动性和财政发力节奏。");
+  if (reportType === "crypto" && /liquidity|流动性|etf|资金费率|funding|open interest|清算/.test(text)) notes.push("加密市场对全球流动性、ETF资金流和杠杆指标更敏感。");
   return notes;
 }
 
@@ -151,7 +162,7 @@ function buildDefaultMacroNotes(reportType: ReportType): string[] {
   ];
 }
 
-function buildFredMacroNotes(reportType: ReportType, data: Record<string, FredSeriesResult>): string[] {
+function buildFredMacroNotes(reportType: ReportType, data: FredMacroBundle): string[] {
   const notes: string[] = [];
   const tenYear = data.tenYear.latest;
   const twoYear = data.twoYear.latest;
@@ -184,8 +195,8 @@ function buildFredMacroNotes(reportType: ReportType, data: Record<string, FredSe
     notes.push(`美元广义指数约 ${formatMetric(dollar)}，美元走强通常压制风险资产和非美市场流动性。`);
   }
 
-  if (reportType === "a_share") notes.push("结合A股特性，还需要同步观察人民币汇率、北向资金、成交额和政策预期。 ");
-  if (reportType === "crypto") notes.push("结合加密市场特性，还需要同步观察资金费率、未平仓合约、ETF资金流和稳定币流动性。 ");
+  if (reportType === "a_share") notes.push("结合A股特性，还需要同步观察人民币汇率、北向资金、成交额和政策预期。");
+  if (reportType === "crypto") notes.push("结合加密市场特性，还需要同步观察资金费率、未平仓合约、ETF资金流和稳定币流动性。");
   return notes;
 }
 
