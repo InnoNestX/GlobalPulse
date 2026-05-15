@@ -147,28 +147,41 @@ function buildHtmlEmail(title: string, body: string): string {
 }
 
 function renderBrandHeader(): string {
-  return `<div style="padding:22px 28px;background:linear-gradient(135deg,#071a36 0%,#0c2444 54%,#071322 100%);">
+  return `<div style="padding:24px 28px;background:linear-gradient(135deg,#061936 0%,#0c2a54 58%,#071322 100%);">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;">
       <tr>
         <td style="vertical-align:middle;">
           <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
             <tr>
-              <td width="52" style="width:52px;vertical-align:middle;">
-                <div style="width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#1d4ed8,#22d3ee);box-shadow:0 8px 24px rgba(34,211,238,.22);text-align:center;line-height:44px;color:#e0f2fe;font-size:24px;font-weight:800;">⌁</div>
+              <td width="88" style="width:88px;vertical-align:middle;">
+                ${renderLogoMark()}
               </td>
-              <td style="vertical-align:middle;padding-left:12px;">
-                <div style="font-size:22px;line-height:1.05;font-weight:900;letter-spacing:-.02em;color:#f8fafc;">Global<span style="color:#38bdf8;">Pulse</span></div>
-                <div style="margin-top:6px;font-size:11px;color:#93c5fd;text-transform:uppercase;letter-spacing:.18em;">Market Intelligence</div>
+              <td width="1" style="width:1px;background:#5b7ba8;opacity:.55;font-size:0;line-height:0;">&nbsp;</td>
+              <td style="vertical-align:middle;padding-left:28px;">
+                <div style="font-size:34px;line-height:1;font-weight:900;letter-spacing:-.035em;color:#f8fafc;white-space:nowrap;">Global<span style="color:#38bdf8;">Pulse</span></div>
+                <div style="margin-top:10px;font-size:13px;color:#dbeafe;text-transform:uppercase;letter-spacing:.24em;white-space:nowrap;">Market Intelligence</div>
               </td>
             </tr>
           </table>
         </td>
-        <td style="vertical-align:middle;text-align:right;padding-left:16px;">
-          <div style="font-size:14px;color:#e2e8f0;font-weight:700;white-space:nowrap;">全自动市场报告</div>
-          <div style="margin-top:5px;font-size:12px;color:#94a3b8;white-space:nowrap;">由 GlobalPulse 自动生成</div>
+        <td style="vertical-align:middle;text-align:right;padding-left:18px;">
+          <div style="font-size:18px;color:#f8fafc;font-weight:800;white-space:nowrap;">全自动市场报告</div>
+          <div style="margin-top:9px;font-size:14px;color:#cbd5e1;white-space:nowrap;">由 GlobalPulse 自动生成</div>
         </td>
       </tr>
     </table>
+  </div>`;
+}
+
+function renderLogoMark(): string {
+  return `<div style="width:72px;height:72px;border-radius:50%;background:radial-gradient(circle at 38% 30%,#dbeafe 0%,#8ec5ff 33%,#1447a6 66%,#082b63 100%);box-shadow:0 12px 30px rgba(56,189,248,.24);position:relative;text-align:center;line-height:72px;overflow:hidden;">
+    <svg width="72" height="72" viewBox="0 0 72 72" role="img" aria-label="GlobalPulse" style="display:block;border:0;">
+      <circle cx="36" cy="36" r="29" fill="none" stroke="#dbeafe" stroke-width="3" opacity=".95"/>
+      <path d="M14 36h13l4-12 8 25 7-22 4 9h8" fill="none" stroke="#22d3ee" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M18 27c8-9 23-12 36-4M17 45c10 9 28 10 40 1" fill="none" stroke="#bfdbfe" stroke-width="2" opacity=".75" stroke-linecap="round"/>
+      <path d="M35 8c-8 10-9 43 0 56M46 11c7 11 7 40 0 50" fill="none" stroke="#bfdbfe" stroke-width="1.6" opacity=".65" stroke-linecap="round"/>
+      <path d="M19 33h12M46 33h9M17 40h11M47 40h8" fill="none" stroke="#e0f2fe" stroke-width="1.8" opacity=".7" stroke-linecap="round"/>
+    </svg>
   </div>`;
 }
 
