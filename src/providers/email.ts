@@ -12,6 +12,9 @@ import { jsonApiResponseToResult, providerNotConfigured } from "./shared";
  *   EMAIL_FROM           — Sender address, e.g. "GlobalPulse <hello@yourdomain.com>"
  *   EMAIL_TO             — Default recipient (overridden by providerSettings.emailRecipients if set)
  *
+ * Optional env vars:
+ *   GLOBALPULSE_LOGO_URL — Optional hosted logo image URL shown at the top of HTML emails
+ *
  * Provider settings (per-user, stored in KV):
  *   emailRecipients      — Comma-separated recipient list (overrides EMAIL_TO)
  *   emailFromOverride    — Optional override of EMAIL_FROM for this user
@@ -64,9 +67,10 @@ export const emailProvider: Provider = {
 
     const fromAddress = (env as Env & { EMAIL_FROM_OVERRIDE?: string }).EMAIL_FROM_OVERRIDE
       ?? env.EMAIL_FROM;
+    const logoUrl = (env as Env & { GLOBALPULSE_LOGO_URL?: string }).GLOBALPULSE_LOGO_URL;
 
     // Build HTML email body — markdown-ish rendering
-    const htmlBody = buildHtmlEmail(message.title, message.body);
+    const htmlBody = buildHtmlEmail(message.title, message.body, logoUrl);
     const plainTextBody = formatPlainText(message);
 
     if (env.BREVO_API_KEY) {
@@ -130,10 +134,11 @@ function parseSender(input: string): { email: string; name?: string } {
   return name ? { email, name } : { email };
 }
 
-function buildHtmlEmail(title: string, body: string): string {
+function buildHtmlEmail(title: string, body: string, logoUrl?: string): string {
   const escapedTitle = escapeHtml(title);
   const htmlLines = renderMarkdownLikeBody(body);
   const isLockedResearch = isLockedResearchReportBody(body);
+  const subtitle = isLockedResearch ? "全自动市场报告" : escapedTitle;
 
   return `<!DOCTYPE html>
 <html lang="zh">
@@ -142,13 +147,14 @@ function buildHtmlEmail(title: string, body: string): string {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapedTitle}</title>
 </head>
-<body style="margin:0;padding:0;background:#070b12;color:#f4f7fb;font-family:Inter,ui-sans-serif,system-ui,sans-serif;font-size:14px;line-height:1.6;">
-  <div style="max-width:640px;margin:0 auto;padding:24px 16px;">
-    <div style="background:#0f1724;border-radius:12px;overflow:hidden;box-shadow:0 18px 60px rgba(0,0,0,.25);">
-      ${isLockedResearch ? "" : `<div style="padding:20px 24px;border-bottom:1px solid #263548;">
-        <h1 style="margin:0;font-size:18px;font-weight:700;color:#4f9cf9;">${escapedTitle}</h1>
-        <p style="margin:6px 0 0;font-size:12px;color:#94a3b8;">由 GlobalPulse 自动生成</p>
-      </div>`}
+<body style="margin:0;padding:0;background:#070b12;color:#f4f7fb;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;font-size:14px;line-height:1.6;">
+  <div style="max-width:720px;margin:0 auto;padding:24px 16px;">
+    <div style="background:#0f1724;border-radius:14px;overflow:hidden;box-shadow:0 18px 60px rgba(0,0,0,.25);border:1px solid #1f2a3a;">
+      <div style="padding:20px 24px;border-bottom:1px solid #263548;background:linear-gradient(135deg,#101827 0%,#13233a 55%,#0f1724 100%);">
+        ${renderBrandHeader(logoUrl)}
+        ${isLockedResearch ? "" : `<h1 style="margin:16px 0 0;font-size:20px;font-weight:800;color:#f8fafc;line-height:1.35;">${escapedTitle}</h1>`}
+        <p style="margin:8px 0 0;font-size:12px;color:#94a3b8;">${subtitle} · 由 GlobalPulse 自动生成</p>
+      </div>
       <div style="padding:20px 24px;">
         ${htmlLines}
       </div>
@@ -159,6 +165,28 @@ function buildHtmlEmail(title: string, body: string): string {
   </div>
 </body>
 </html>`;
+}
+
+function renderBrandHeader(logoUrl?: string): string {
+  const safeLogoUrl = normalizeHttpUrl(logoUrl);
+
+  if (safeLogoUrl) {
+    return `<div style="display:flex;align-items:center;gap:12px;">
+      <img src="${escapeHtml(safeLogoUrl)}" alt="GlobalPulse" width="36" height="36" style="display:block;width:36px;height:36px;border-radius:10px;object-fit:contain;background:#0b1220;border:1px solid #2b3a50;">
+      <div>
+        <div style="font-size:17px;line-height:1;font-weight:800;letter-spacing:.2px;color:#f8fafc;">GlobalPulse</div>
+        <div style="margin-top:4px;font-size:11px;color:#60a5fa;text-transform:uppercase;letter-spacing:.12em;">Market Intelligence</div>
+      </div>
+    </div>`;
+  }
+
+  return `<div style="display:flex;align-items:center;gap:12px;">
+    <div aria-label="GlobalPulse logo" style="width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,#2563eb,#22c55e);display:inline-flex;align-items:center;justify-content:center;color:#ffffff;font-weight:900;font-size:15px;letter-spacing:-.03em;box-shadow:0 8px 24px rgba(37,99,235,.35);">GP</div>
+    <div>
+      <div style="font-size:17px;line-height:1;font-weight:800;letter-spacing:.2px;color:#f8fafc;">GlobalPulse</div>
+      <div style="margin-top:4px;font-size:11px;color:#60a5fa;text-transform:uppercase;letter-spacing:.12em;">Market Intelligence</div>
+    </div>
+  </div>`;
 }
 
 function renderMarkdownLikeBody(markdown: string): string {
@@ -275,17 +303,45 @@ function isTableLine(line: string): boolean {
 
 function renderTable(lines: string[]): string {
   if (lines.length === 0) return "";
-  const rows = lines.map((line) => line.split("|").map((cell) => cell.trim()).filter(Boolean));
-  const normalizedRows = rows.filter((row) => row.length > 0 && !row.every((cell) => /^-+$/.test(cell)));
+  const rows = lines
+    .map(parseMarkdownTableRow)
+    .filter((row) => row.length > 0);
+  const normalizedRows = rows.filter((row) => !isMarkdownSeparatorRow(row));
   if (normalizedRows.length === 0) return "";
 
   const header = normalizedRows[0] ?? [];
-  const bodyRows = normalizedRows.slice(1);
+  const bodyRows = normalizedRows.slice(1).map((row) => normalizeTableRow(row, header.length));
 
-  return `<div style="overflow-x:auto;margin:8px 0 12px;"><table style="border-collapse:collapse;width:100%;font-size:13px;">
-    <thead><tr>${header.map((cell) => `<th style="border:1px solid #263548;padding:6px 10px;background:#141f2e;text-align:left;">${renderInline(cell)}</th>`).join("")}</tr></thead>
-    <tbody>${bodyRows.map((row) => `<tr>${row.map((cell) => `<td style="border:1px solid #263548;padding:6px 10px;">${renderInline(cell)}</td>`).join("")}</tr>`).join("")}</tbody>
+  return `<div style="overflow-x:auto;margin:10px 0 14px;border:1px solid #263548;border-radius:10px;"><table style="border-collapse:collapse;width:100%;min-width:420px;font-size:13px;table-layout:auto;">
+    <thead><tr>${header.map((cell) => `<th style="border-bottom:1px solid #263548;padding:8px 10px;background:#141f2e;text-align:left;color:#dbeafe;white-space:nowrap;">${renderInline(cell)}</th>`).join("")}</tr></thead>
+    <tbody>${bodyRows.map((row) => `<tr>${row.map((cell) => `<td style="border-top:1px solid #1f2a3a;padding:8px 10px;color:#e2e8f0;vertical-align:top;white-space:nowrap;">${renderInline(cell || "—")}</td>`).join("")}</tr>`).join("")}</tbody>
   </table></div>`;
+}
+
+function parseMarkdownTableRow(line: string): string[] {
+  const trimmed = line.trim();
+  const withoutOuterPipes = trimmed.replace(/^\|/, "").replace(/\|$/, "");
+  return withoutOuterPipes.split("|").map((cell) => cell.trim());
+}
+
+function isMarkdownSeparatorRow(row: string[]): boolean {
+  return row.length > 0 && row.every((cell) => /^:?-{3,}:?$/.test(cell));
+}
+
+function normalizeTableRow(row: string[], expectedLength: number): string[] {
+  if (expectedLength <= 0) {
+    return row;
+  }
+
+  if (row.length === expectedLength) {
+    return row;
+  }
+
+  if (row.length > expectedLength) {
+    return row.slice(0, expectedLength - 1).concat(row.slice(expectedLength - 1).join(" | "));
+  }
+
+  return [...row, ...Array.from({ length: expectedLength - row.length }, () => "")];
 }
 
 function renderInline(value: string): string {
@@ -298,6 +354,22 @@ function renderInline(value: string): string {
   const bolded = linked.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
 
   return bolded.replace(/`([^`]+)`/g, `<code style="background:#1e293b;border:1px solid #334155;border-radius:4px;padding:0 4px;">$1</code>`);
+}
+
+function normalizeHttpUrl(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    const parsed = new URL(value.trim());
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return undefined;
+    }
+    return parsed.toString();
+  } catch {
+    return undefined;
+  }
 }
 
 function escapeHtml(str: string): string {
