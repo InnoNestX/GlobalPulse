@@ -1015,6 +1015,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
                   <h3 data-i18n="defaultTargets">默认推送目标</h3>
                   <div class="target-list" id="defaultTargets"></div>
                 </div>
+                <div class="provider-form" id="researchSettingsForm"></div>
                 <div class="row">
                   <button class="primary" id="saveButton" data-i18n="save">保存</button>
                   <button class="secondary" id="refreshButton" data-i18n="refresh">刷新</button>
@@ -1032,7 +1033,6 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
                 <p class="muted" data-i18n="providerHelp">这里配置的 token / webhook 会存入 KV；Cloudflare secrets 也会继续生效。</p>
                 <div class="provider-grid" id="providerStatus"></div>
                 <div class="provider-form" id="providerSettingsForm"></div>
-                <div class="provider-form" id="researchSettingsForm"></div>
                 <div class="stack hidden" id="providerExtras">
                   <div class="provider-config">
                     <h3><span>Email Provider</span><span class="badge">Brevo / Resend</span></h3>
@@ -1226,6 +1226,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         refresh: "刷新",
         providers: "通知渠道",
         providerHelp: "这里配置的 token / webhook 会存入 KV；Cloudflare secrets 也会继续生效。",
+        researchHelp: "研究引擎配置会存入 KV；Cloudflare Secrets 会继续作为兜底。",
         configured: "已配置",
         notConfigured: "未配置",
         providerConfig: "渠道参数",
@@ -1392,6 +1393,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         refresh: "Refresh",
         providers: "Providers",
         providerHelp: "Tokens and webhooks saved here are stored in KV; Cloudflare secrets still work.",
+        researchHelp: "Research engine settings are stored in KV; Cloudflare Secrets remain as fallback.",
         configured: "Configured",
         notConfigured: "Not configured",
         providerConfig: "Provider parameters",
@@ -1741,7 +1743,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         ["beaApiKey", t("beaApiKey"), "password"]
       ];
       $("researchSettingsForm").innerHTML = '<div class="provider-config"><h3><span>' + t("researchEngine") + '</span><span class="badge">Gemini / Alpha / Macro</span></h3>' +
-        '<p class="muted">' + t("providerHelp") + '</p>' +
+        '<p class="muted">' + t("researchHelp") + '</p>' +
         fields.map(([key, label, type]) => renderMaskedProviderField(values, key, label, type)).join("") + '</div>';
     }
 
