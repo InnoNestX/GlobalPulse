@@ -25,6 +25,7 @@ export interface Env {
   GEMINI_API_KEY?: string;
   GEMINI_BASE_URL?: string;
   GEMINI_MODEL?: string;
+  WORKERS_AI_MODEL?: string;
   ALPHA_VANTAGE_API_KEY?: string;
   FRED_API_KEY?: string;
   BLS_API_KEY?: string;
