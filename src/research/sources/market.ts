@@ -11,23 +11,34 @@ export interface MarketDataResult {
   usages: ApiUsageEntry[];
 }
 
+type MarketEnv = Env & {
+  ALPHA_VANTAGE_API_KEY?: string;
+  FINNHUB_API_KEY?: string;
+  TWELVE_DATA_API_KEY?: string;
+  COINGECKO_API_KEY?: string;
+};
+
+const MIN_QUOTE_COVERAGE = 0.85;
 const US_POOL = ["SPY", "QQQ", "DIA", "IWM", "XLK", "XLF", "XLE", "XLV", "SMH", "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AMD", "AVGO", "JPM", "LLY", "COIN", "MSTR"];
 const A_POOL = ["sh000001", "sz399001", "sh000300", "sz399006", "sh600519", "sz000858", "sh601318", "sh600036", "sz300750", "sh688981", "sz002594", "sz300059", "sh600030"];
 const CRYPTO_POOL = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "AVAXUSDT", "LINKUSDT", "TONUSDT", "PEPEUSDT"];
 
 export async function fetchMarketData(env: Env, reportType: ReportType, focus: string[], positions: string[]): Promise<MarketDataResult> {
-  if (reportType === "crypto") return fetchCryptoMarket(env, focus, positions);
-  if (reportType === "a_share") return fetchAShareMarket(focus, positions);
-  return fetchUsMarket(focus, positions);
+  if (reportType === "crypto") return fetchCryptoMarket(env as MarketEnv, focus, positions);
+  if (reportType === "a_share") return fetchAShareMarket(env as MarketEnv, focus, positions);
+  return fetchUsMarket(env as MarketEnv, focus, positions);
 }
 
-async function fetchUsMarket(focus: string[], positions: string[]): Promise<MarketDataResult> {
+async function fetchUsMarket(env: MarketEnv, focus: string[], positions: string[]): Promise<MarketDataResult> {
   const symbols = dedupeSymbols([...US_POOL, ...focus, ...positions]).slice(0, 70);
   const { rows, usages } = await fetchWithFallback(symbols, [
-    { provider: "tencent", endpoint: "us_quotes", fetcher: fetchTencentUsQuotes },
-    { provider: "yahoo", endpoint: "finance_quote", fetcher: fetchYahooUsQuotes },
-    { provider: "stooq", endpoint: "quote_csv", fetcher: fetchStooqUsQuotes },
-  ]);
+    { provider: "alpha_vantage", endpoint: "global_quote", fetcher: (items) => fetchAlphaVantageUsQuotes(env, items), requiresKey: "ALPHA_VANTAGE_API_KEY" },
+    { provider: "finnhub", endpoint: "quote", fetcher: (items) => fetchFinnhubUsQuotes(env, items), requiresKey: "FINNHUB_API_KEY" },
+    { provider: "twelve_data", endpoint: "quote", fetcher: (items) => fetchTwelveDataUsQuotes(env, items), requiresKey: "TWELVE_DATA_API_KEY" },
+    { provider: "yahoo", endpoint: "finance_quote", fetcher: (_env, items) => fetchYahooUsQuotes(items) },
+    { provider: "stooq", endpoint: "quote_csv", fetcher: (_env, items) => fetchStooqUsQuotes(items) },
+    { provider: "tencent", endpoint: "us_quotes", fetcher: (_env, items) => fetchTencentUsQuotes(items) },
+  ], env);
   const indexSet = new Set(["SPY", "QQQ", "DIA", "IWM"]);
   return {
     indices: rows.filter((row) => indexSet.has(row.symbol.toUpperCase())),
@@ -36,15 +47,17 @@ async function fetchUsMarket(focus: string[], positions: string[]): Promise<Mark
   };
 }
 
-async function fetchAShareMarket(focus: string[], positions: string[]): Promise<MarketDataResult> {
+async function fetchAShareMarket(env: MarketEnv, focus: string[], positions: string[]): Promise<MarketDataResult> {
   const symbols = dedupeSymbols([...A_POOL, ...focus, ...positions])
     .map((symbol) => normalizeAShareCode(symbol) ?? symbol)
     .slice(0, 70);
   const { rows, usages } = await fetchWithFallback(symbols, [
-    { provider: "tencent", endpoint: "a_share_quotes", fetcher: fetchTencentAQuotes },
-    { provider: "sina", endpoint: "a_share_simple_quotes", fetcher: fetchSinaAQuotes },
-    { provider: "eastmoney", endpoint: "push2_ulist", fetcher: fetchEastmoneyAQuotes },
-  ]);
+    { provider: "twelve_data", endpoint: "quote_cn", fetcher: (items) => fetchTwelveDataAShareQuotes(env, items), requiresKey: "TWELVE_DATA_API_KEY" },
+    { provider: "alpha_vantage", endpoint: "global_quote_cn", fetcher: (items) => fetchAlphaVantageAShareQuotes(env, items), requiresKey: "ALPHA_VANTAGE_API_KEY" },
+    { provider: "eastmoney", endpoint: "push2_ulist", fetcher: (_env, items) => fetchEastmoneyAQuotes(items) },
+    { provider: "sina", endpoint: "a_share_simple_quotes", fetcher: (_env, items) => fetchSinaAQuotes(items) },
+    { provider: "tencent", endpoint: "a_share_quotes", fetcher: (_env, items) => fetchTencentAQuotes(items) },
+  ], env);
   const indexSet = new Set(["SH000001", "SZ399001", "SH000300", "SZ399006"]);
   return {
     indices: rows.filter((row) => indexSet.has(row.symbol.toUpperCase())),
@@ -53,22 +66,23 @@ async function fetchAShareMarket(focus: string[], positions: string[]): Promise<
   };
 }
 
-async function fetchCryptoMarket(env: Env, focus: string[], positions: string[]): Promise<MarketDataResult> {
+async function fetchCryptoMarket(env: MarketEnv, focus: string[], positions: string[]): Promise<MarketDataResult> {
   const symbols = dedupeSymbols([...CRYPTO_POOL, ...focus.map(toCryptoPair), ...positions.map(toCryptoPair)]).slice(0, 40);
-  const binance = await fetchBinanceQuotes(env, symbols);
-  let rows = binance.rows;
-  const usages = [binance.usage];
+  let rows: MarketQuote[] = [];
+  const usages: ApiUsageEntry[] = [];
 
-  if (quoteCoverage(rows, symbols) < 0.85) {
-    const coingecko = await fetchCoingeckoQuotes(symbols);
-    usages.push(coingecko.usage);
-    rows = mergeQuoteRows(rows, coingecko.rows);
-  }
+  const providers = [
+    async () => fetchBinanceQuotes(env, symbols),
+    async () => fetchCoingeckoQuotes(env, symbols),
+    async () => fetchTwelveDataCryptoQuotes(env, symbols),
+    async () => fetchAlternativeMeQuotes(symbols),
+  ];
 
-  if (quoteCoverage(rows, symbols) < 0.85) {
-    const alternative = await fetchAlternativeMeQuotes(symbols);
-    usages.push(alternative.usage);
-    rows = mergeQuoteRows(rows, alternative.rows);
+  for (const provider of providers) {
+    const result = await provider();
+    usages.push(result.usage);
+    rows = mergeQuoteRows(rows, result.rows);
+    if (quoteCoverage(rows, symbols) >= MIN_QUOTE_COVERAGE) break;
   }
 
   return {
@@ -80,15 +94,33 @@ async function fetchCryptoMarket(env: Env, focus: string[], positions: string[])
 
 async function fetchWithFallback(
   symbols: string[],
-  sources: Array<{ provider: string; endpoint: string; fetcher: (symbols: string[]) => Promise<MarketQuote[]> }>,
+  sources: Array<{
+    provider: string;
+    endpoint: string;
+    fetcher: (env: MarketEnv, symbols: string[]) => Promise<MarketQuote[]>;
+    requiresKey?: keyof MarketEnv;
+  }>,
+  env: MarketEnv,
 ): Promise<{ rows: MarketQuote[]; usages: ApiUsageEntry[] }> {
   let rows: MarketQuote[] = [];
   const usages: ApiUsageEntry[] = [];
 
   for (const source of sources) {
     const started = Date.now();
+    if (source.requiresKey && !env[source.requiresKey]) {
+      usages.push({
+        provider: source.provider,
+        endpoint: source.endpoint,
+        success: false,
+        latency_ms: 0,
+        rate_limited: false,
+        message: `missing ${String(source.requiresKey)}`,
+      });
+      continue;
+    }
+
     try {
-      const fetched = await source.fetcher(symbols);
+      const fetched = await source.fetcher(env, symbols);
       rows = mergeQuoteRows(rows, fetched);
       usages.push({
         provider: source.provider,
@@ -97,9 +129,7 @@ async function fetchWithFallback(
         latency_ms: Date.now() - started,
         rate_limited: false,
       });
-      if (quoteCoverage(rows, symbols) >= 0.85) {
-        break;
-      }
+      if (quoteCoverage(rows, symbols) >= MIN_QUOTE_COVERAGE) break;
     } catch (error) {
       usages.push({
         provider: source.provider,
@@ -113,6 +143,110 @@ async function fetchWithFallback(
   }
 
   return { rows: sanitizeQuotes(rows), usages };
+}
+
+async function fetchAlphaVantageUsQuotes(env: MarketEnv, symbols: string[]): Promise<MarketQuote[]> {
+  const rows: MarketQuote[] = [];
+  for (const symbol of symbols.slice(0, 25)) {
+    const quote = await fetchAlphaVantageGlobalQuote(env, symbol);
+    if (quote) rows.push(quote);
+  }
+  return sanitizeQuotes(rows);
+}
+
+async function fetchAlphaVantageAShareQuotes(env: MarketEnv, symbols: string[]): Promise<MarketQuote[]> {
+  const rows: MarketQuote[] = [];
+  for (const symbol of symbols.slice(0, 25)) {
+    for (const candidate of toAlphaVantageAShareSymbols(symbol)) {
+      const quote = await fetchAlphaVantageGlobalQuote(env, candidate, symbol);
+      if (quote) {
+        rows.push({ ...quote, symbol: symbol.toUpperCase(), name: resolveAShareDisplayName(symbol, quote.name) });
+        break;
+      }
+    }
+  }
+  return sanitizeQuotes(rows);
+}
+
+async function fetchAlphaVantageGlobalQuote(env: MarketEnv, apiSymbol: string, displaySymbol = apiSymbol): Promise<MarketQuote | undefined> {
+  const url = new URL("https://www.alphavantage.co/query");
+  url.searchParams.set("function", "GLOBAL_QUOTE");
+  url.searchParams.set("symbol", apiSymbol);
+  url.searchParams.set("apikey", env.ALPHA_VANTAGE_API_KEY ?? "");
+  const payload = await fetch(url.toString(), {
+    headers: { "User-Agent": "globalpulse-worker/0.1", "Accept": "application/json" },
+  }).then(assertJsonResponse) as { "Global Quote"?: Record<string, string> };
+  const quote = payload["Global Quote"] ?? {};
+  const price = Number(quote["05. price"]);
+  const change = Number(String(quote["10. change percent"] ?? "").replace("%", ""));
+  if (!Number.isFinite(price) || !Number.isFinite(change)) return undefined;
+  return { symbol: displaySymbol.toUpperCase(), price, change_pct: change, source: "Alpha Vantage" };
+}
+
+async function fetchFinnhubUsQuotes(env: MarketEnv, symbols: string[]): Promise<MarketQuote[]> {
+  const rows: MarketQuote[] = [];
+  for (const symbol of symbols.slice(0, 50)) {
+    const url = new URL("https://finnhub.io/api/v1/quote");
+    url.searchParams.set("symbol", symbol);
+    url.searchParams.set("token", env.FINNHUB_API_KEY ?? "");
+    const payload = await fetch(url.toString(), {
+      headers: { "User-Agent": "globalpulse-worker/0.1", "Accept": "application/json" },
+    }).then(assertJsonResponse) as { c?: number; pc?: number };
+    const price = Number(payload.c);
+    const previousClose = Number(payload.pc);
+    if (!Number.isFinite(price) || !Number.isFinite(previousClose) || previousClose <= 0) continue;
+    rows.push({ symbol: symbol.toUpperCase(), price, change_pct: ((price - previousClose) / previousClose) * 100, source: "Finnhub" });
+  }
+  return sanitizeQuotes(rows);
+}
+
+async function fetchTwelveDataUsQuotes(env: MarketEnv, symbols: string[]): Promise<MarketQuote[]> {
+  const rows: MarketQuote[] = [];
+  for (const chunk of chunkArray(symbols, 8)) {
+    const url = new URL("https://api.twelvedata.com/quote");
+    url.searchParams.set("symbol", chunk.join(","));
+    url.searchParams.set("apikey", env.TWELVE_DATA_API_KEY ?? "");
+    const payload = await fetch(url.toString(), {
+      headers: { "User-Agent": "globalpulse-worker/0.1", "Accept": "application/json" },
+    }).then(assertJsonResponse) as Record<string, unknown>;
+    rows.push(...parseTwelveDataQuotePayload(payload, chunk));
+  }
+  return sanitizeQuotes(rows);
+}
+
+async function fetchTwelveDataAShareQuotes(env: MarketEnv, symbols: string[]): Promise<MarketQuote[]> {
+  const rows: MarketQuote[] = [];
+  for (const chunk of chunkArray(symbols, 8)) {
+    const url = new URL("https://api.twelvedata.com/quote");
+    url.searchParams.set("symbol", chunk.map(toTwelveDataAShareSymbol).join(","));
+    url.searchParams.set("apikey", env.TWELVE_DATA_API_KEY ?? "");
+    const payload = await fetch(url.toString(), {
+      headers: { "User-Agent": "globalpulse-worker/0.1", "Accept": "application/json" },
+    }).then(assertJsonResponse) as Record<string, unknown>;
+    rows.push(...parseTwelveDataQuotePayload(payload, chunk, (symbol) => symbol.toUpperCase(), true));
+  }
+  return sanitizeQuotes(rows);
+}
+
+async function fetchTwelveDataCryptoQuotes(env: MarketEnv, symbols: string[]): Promise<{ rows: MarketQuote[]; usage: ApiUsageEntry }> {
+  const started = Date.now();
+  try {
+    if (!env.TWELVE_DATA_API_KEY) throw new Error("missing TWELVE_DATA_API_KEY");
+    const pairs = symbols.map((symbol) => `${symbol.replace(/USDT$/i, "")}/USD`);
+    const rows: MarketQuote[] = [];
+    for (const chunk of chunkArray(pairs, 8)) {
+      const url = new URL("https://api.twelvedata.com/quote");
+      url.searchParams.set("symbol", chunk.join(","));
+      url.searchParams.set("apikey", env.TWELVE_DATA_API_KEY);
+      const payload = await fetch(url.toString(), {
+        headers: { "User-Agent": "globalpulse-worker/0.1", "Accept": "application/json" },
+      }).then(assertJsonResponse) as Record<string, unknown>;
+      rows.push(...parseTwelveDataQuotePayload(payload, chunk, (symbol) => symbol.replace(/\/USD$/i, "")));
+    }
+    return { rows: sanitizeQuotes(rows), usage: { provider: "twelve_data", endpoint: "quote_crypto", success: rows.length > 0, latency_ms: Date.now() - started, rate_limited: false } };
+  } catch (error) {
+    return { rows: [], usage: { provider: "twelve_data", endpoint: "quote_crypto", success: false, latency_ms: Date.now() - started, rate_limited: isRateLimitError(error), message: error instanceof Error ? error.message.slice(0, 160) : "unknown error" } };
+  }
 }
 
 async function fetchBinanceQuotes(env: Env, symbols: string[]): Promise<{ rows: MarketQuote[]; usage: ApiUsageEntry }> {
@@ -252,7 +386,7 @@ async function fetchEastmoneyAQuotes(symbols: string[]): Promise<MarketQuote[]> 
   return sanitizeQuotes(rows);
 }
 
-async function fetchCoingeckoQuotes(symbols: string[]): Promise<{ rows: MarketQuote[]; usage: ApiUsageEntry }> {
+async function fetchCoingeckoQuotes(env: MarketEnv, symbols: string[]): Promise<{ rows: MarketQuote[]; usage: ApiUsageEntry }> {
   const started = Date.now();
   try {
     const ids = symbols.map((symbol) => cryptoIdMap[symbol.replace(/USDT$/i, "").toUpperCase()]).filter(Boolean);
@@ -261,9 +395,9 @@ async function fetchCoingeckoQuotes(symbols: string[]): Promise<{ rows: MarketQu
     url.searchParams.set("ids", [...new Set(ids)].join(","));
     url.searchParams.set("vs_currencies", "usd");
     url.searchParams.set("include_24hr_change", "true");
-    const payload = await fetch(url.toString(), {
-      headers: { "User-Agent": "globalpulse-worker/0.1", "Accept": "application/json" },
-    }).then(assertJsonResponse) as Record<string, { usd?: number; usd_24h_change?: number }>;
+    const headers: Record<string, string> = { "User-Agent": "globalpulse-worker/0.1", "Accept": "application/json" };
+    if (env.COINGECKO_API_KEY) headers["x-cg-demo-api-key"] = env.COINGECKO_API_KEY;
+    const payload = await fetch(url.toString(), { headers }).then(assertJsonResponse) as Record<string, { usd?: number; usd_24h_change?: number }>;
     const rows = Object.entries(payload).flatMap(([id, entry]): MarketQuote[] => {
       const symbol = reverseCryptoIdMap[id];
       if (!symbol || !Number.isFinite(entry.usd) || !Number.isFinite(entry.usd_24h_change)) return [];
@@ -292,6 +426,26 @@ async function fetchAlternativeMeQuotes(symbols: string[]): Promise<{ rows: Mark
   } catch (error) {
     return { rows: [], usage: { provider: "alternative.me", endpoint: "ticker", success: false, latency_ms: Date.now() - started, rate_limited: isRateLimitError(error), message: error instanceof Error ? error.message.slice(0, 160) : "unknown error" } };
   }
+}
+
+function parseTwelveDataQuotePayload(payload: Record<string, unknown>, requested: string[], mapSymbol = (symbol: string) => symbol, isAShare = false): MarketQuote[] {
+  const candidates = requested.length === 1 && isRecord(payload) && typeof payload.symbol === "string"
+    ? [payload]
+    : Object.values(payload).filter(isRecord);
+  return candidates.flatMap((entry): MarketQuote[] => {
+    const rawSymbol = String(entry.symbol ?? "");
+    const symbol = mapSymbol(rawSymbol || String(entry.name ?? ""));
+    const price = Number(entry.close ?? entry.price);
+    const changePct = Number(entry.percent_change ?? entry.percent_change_24h);
+    if (!symbol || !Number.isFinite(price) || !Number.isFinite(changePct)) return [];
+    return [{
+      symbol: isAShare ? normalizeTwelveDataAShareBack(symbol).toUpperCase() : symbol.toUpperCase(),
+      name: typeof entry.name === "string" ? entry.name : undefined,
+      price,
+      change_pct: changePct,
+      source: "Twelve Data",
+    }];
+  });
 }
 
 function parseTencentQuoteLines(raw: string): Array<{ code: string; name: string; price: number; changePercent: number }> {
@@ -356,6 +510,26 @@ function resolveAShareDisplayName(symbol: string, sourceName?: string): string {
   return raw && !raw.includes("�") && !/[\u00c0-\u00ff]{2,}/.test(raw) ? raw : symbol.toUpperCase();
 }
 
+function toAlphaVantageAShareSymbols(symbol: string): string[] {
+  const code = symbol.toLowerCase().replace(/^(sh|sz)/, "");
+  if (!/^\d{6}$/.test(code)) return [symbol];
+  if (symbol.toLowerCase().startsWith("sh") || code.startsWith("6")) return [`${code}.SHH`, `${code}.SS`];
+  return [`${code}.SHZ`, `${code}.SZ`];
+}
+
+function toTwelveDataAShareSymbol(symbol: string): string {
+  const code = symbol.toLowerCase().replace(/^(sh|sz)/, "");
+  if (symbol.toLowerCase().startsWith("sh") || code.startsWith("6")) return `${code}:SSE`;
+  return `${code}:SZSE`;
+}
+
+function normalizeTwelveDataAShareBack(symbol: string): string {
+  const [code, exchange] = symbol.split(":");
+  if (!code) return symbol;
+  if (/SSE/i.test(exchange ?? "") || code.startsWith("6")) return `SH${code}`;
+  return `SZ${code}`;
+}
+
 function toEastmoneySecId(symbol: string): string | undefined {
   const normalized = symbol.toLowerCase();
   const code = normalized.replace(/^(sh|sz)/, "");
@@ -405,13 +579,22 @@ function sanitizeQuote(row: MarketQuote): MarketQuote | undefined {
 
 function quoteCoverage(rows: MarketQuote[], requestedSymbols: string[]): number {
   if (!requestedSymbols.length) return rows.length > 0 ? 1 : 0;
-  const available = new Set(rows.map((row) => row.symbol.toUpperCase().replace(/USDT$/, "")));
-  const requested = new Set(requestedSymbols.map((symbol) => symbol.toUpperCase().replace(/^(US|S_)/, "").replace(/USDT$/, "")));
+  const available = new Set(rows.map((row) => normalizeCoverageSymbol(row.symbol)));
+  const requested = new Set(requestedSymbols.map(normalizeCoverageSymbol));
   let hits = 0;
   for (const symbol of requested) {
     if (available.has(symbol)) hits += 1;
   }
   return hits / requested.size;
+}
+
+function normalizeCoverageSymbol(symbol: string): string {
+  return symbol.toUpperCase()
+    .replace(/^(US|S_)/, "")
+    .replace(/USDT$/, "")
+    .replace(/\.US$/, "")
+    .replace(/:SSE$|:SZSE$/, "")
+    .replace(/^(SH|SZ)(\d{6})$/, "$1$2");
 }
 
 async function assertTextResponse(response: Response): Promise<string> {
@@ -433,6 +616,10 @@ function chunkArray<T>(values: T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let index = 0; index < values.length; index += size) chunks.push(values.slice(index, index + size));
   return chunks;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 const cryptoIdMap: Record<string, string> = {
