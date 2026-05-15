@@ -110,16 +110,22 @@ function buildHtmlEmail(title: string, body: string): string {
 }
 
 function renderBrandHeader(): string {
-  return `<div style="padding:24px 28px;background:linear-gradient(135deg,#061936 0%,#0c2a54 58%,#071322 100%);">
+  return `<div style="padding:32px 28px 26px;background:linear-gradient(135deg,#061936 0%,#0d2b58 56%,#071322 100%);">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;">
       <tr>
         <td style="vertical-align:middle;">
           <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
             <tr>
-              <td width="120" style="width:120px;vertical-align:middle;">
-                <img src="${EMAIL_LOGO_URL}" alt="GlobalPulse" width="112" height="86" style="display:block;width:112px;height:86px;border:0;outline:none;text-decoration:none;object-fit:contain;">
+              <td width="130" style="width:130px;vertical-align:middle;padding:4px 0;">
+                <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:0;">
+                  <tr>
+                    <td style="vertical-align:middle;padding:10px 12px;background:#f8fbff;border:1px solid rgba(255,255,255,.62);border-radius:16px;box-shadow:0 12px 28px rgba(2,8,23,.24);line-height:0;">
+                      <img src="${EMAIL_LOGO_URL}" alt="GlobalPulse" width="96" height="74" style="display:block;width:96px;height:74px;border:0;outline:none;text-decoration:none;object-fit:contain;">
+                    </td>
+                  </tr>
+                </table>
               </td>
-              <td width="1" style="width:1px;background:#5b7ba8;opacity:.55;font-size:0;line-height:0;">&nbsp;</td>
+              <td width="1" style="width:1px;background:#6f8fb8;opacity:.45;font-size:0;line-height:0;">&nbsp;</td>
               <td style="vertical-align:middle;padding-left:28px;">
                 <div style="font-size:34px;line-height:1;font-weight:900;letter-spacing:-.035em;color:#f8fafc;white-space:nowrap;">Global<span style="color:#38bdf8;">Pulse</span></div>
                 <div style="margin-top:10px;font-size:13px;color:#dbeafe;text-transform:uppercase;letter-spacing:.24em;white-space:nowrap;">Market Intelligence</div>
