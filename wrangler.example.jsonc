@@ -10,6 +10,13 @@
       "id": "replace-with-your-kv-namespace-id"
     }
   ],
+  "d1_databases": [
+    {
+      "binding": "RESEARCH_DB",
+      "database_name": "globalpulse-research",
+      "database_id": "replace-with-your-d1-database-id"
+    }
+  ],
   "triggers": {
     "crons": ["*/5 * * * *"]
   },

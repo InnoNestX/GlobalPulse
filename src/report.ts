@@ -3,6 +3,7 @@ import type { PulseSchedule } from "./config";
 import { buildGoogleNewsRssUrl, fetchTopicItems, type TopicItem } from "./sources";
 import { renderDigest } from "./template";
 import { getLocalTimeParts } from "./time";
+import { buildResearchMarketReport, shouldUseResearchEngine } from "./research";
 
 interface TranslationResult {
   title?: string;
@@ -25,7 +26,7 @@ export async function buildScheduleReport(env: Env, schedule: PulseSchedule, now
   const fetched = await fetchItemsWithFallback(schedule);
   const translatedItems = await maybeTranslateItems(env, fetched.items, schedule.language);
   const catalystItems = selectCatalystItems(schedule, translatedItems, now);
-  const enrichedBody = await buildEnrichedBody(schedule, translatedItems, catalystItems, local.label, fetched.sourceUrl);
+  const enrichedBody = await buildEnrichedBody(env, schedule, translatedItems, catalystItems, local.label, fetched.sourceUrl, now);
   const actions = buildActions(catalystItems, schedule.language);
 
   return {
@@ -342,15 +343,34 @@ function withOptionalSummary(item: TopicItem, summary: string | undefined): Topi
 }
 
 async function buildEnrichedBody(
+  env: Env,
   schedule: PulseSchedule,
   items: TopicItem[],
   displayItems: TopicItem[],
   generatedAt: string,
   sourceUrl: string,
+  now: Date,
 ): Promise<{
   title: string;
   body: string;
 }> {
+  if (shouldUseResearchEngine(schedule)) {
+    const research = await buildResearchMarketReport(env, schedule, items, generatedAt, now);
+    const rendered = renderDigest(schedule, {
+      generatedAt,
+      timezone: schedule.timezone,
+      topicQuery: schedule.topicQuery,
+      sourceUrl,
+      items: displayItems,
+      format: schedule.outputFormat,
+      marketReport: research.body,
+    });
+    return {
+      title: rendered.title,
+      body: research.body,
+    };
+  }
+
   const marketReport = schedule.reportMode === "market"
     ? await buildMarketReportSection(schedule, items, generatedAt)
     : "";
