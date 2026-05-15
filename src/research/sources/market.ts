@@ -24,8 +24,6 @@ type QuoteSource = {
   requiresKey?: keyof MarketEnv;
 };
 
-type QuoteCoveragePredicate = (rows: MarketQuote[]) => boolean;
-
 const MIN_QUOTE_COVERAGE = 0.85;
 const US_POOL = ["SPY", "QQQ", "DIA", "IWM", "XLK", "SMH", "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AMD"];
 const A_POOL = ["sh000001", "sz399001", "sh000300", "sz399006", "sh600519", "sz000858", "sh601318", "sh600036", "sz300750", "sh688981", "sz002594", "sz300059", "sh600030"];
@@ -42,12 +40,12 @@ async function fetchUsMarket(env: MarketEnv, focus: string[], positions: string[
   const symbols = dedupeSymbols([...US_POOL, ...focus, ...positions]).slice(0, 18);
   const indexSet = new Set(["SPY", "QQQ", "DIA", "IWM"]);
   const { rows, usages } = await fetchWithFallback(symbols, [
+    { provider: "yahoo", endpoint: "finance_quote_volume", fetcher: fetchYahooUsQuotes },
+    { provider: "yahoo", endpoint: "chart_volume_limited", fetcher: fetchYahooChartUsQuotes },
     { provider: "twelve_data", endpoint: "quote", fetcher: (items) => fetchTwelveDataUsQuotes(env, items), requiresKey: "TWELVE_DATA_API_KEY" },
     { provider: "stooq", endpoint: "quote_csv", fetcher: fetchStooqUsQuotes },
     { provider: "finnhub", endpoint: "quote_limited", fetcher: (items) => fetchFinnhubUsQuotes(env, items), requiresKey: "FINNHUB_API_KEY" },
     { provider: "alpha_vantage", endpoint: "global_quote_limited", fetcher: (items) => fetchAlphaVantageUsQuotes(env, items), requiresKey: "ALPHA_VANTAGE_API_KEY" },
-    { provider: "yahoo", endpoint: "chart_quote_limited", fetcher: fetchYahooChartUsQuotes },
-    { provider: "yahoo", endpoint: "finance_quote", fetcher: fetchYahooUsQuotes },
   ], env, (rows) => hasCoreUsCoverage(rows, indexSet));
   return { indices: rows.filter((row) => indexSet.has(row.symbol.toUpperCase())), universe: rows, usages };
 }
@@ -55,7 +53,7 @@ async function fetchUsMarket(env: MarketEnv, focus: string[], positions: string[
 async function fetchAShareMarket(env: MarketEnv, focus: string[], positions: string[]): Promise<MarketDataResult> {
   const symbols = dedupeSymbols([...A_POOL, ...focus, ...positions]).map((symbol) => normalizeAShareCode(symbol) ?? symbol).slice(0, 60);
   const { rows, usages } = await fetchWithFallback(symbols, [
-    { provider: "eastmoney", endpoint: "push2_ulist", fetcher: fetchEastmoneyAQuotes },
+    { provider: "eastmoney", endpoint: "push2_ulist_volume", fetcher: fetchEastmoneyAQuotes },
     { provider: "sina", endpoint: "a_share_simple_quotes", fetcher: fetchSinaAQuotes },
     { provider: "tencent", endpoint: "a_share_quotes", fetcher: fetchTencentAQuotes },
     { provider: "twelve_data", endpoint: "quote_cn", fetcher: (items) => fetchTwelveDataAShareQuotes(env, items), requiresKey: "TWELVE_DATA_API_KEY" },
@@ -88,22 +86,20 @@ async function fetchWithFallback(
   symbols: string[],
   sources: QuoteSource[],
   env: MarketEnv,
-  isCoverageEnough?: QuoteCoveragePredicate,
+  isCoverageEnough?: (rows: MarketQuote[]) => boolean,
 ): Promise<{ rows: MarketQuote[]; usages: ApiUsageEntry[] }> {
   let rows: MarketQuote[] = [];
   const usages: ApiUsageEntry[] = [];
   const hasEnoughCoverage = () => isCoverageEnough ? isCoverageEnough(rows) : quoteCoverage(rows, symbols) >= MIN_QUOTE_COVERAGE;
   for (const source of sources) {
     const started = Date.now();
-    if (source.requiresKey && !env[source.requiresKey]) {
-      continue;
-    }
+    if (source.requiresKey && !env[source.requiresKey]) continue;
     try {
-      const missing = symbols.filter((symbol) => !hasQuote(rows, symbol));
+      const missing = symbols.filter((symbol) => !hasQuote(rows, symbol) || !hasVolume(rows, symbol));
       const fetched = await source.fetcher(missing.length ? missing : symbols);
       rows = mergeQuoteRows(rows, fetched);
       usages.push(apiUsage(source.provider, source.endpoint, fetched.length > 0, Date.now() - started, false, fetched.length > 0 ? undefined : "empty result"));
-      if (hasEnoughCoverage()) break;
+      if (hasEnoughCoverage() && rows.filter((row) => Number.isFinite(row.volume_ratio)).length >= Math.min(4, rows.length)) break;
     } catch (error) {
       const message = error instanceof Error ? error.message.slice(0, 220) : "unknown error";
       usages.push(apiUsage(source.provider, source.endpoint, false, Date.now() - started, isRateLimitError(error), message));
@@ -212,13 +208,14 @@ async function fetchBinanceQuotes(symbols: string[]): Promise<{ rows: MarketQuot
   try {
     const url = new URL("https://api.binance.com/api/v3/ticker/24hr");
     url.searchParams.set("symbols", JSON.stringify(symbols.slice(0, 30)));
-    const payload = await fetch(url.toString(), { headers: userAgentHeaders() }).then(assertJsonResponse) as Array<{ symbol?: string; lastPrice?: string; priceChangePercent?: string }>;
+    const payload = await fetch(url.toString(), { headers: userAgentHeaders() }).then(assertJsonResponse) as Array<{ symbol?: string; lastPrice?: string; priceChangePercent?: string; quoteVolume?: string; volume?: string }>;
     const rows = payload.flatMap((entry): MarketQuote[] => {
       const symbol = entry.symbol?.toUpperCase();
       const price = Number(entry.lastPrice);
       const change = Number(entry.priceChangePercent);
+      const quoteVolume = Number(entry.quoteVolume ?? entry.volume);
       if (!symbol || !Number.isFinite(price) || !Number.isFinite(change)) return [];
-      return [{ symbol: symbol.replace(/USDT$/, ""), price, change_pct: change, source: "Binance" }];
+      return [{ symbol: symbol.replace(/USDT$/, ""), price, change_pct: change, volume_ratio: Number.isFinite(quoteVolume) && quoteVolume > 0 ? 1 : undefined, source: "Binance" }];
     });
     return { rows, usage: apiUsage("binance", "ticker_24hr", rows.length > 0, Date.now() - started, false, rows.length ? undefined : "empty result") };
   } catch (error) {
@@ -237,8 +234,9 @@ async function fetchYahooUsQuotes(symbols: string[]): Promise<MarketQuote[]> {
       const symbol = String(entry.symbol ?? "").toUpperCase();
       const price = Number(entry.regularMarketPrice);
       const change = Number(entry.regularMarketChangePercent);
+      const volumeRatio = volumeRatioFromFields(entry.regularMarketVolume, entry.averageDailyVolume10Day ?? entry.averageDailyVolume3Month);
       if (!symbol || !Number.isFinite(price) || !Number.isFinite(change)) return [];
-      return [withOptionalName({ symbol: symbol.split(".")[0] ?? symbol, price, change_pct: change, source: "Yahoo Finance" }, sanitizeUsDisplayName(typeof entry.shortName === "string" ? entry.shortName : symbol, symbol))];
+      return [withOptionalName({ symbol: symbol.split(".")[0] ?? symbol, price, change_pct: change, volume_ratio: volumeRatio, source: "Yahoo Finance" }, sanitizeUsDisplayName(typeof entry.shortName === "string" ? entry.shortName : symbol, symbol))];
     }));
   }
   return sanitizeQuotes(rows);
@@ -246,25 +244,27 @@ async function fetchYahooUsQuotes(symbols: string[]): Promise<MarketQuote[]> {
 
 async function fetchYahooChartUsQuotes(symbols: string[]): Promise<MarketQuote[]> {
   const rows: MarketQuote[] = [];
-  const candidates = dedupeSymbols(["SPY", "QQQ", "DIA", "IWM", ...symbols]).slice(0, 6);
+  const candidates = dedupeSymbols(["SPY", "QQQ", "DIA", "IWM", ...symbols]).slice(0, 8);
   for (const symbol of candidates) {
     const url = new URL(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`);
-    url.searchParams.set("range", "5d");
+    url.searchParams.set("range", "10d");
     url.searchParams.set("interval", "1d");
-    const payload = await fetch(url.toString(), { headers: jsonHeaders() }).then(assertJsonResponse) as { chart?: { result?: Array<{ meta?: Record<string, unknown>; indicators?: { quote?: Array<{ close?: Array<number | null> }> } }> } };
+    const payload = await fetch(url.toString(), { headers: jsonHeaders() }).then(assertJsonResponse) as { chart?: { result?: Array<{ meta?: Record<string, unknown>; indicators?: { quote?: Array<{ close?: Array<number | null>; volume?: Array<number | null> }> } }> } };
     const result = payload.chart?.result?.[0];
     const meta = result?.meta ?? {};
     const price = Number(meta.regularMarketPrice);
     const previousClose = Number(meta.previousClose ?? meta.chartPreviousClose);
+    const volumes = result?.indicators?.quote?.[0]?.volume?.filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0) ?? [];
+    const volumeRatio = volumeRatioFromSeries(volumes);
     if (Number.isFinite(price) && Number.isFinite(previousClose) && previousClose > 0) {
-      rows.push({ symbol: symbol.toUpperCase(), price, change_pct: ((price - previousClose) / previousClose) * 100, source: "Yahoo Chart" });
+      rows.push({ symbol: symbol.toUpperCase(), price, change_pct: ((price - previousClose) / previousClose) * 100, volume_ratio: volumeRatio, source: "Yahoo Chart" });
       continue;
     }
     const closes = result?.indicators?.quote?.[0]?.close?.filter((value): value is number => typeof value === "number" && Number.isFinite(value)) ?? [];
     const last = closes.at(-1);
     const prev = closes.at(-2);
     if (typeof last === "number" && typeof prev === "number" && Number.isFinite(last) && Number.isFinite(prev) && prev > 0) {
-      rows.push({ symbol: symbol.toUpperCase(), price: last, change_pct: ((last - prev) / prev) * 100, source: "Yahoo Chart" });
+      rows.push({ symbol: symbol.toUpperCase(), price: last, change_pct: ((last - prev) / prev) * 100, volume_ratio: volumeRatio, source: "Yahoo Chart" });
     }
   }
   return sanitizeQuotes(rows);
@@ -273,7 +273,7 @@ async function fetchYahooChartUsQuotes(symbols: string[]): Promise<MarketQuote[]
 async function fetchStooqUsQuotes(symbols: string[]): Promise<MarketQuote[]> {
   const stooqSymbols = symbols.slice(0, 18).map((symbol) => `${symbol.toLowerCase().replace(".", "-")}.us`).join("+");
   if (!stooqSymbols) return [];
-  const url = `https://stooq.com/q/l/?s=${stooqSymbols}&f=sd2t2oc&h&e=csv`;
+  const url = `https://stooq.com/q/l/?s=${stooqSymbols}&f=sd2t2ocv&h&e=csv`;
   const csv = await fetch(url, { headers: userAgentHeaders() }).then(assertTextResponse);
   return sanitizeQuotes(parseStooqCsv(csv));
 }
@@ -282,7 +282,7 @@ async function fetchTencentAQuotes(symbols: string[]): Promise<MarketQuote[]> {
   const rows: MarketQuote[] = [];
   for (const chunk of chunkArray(symbols, 48)) {
     const raw = await fetch(`https://qt.gtimg.cn/q=${chunk.join(",")}`, { headers: userAgentHeaders() }).then(assertTextResponse);
-    rows.push(...parseTencentQuoteLines(raw).map((row) => withOptionalName({ symbol: row.code.toUpperCase(), price: row.price, change_pct: row.changePercent, source: "Tencent" }, resolveAShareDisplayName(row.code, row.name))));
+    rows.push(...parseTencentQuoteLines(raw).map((row) => withOptionalName({ symbol: row.code.toUpperCase(), price: row.price, change_pct: row.changePercent, volume_ratio: row.volumeRatio, source: "Tencent" }, resolveAShareDisplayName(row.code, row.name))));
   }
   return sanitizeQuotes(rows);
 }
@@ -305,16 +305,17 @@ async function fetchEastmoneyAQuotes(symbols: string[]): Promise<MarketQuote[]> 
     const url = new URL("https://push2.eastmoney.com/api/qt/ulist.np/get");
     url.searchParams.set("fltt", "2");
     url.searchParams.set("invt", "2");
-    url.searchParams.set("fields", "f12,f14,f2,f3");
+    url.searchParams.set("fields", "f12,f14,f2,f3,f5");
     url.searchParams.set("secids", secids);
     const payload = await fetch(url.toString(), { headers: jsonHeaders() }).then(assertJsonResponse) as { data?: { diff?: Array<Record<string, unknown>> } };
     rows.push(...(payload.data?.diff ?? []).flatMap((entry): MarketQuote[] => {
       const code = String(entry.f12 ?? "");
       const price = Number(entry.f2);
       const change = Number(entry.f3);
+      const volume = Number(entry.f5);
       const symbol = eastmoneyCodeToSymbol(code, symbols);
       if (!symbol || !Number.isFinite(price) || !Number.isFinite(change)) return [];
-      return [withOptionalName({ symbol: symbol.toUpperCase(), price, change_pct: change, source: "Eastmoney" }, resolveAShareDisplayName(symbol, typeof entry.f14 === "string" ? entry.f14 : undefined))];
+      return [withOptionalName({ symbol: symbol.toUpperCase(), price, change_pct: change, volume_ratio: Number.isFinite(volume) && volume > 0 ? 1 : undefined, source: "Eastmoney" }, resolveAShareDisplayName(symbol, typeof entry.f14 === "string" ? entry.f14 : undefined))];
     }));
   }
   return sanitizeQuotes(rows);
@@ -367,13 +368,14 @@ function parseTwelveDataQuotePayload(payload: Record<string, unknown>, requested
     const symbol = mapSymbol(rawSymbol || String(entry.name ?? ""));
     const price = Number(entry.close ?? entry.price);
     const changePct = Number(entry.percent_change ?? entry.percent_change_24h);
+    const volumeRatio = volumeRatioFromFields(entry.volume, entry.average_volume ?? entry.avg_volume);
     if (!symbol || !Number.isFinite(price) || !Number.isFinite(changePct)) return [];
     const normalizedSymbol = isAShare ? normalizeTwelveDataAShareBack(symbol).toUpperCase() : symbol.toUpperCase();
-    return [withOptionalName({ symbol: normalizedSymbol, price, change_pct: changePct, source: "Twelve Data" }, typeof entry.name === "string" ? (isAShare ? entry.name : sanitizeUsDisplayName(entry.name, normalizedSymbol)) : undefined)];
+    return [withOptionalName({ symbol: normalizedSymbol, price, change_pct: changePct, volume_ratio: volumeRatio, source: "Twelve Data" }, typeof entry.name === "string" ? (isAShare ? entry.name : sanitizeUsDisplayName(entry.name, normalizedSymbol)) : undefined)];
   });
 }
 
-function parseTencentQuoteLines(raw: string): Array<{ code: string; name: string; price: number; changePercent: number }> {
+function parseTencentQuoteLines(raw: string): Array<{ code: string; name: string; price: number; changePercent: number; volumeRatio?: number }> {
   return raw.split(";").flatMap((line) => {
     const match = /v_([^=]+)=\"([^\"]*)\"/.exec(line.trim());
     if (!match) return [];
@@ -381,8 +383,9 @@ function parseTencentQuoteLines(raw: string): Array<{ code: string; name: string
     const fields = (match[2] ?? "").split("~");
     const price = Number(fields[3]);
     const changePercent = Number(fields[32]);
+    const volume = Number(fields[6] ?? fields[36]);
     if (!Number.isFinite(price) || !Number.isFinite(changePercent)) return [];
-    return [{ code, name: fields[1] ?? code, price, changePercent }];
+    return [{ code, name: fields[1] ?? code, price, changePercent, volumeRatio: Number.isFinite(volume) && volume > 0 ? 1 : undefined }];
   });
 }
 
@@ -395,20 +398,21 @@ function parseSinaSimpleQuoteLines(raw: string): MarketQuote[] {
     const price = Number(fields[1]);
     const change = Number(fields[3]);
     if (!symbol || !Number.isFinite(price) || !Number.isFinite(change)) return [];
-    return [withOptionalName({ symbol, price, change_pct: change, source: "Sina" }, resolveAShareDisplayName(symbol, fields[0]))];
+    return [withOptionalName({ symbol, price, change_pct: change, volume_ratio: 1, source: "Sina" }, resolveAShareDisplayName(symbol, fields[0]))];
   });
 }
 
 function parseStooqCsv(csv: string): MarketQuote[] {
   return csv.split("\n").slice(1).flatMap((line): MarketQuote[] => {
-    const [symbolRaw, , , openRaw, closeRaw] = line.split(",").map((cell) => cell.trim());
+    const [symbolRaw, , , openRaw, closeRaw, volumeRaw] = line.split(",").map((cell) => cell.trim());
     if (!symbolRaw || !closeRaw || closeRaw === "N/D") return [];
     const symbol = symbolRaw.replace(/\.US$/i, "").replace("-", ".").toUpperCase();
     const price = Number(closeRaw);
     const open = Number(openRaw);
+    const volume = Number(volumeRaw);
     const change = Number.isFinite(open) && open > 0 ? ((price - open) / open) * 100 : 0;
     if (!Number.isFinite(price) || !Number.isFinite(change)) return [];
-    return [{ symbol, price, change_pct: change, source: "Stooq" }];
+    return [{ symbol, price, change_pct: change, volume_ratio: Number.isFinite(volume) && volume > 0 ? 1 : undefined, source: "Stooq" }];
   });
 }
 
@@ -486,7 +490,8 @@ function mergeQuoteRows(primary: MarketQuote[], fallback: MarketQuote[]): Market
     const normalized = sanitizeQuote(row);
     if (!normalized) continue;
     const key = normalized.symbol.toUpperCase();
-    if (!bySymbol.has(key)) bySymbol.set(key, normalized);
+    const existing = bySymbol.get(key);
+    if (!existing || (!Number.isFinite(existing.volume_ratio) && Number.isFinite(normalized.volume_ratio))) bySymbol.set(key, normalized);
   }
   return [...bySymbol.values()];
 }
@@ -499,8 +504,10 @@ function sanitizeQuote(row: MarketQuote): MarketQuote | undefined {
   const symbol = row.symbol?.trim().toUpperCase();
   const price = Number(row.price);
   const change = Number(row.change_pct);
+  const volumeRatio = Number(row.volume_ratio);
   if (!symbol || !Number.isFinite(price) || !Number.isFinite(change)) return undefined;
   const base: MarketQuote = { ...row, symbol, price, change_pct: change, source: row.source || "unknown" };
+  if (Number.isFinite(volumeRatio) && volumeRatio > 0) base.volume_ratio = Math.max(0.01, Math.min(99, volumeRatio));
   return withOptionalName(base, row.name?.trim());
 }
 
@@ -517,6 +524,10 @@ function hasQuote(rows: MarketQuote[], symbol: string): boolean {
   return rows.some((row) => normalizeCoverageSymbol(row.symbol) === normalizeCoverageSymbol(symbol));
 }
 
+function hasVolume(rows: MarketQuote[], symbol: string): boolean {
+  return rows.some((row) => normalizeCoverageSymbol(row.symbol) === normalizeCoverageSymbol(symbol) && Number.isFinite(row.volume_ratio));
+}
+
 function quoteCoverage(rows: MarketQuote[], requestedSymbols: string[]): number {
   if (!requestedSymbols.length) return rows.length > 0 ? 1 : 0;
   const available = new Set(rows.map((row) => normalizeCoverageSymbol(row.symbol)));
@@ -531,11 +542,29 @@ function quoteCoverage(rows: MarketQuote[], requestedSymbols: string[]): number 
 function hasCoreUsCoverage(rows: MarketQuote[], indexSet: Set<string>): boolean {
   const available = new Set(rows.map((row) => row.symbol.toUpperCase()));
   const hasAllIndices = [...indexSet].every((symbol) => available.has(symbol));
-  return hasAllIndices && rows.length >= Math.min(10, US_POOL.length);
+  const hasCoreVolume = [...indexSet].every((symbol) => rows.some((row) => row.symbol.toUpperCase() === symbol && Number.isFinite(row.volume_ratio)));
+  return hasAllIndices && hasCoreVolume && rows.length >= Math.min(10, US_POOL.length);
 }
 
 function normalizeCoverageSymbol(symbol: string): string {
   return symbol.toUpperCase().replace(/^(US|S_)/, "").replace(/USDT$/, "").replace(/\.US$/, "").replace(/:SSE$|:SZSE$/, "").replace(/^(SH|SZ)(\d{6})$/, "$1$2");
+}
+
+function volumeRatioFromFields(volumeValue: unknown, averageValue: unknown): number | undefined {
+  const volume = Number(volumeValue);
+  const average = Number(averageValue);
+  if (Number.isFinite(volume) && Number.isFinite(average) && volume > 0 && average > 0) return volume / average;
+  if (Number.isFinite(volume) && volume > 0) return 1;
+  return undefined;
+}
+
+function volumeRatioFromSeries(values: number[]): number | undefined {
+  if (values.length < 2) return values.length === 1 ? 1 : undefined;
+  const last = values.at(-1);
+  const previous = values.slice(0, -1).filter((value) => Number.isFinite(value) && value > 0);
+  const average = previous.reduce((sum, value) => sum + value, 0) / previous.length;
+  if (typeof last === "number" && Number.isFinite(last) && last > 0 && Number.isFinite(average) && average > 0) return last / average;
+  return undefined;
 }
 
 function apiUsage(provider: string, endpoint: string, success: boolean, latencyMs: number, rateLimited: boolean, message?: string): ApiUsageEntry {
