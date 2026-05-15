@@ -1,8 +1,9 @@
 import type { Env } from "../env";
 import type { Provider } from "./types";
-import { DEFAULT_GLOBALPULSE_LOGO_SRC } from "./email-logo";
 import { formatPlainText, isLockedResearchReportBody } from "./format";
 import { jsonApiResponseToResult, providerNotConfigured } from "./shared";
+
+const DEFAULT_EMAIL_LOGO_URL = "https://pulse.xuxuclassmate.com/assets/globalpulse-logo.jpg";
 
 /**
  * Email provider via Brevo (preferred) or Resend (fallback compatibility)
@@ -61,7 +62,7 @@ export const emailProvider: Provider = {
     const fromAddress = (env as Env & { EMAIL_FROM_OVERRIDE?: string }).EMAIL_FROM_OVERRIDE
       ?? env.EMAIL_FROM;
     const configuredLogoUrl = (env as Env & { GLOBALPULSE_LOGO_URL?: string }).GLOBALPULSE_LOGO_URL;
-    const logoUrl = normalizeHttpUrl(configuredLogoUrl) ?? DEFAULT_GLOBALPULSE_LOGO_SRC;
+    const logoUrl = normalizeHttpUrl(configuredLogoUrl) ?? DEFAULT_EMAIL_LOGO_URL;
 
     const htmlBody = buildHtmlEmail(message.title, message.body, logoUrl);
     const plainTextBody = formatPlainText(message);
@@ -155,7 +156,7 @@ function buildHtmlEmail(title: string, body: string, logoUrl: string): string {
 
 function renderBrandHeader(logoUrl: string): string {
   return `<div style="display:flex;align-items:center;gap:12px;">
-    <img src="${escapeHtml(logoUrl)}" alt="GlobalPulse" width="120" height="40" style="display:block;width:120px;max-width:120px;height:auto;border:0;object-fit:contain;background:transparent;">
+    <img src="${escapeHtml(logoUrl)}" alt="GlobalPulse" width="160" height="54" style="display:block;width:160px;max-width:160px;height:auto;border:0;object-fit:contain;background:transparent;">
     <div>
       <div style="font-size:17px;line-height:1;font-weight:800;letter-spacing:.2px;color:#f8fafc;">GlobalPulse</div>
       <div style="margin-top:4px;font-size:11px;color:#60a5fa;text-transform:uppercase;letter-spacing:.12em;">Market Intelligence</div>
