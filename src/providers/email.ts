@@ -1,6 +1,6 @@
 import type { Env } from "../env";
 import type { Provider } from "./types";
-import { formatPlainText } from "./format";
+import { formatPlainText, isLockedResearchReportBody } from "./format";
 import { jsonApiResponseToResult, providerNotConfigured } from "./shared";
 
 /**
@@ -133,6 +133,7 @@ function parseSender(input: string): { email: string; name?: string } {
 function buildHtmlEmail(title: string, body: string): string {
   const escapedTitle = escapeHtml(title);
   const htmlLines = renderMarkdownLikeBody(body);
+  const isLockedResearch = isLockedResearchReportBody(body);
 
   return `<!DOCTYPE html>
 <html lang="zh">
@@ -144,10 +145,10 @@ function buildHtmlEmail(title: string, body: string): string {
 <body style="margin:0;padding:0;background:#070b12;color:#f4f7fb;font-family:Inter,ui-sans-serif,system-ui,sans-serif;font-size:14px;line-height:1.6;">
   <div style="max-width:640px;margin:0 auto;padding:24px 16px;">
     <div style="background:#0f1724;border-radius:12px;overflow:hidden;box-shadow:0 18px 60px rgba(0,0,0,.25);">
-      <div style="padding:20px 24px;border-bottom:1px solid #263548;">
+      ${isLockedResearch ? "" : `<div style="padding:20px 24px;border-bottom:1px solid #263548;">
         <h1 style="margin:0;font-size:18px;font-weight:700;color:#4f9cf9;">${escapedTitle}</h1>
         <p style="margin:6px 0 0;font-size:12px;color:#94a3b8;">由 GlobalPulse 自动生成</p>
-      </div>
+      </div>`}
       <div style="padding:20px 24px;">
         ${htmlLines}
       </div>

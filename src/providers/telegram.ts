@@ -1,5 +1,5 @@
 import type { Provider } from "./types";
-import { escapeHtml } from "./format";
+import { escapeHtml, isLockedResearchReportBody } from "./format";
 import { jsonApiResponseToResult, providerNotConfigured } from "./shared";
 
 export const telegramProvider: Provider = {
@@ -54,6 +54,10 @@ function toInlineKeyboard(actions: Array<{ label: string; url: string }>): Array
 }
 
 function formatTelegramHtml(title: string, body: string): string {
+  if (isLockedResearchReportBody(body)) {
+    return convertMarkdownLinksToHtml(body);
+  }
+
   const escapedTitle = escapeHtml(title);
   const convertedBody = convertMarkdownLinksToHtml(body);
 
@@ -84,7 +88,13 @@ function convertMarkdownLinksToHtml(value: string): string {
   }
 
   result += escapeHtml(value.slice(lastIndex));
-  return result;
+  return renderTelegramInlineMarkdown(result);
+}
+
+function renderTelegramInlineMarkdown(value: string): string {
+  return value
+    .replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>")
+    .replace(/^###\s+/gm, "");
 }
 
 function normalizeActions(actions: Array<{ label: string; url: string }>): Array<{ label: string; url: string }> {

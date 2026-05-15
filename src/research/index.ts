@@ -16,6 +16,7 @@ import type { ResearchReportJson } from "./types/report";
 import { defaultDecisionPolicy } from "./types/common";
 
 export interface ResearchMarketReportResult {
+  title: string;
   body: string;
   packet: StockPacket;
   report: ResearchReportJson;
@@ -74,6 +75,7 @@ export async function buildResearchMarketReport(
     stocks: stockInputs,
     news: evidence,
     data_quality: dataQuality,
+    api_usage: marketData.usages,
     decision_policy: defaultDecisionPolicy,
     risk_profile: {
       max_position_pct: 0.1,
@@ -86,7 +88,7 @@ export async function buildResearchMarketReport(
   const report = enforceConfidenceCaps(packet, llm.report, llm.fallbackUsed);
   const body = renderResearchMarkdown(packet, report);
   await persistResearchRun(env, packet, report, llm, marketData.usages);
-  return { body, packet, report };
+  return { title: extractMarkdownTitle(body), body, packet, report };
 }
 
 function resolveResearchSymbols(schedule: PulseSchedule): string[] {
@@ -94,9 +96,15 @@ function resolveResearchSymbols(schedule: PulseSchedule): string[] {
     .map((symbol) => normalizeTicker(symbol, schedule.reportType))
     .filter(Boolean);
   if (configured.length > 0) return configured.slice(0, 16);
-  if (schedule.reportType === "crypto") return ["BTC", "ETH", "SOL", "DOGE"];
-  if (schedule.reportType === "a_share") return ["SH600519", "SZ300750", "SZ002594", "SH688981"];
-  return ["SPY", "QQQ", "NVDA", "TSLA", "AAPL", "MSFT"];
+  return [];
+}
+
+function extractMarkdownTitle(body: string): string {
+  const firstLine = body.split("\n").find((line) => line.trim())?.trim() ?? "GlobalPulse 市场报告";
+  return firstLine
+    .replace(/^📊\s*/, "")
+    .replace(/\*\*/g, "")
+    .trim() || "GlobalPulse 市场报告";
 }
 
 function buildMacroNotes(reportType: PulseSchedule["reportType"], items: TopicItem[]): string[] {
@@ -145,4 +153,3 @@ function enforceConfidenceCaps(packet: StockPacket, report: ResearchReportJson, 
   });
   return { ...report, stock_cards: cappedCards };
 }
-
