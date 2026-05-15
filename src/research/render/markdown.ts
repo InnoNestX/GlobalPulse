@@ -98,7 +98,7 @@ function renderMarketReport(packet: StockPacket, report: ResearchReportJson, opt
     ...moverSpotlight,
     "",
     "### 💡 市场状态判断",
-    `- **综合情绪**：${renderBias(report.market_view.bias)}（score=${marketScore(packet)}，置信度=${boundedPercent(report.market_view.confidence)}%）`,
+    `- **综合情绪**：${renderBias(report.market_view.bias)}（评分=${marketScore(packet)}，置信度=${boundedPercent(report.market_view.confidence)}%）`,
     `- **趋势状态**：${buildTrendLine(rows)}`,
     `- **风险偏好**：${buildRiskPreference(packet, report)}`,
     `- **当前信号**：${buildCurrentSignal(packet, report)}`,
@@ -130,10 +130,10 @@ function renderMarketReport(packet: StockPacket, report: ResearchReportJson, opt
     `- 新鲜度：${boundedPercent(packet.data_quality.freshness_score)}%`,
     `- 来源质量：${boundedPercent(packet.data_quality.source_score)}%`,
     `- 一致性：${boundedPercent(packet.data_quality.consistency_score)}%`,
-    `- 降级状态：${packet.data_quality.degrade_level || "none"}`,
-    `- 缺失字段：${packet.data_quality.missing_fields.length ? packet.data_quality.missing_fields.join("、") : "无"}`,
+    `- 降级状态：${formatDegradeLevel(packet.data_quality.degrade_level)}`,
+    `- 缺失字段：${formatMissingFields(packet.data_quality.missing_fields)}`,
     `- 失败接口：${formatFailedEndpoints(packet)}`,
-    `- API 状态：${formatApiUsage(packet)}`,
+    `- 接口状态：${formatApiUsage(packet)}`,
   ];
 
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
@@ -273,7 +273,7 @@ function buildRiskPreference(packet: StockPacket, report: ResearchReportJson): s
 
 function buildCurrentSignal(packet: StockPacket, report: ResearchReportJson): string {
   if (packet.data_quality.degrade_level === "market_data_failed" || packet.market.indices.length === 0) return "数据不足";
-  if (report.market_view.bias === "偏多" && report.market_view.confidence >= 60) return "HOLD / 观察";
+  if (report.market_view.bias === "偏多" && report.market_view.confidence >= 60) return "持有 / 观察";
   if (report.market_view.bias === "偏空") return "偏谨慎";
   return "观察";
 }
@@ -477,10 +477,44 @@ function normalizeHttpUrl(value: string | undefined): string | undefined {
   }
 }
 
+function formatDegradeLevel(value: string | undefined): string {
+  if (!value || value === "none") return "无降级";
+  const labels: Record<string, string> = {
+    minor_missing_data: "轻微数据缺失",
+    major_missing_data: "主要数据缺失",
+    market_data_failed: "行情数据获取失败",
+    news_data_failed: "新闻数据获取失败",
+    macro_data_failed: "宏观数据获取失败",
+    source_rate_limited: "数据源限流",
+    api_rate_limited: "接口限流",
+    partial_provider_failure: "部分数据源失败",
+    insufficient_evidence: "证据不足",
+  };
+  return labels[value] ?? value.replace(/_/g, " ");
+}
+
+function formatMissingFields(values: string[]): string {
+  if (!values.length) return "无";
+  const labels: Record<string, string> = {
+    indices: "核心指数",
+    universe: "市场样本",
+    evidence: "新闻证据",
+    macro: "宏观数据",
+    rates: "利率数据",
+    calendar: "宏观日历",
+    volume_ratio: "量能比例",
+    price: "价格",
+    change_pct: "涨跌幅",
+    leaders: "领涨资产",
+    losers: "领跌资产",
+  };
+  return values.map((value) => labels[value] ?? value.replace(/_/g, " ")).join("、");
+}
+
 function formatFailedEndpoints(packet: StockPacket): string {
   const failed = (packet.api_usage ?? [])
     .filter((entry) => !entry.success)
-    .map((entry) => `${entry.provider}/${entry.endpoint}${entry.rate_limited ? "(限流)" : ""}`);
+    .map((entry) => `${entry.provider}/${entry.endpoint}${entry.rate_limited ? "（限流）" : ""}`);
   return failed.length > 0 ? failed.join("、") : "无";
 }
 
