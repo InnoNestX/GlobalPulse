@@ -3,6 +3,7 @@ import { sendIncomingMessage } from "./delivery";
 import type { Env } from "./env";
 import { matchCronExpression } from "./cron";
 import { isTradingDayForSchedule } from "./market-calendar";
+import { mergeMarketDataProviderSettings } from "./market-data-settings";
 import { buildScheduleReport } from "./report";
 import { getLocalTimeParts } from "./time";
 import type { DeliverySummary } from "./delivery";
@@ -41,7 +42,8 @@ export async function runSchedule(env: Env, schedule: PulseSchedule, now = new D
   await setRunMarker(env, schedule.id, local.date, markerTime, now.toISOString());
 
   try {
-    const report = await buildScheduleReport(env, schedule, now);
+    const reportEnv = await mergeMarketDataProviderSettings(env);
+    const report = await buildScheduleReport(reportEnv, schedule, now);
     // Resolve email recipient IDs → comma-separated addresses
     const appSettings = await getSettings(env);
     const emailToAddresses = schedule.emailRecipientIds

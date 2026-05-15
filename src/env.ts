@@ -27,6 +27,9 @@ export interface Env {
   GEMINI_MODEL?: string;
   WORKERS_AI_MODEL?: string;
   ALPHA_VANTAGE_API_KEY?: string;
+  FINNHUB_API_KEY?: string;
+  TWELVE_DATA_API_KEY?: string;
+  COINGECKO_API_KEY?: string;
   FRED_API_KEY?: string;
   BLS_API_KEY?: string;
   BEA_API_KEY?: string;
