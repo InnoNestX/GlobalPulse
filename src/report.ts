@@ -356,17 +356,8 @@ async function buildEnrichedBody(
 }> {
   if (shouldUseResearchEngine(schedule)) {
     const research = await buildResearchMarketReport(env, schedule, items, generatedAt, now);
-    const rendered = renderDigest(schedule, {
-      generatedAt,
-      timezone: schedule.timezone,
-      topicQuery: schedule.topicQuery,
-      sourceUrl,
-      items: displayItems,
-      format: schedule.outputFormat,
-      marketReport: research.body,
-    });
     return {
-      title: rendered.title,
+      title: research.title,
       body: research.body,
     };
   }

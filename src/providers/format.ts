@@ -15,6 +15,10 @@ export const levelColors: Record<PushMessage["level"], number> = {
 };
 
 export function formatPlainText(message: PushMessage): string {
+  if (isLockedResearchReportBody(message.body)) {
+    return message.body;
+  }
+
   const lines = [
     `[${levelLabels[message.level]}] ${message.title}`,
     message.body,
@@ -25,6 +29,10 @@ export function formatPlainText(message: PushMessage): string {
 }
 
 export function formatMarkdown(message: PushMessage): string {
+  if (isLockedResearchReportBody(message.body)) {
+    return message.body;
+  }
+
   const lines = [
     `**${message.title}**`,
     "",
@@ -35,6 +43,10 @@ export function formatMarkdown(message: PushMessage): string {
   ].filter(Boolean);
 
   return lines.join("\n");
+}
+
+export function isLockedResearchReportBody(value: string): boolean {
+  return value.trimStart().startsWith("📊 **");
 }
 
 export function escapeHtml(value: string): string {

@@ -1,5 +1,5 @@
 import type { ReportType } from "../../config";
-import type { DataQuality, DecisionPolicy, ResearchMeta } from "./common";
+import type { ApiUsageEntry, DataQuality, DecisionPolicy, ResearchMeta } from "./common";
 import type { EvidenceItem } from "./evidence";
 import type { SignalScores } from "./scoring";
 
@@ -48,6 +48,7 @@ export interface StockPacket {
   stocks: StockResearchInput[];
   news: EvidenceItem[];
   data_quality: DataQuality;
+  api_usage?: ApiUsageEntry[];
   decision_policy: DecisionPolicy;
   risk_profile: {
     max_position_pct: number;
@@ -55,4 +56,3 @@ export interface StockPacket {
     max_daily_drawdown_pct: number;
   };
 }
-
