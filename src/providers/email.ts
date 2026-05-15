@@ -1,9 +1,10 @@
 import type { Env } from "../env";
 import type { Provider } from "./types";
 import { formatPlainText, isLockedResearchReportBody } from "./format";
+import { DEFAULT_GLOBALPULSE_LOGO_SRC } from "./email-logo";
 import { jsonApiResponseToResult, providerNotConfigured } from "./shared";
 
-const EMAIL_LOGO_URL = "https://pulse.xuxuclassmate.com/assets/globalpulse-symbol-v6.svg";
+const EMAIL_LOGO_SRC = DEFAULT_GLOBALPULSE_LOGO_SRC;
 
 /**
  * Email provider via Brevo (preferred) or Resend (fallback compatibility)
@@ -119,8 +120,8 @@ function renderBrandHeader(): string {
               <td width="130" style="width:130px;vertical-align:middle;padding:4px 0;">
                 <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:0;">
                   <tr>
-                    <td style="vertical-align:middle;padding:10px 12px;background:#f8fbff;border:1px solid rgba(255,255,255,.62);border-radius:16px;box-shadow:0 12px 28px rgba(2,8,23,.24);line-height:0;">
-                      <img src="${EMAIL_LOGO_URL}" alt="GlobalPulse" width="96" height="74" style="display:block;width:96px;height:74px;border:0;outline:none;text-decoration:none;object-fit:contain;">
+                    <td style="vertical-align:middle;padding:11px 12px;background:#f8fbff;border:1px solid rgba(255,255,255,.62);border-radius:16px;box-shadow:0 12px 28px rgba(2,8,23,.24);line-height:0;">
+                      <img src="${EMAIL_LOGO_SRC}" alt="GlobalPulse" width="96" height="76" style="display:block;width:96px;height:76px;border:0;outline:none;text-decoration:none;object-fit:contain;">
                     </td>
                   </tr>
                 </table>
