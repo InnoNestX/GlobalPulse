@@ -3,6 +3,8 @@ import type { Provider } from "./types";
 import { formatPlainText, isLockedResearchReportBody } from "./format";
 import { jsonApiResponseToResult, providerNotConfigured } from "./shared";
 
+const EMAIL_LOGO_URL = "https://pulse.xuxuclassmate.com/assets/globalpulse-logo.jpg";
+
 /**
  * Email provider via Brevo (preferred) or Resend (fallback compatibility)
  *
@@ -27,36 +29,17 @@ export const emailProvider: Provider = {
       return { provider: "email", ok: true, status: 200, message: "Email disabled for this schedule (no recipients selected)" };
     }
 
-    const recipientList = (env as Env & { EMAIL_RECIPIENTS?: string }).EMAIL_RECIPIENTS
-      ?? env.EMAIL_TO
-      ?? "";
-
+    const recipientList = (env as Env & { EMAIL_RECIPIENTS?: string }).EMAIL_RECIPIENTS ?? env.EMAIL_TO ?? "";
     if (!recipientList) {
-      return {
-        provider: "email",
-        ok: false,
-        status: 400,
-        message: "No email recipient configured (set EMAIL_TO or add recipients in address book)",
-      };
+      return { provider: "email", ok: false, status: 400, message: "No email recipient configured (set EMAIL_TO or add recipients in address book)" };
     }
 
-    const toAddresses = recipientList
-      .split(",")
-      .map((s: string) => s.trim())
-      .filter(Boolean);
-
+    const toAddresses = recipientList.split(",").map((s: string) => s.trim()).filter(Boolean);
     if (!toAddresses.length) {
-      return {
-        provider: "email",
-        ok: false,
-        status: 400,
-        message: "No valid email recipients found",
-      };
+      return { provider: "email", ok: false, status: 400, message: "No valid email recipients found" };
     }
 
-    const fromAddress = (env as Env & { EMAIL_FROM_OVERRIDE?: string }).EMAIL_FROM_OVERRIDE
-      ?? env.EMAIL_FROM;
-
+    const fromAddress = (env as Env & { EMAIL_FROM_OVERRIDE?: string }).EMAIL_FROM_OVERRIDE ?? env.EMAIL_FROM;
     const htmlBody = buildHtmlEmail(message.title, message.body);
     const plainTextBody = formatPlainText(message);
 
@@ -73,32 +56,17 @@ export const emailProvider: Provider = {
 
       const response = await fetch("https://api.brevo.com/v3/smtp/email", {
         method: "POST",
-        headers: {
-          "api-key": env.BREVO_API_KEY,
-          "Content-Type": "application/json",
-        },
+        headers: { "api-key": env.BREVO_API_KEY, "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
       return jsonApiResponseToResult("email", response, (body) => Boolean(body.messageId || body.messageIds));
     }
 
-    const payload = {
-      from: fromAddress,
-      to: toAddresses,
-      subject: message.title,
-      html: htmlBody,
-      text: plainTextBody,
-      tags: message.tags?.slice(0, 5) ?? [],
-    };
-
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${env.RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
+      headers: { "Authorization": `Bearer ${env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: fromAddress, to: toAddresses, subject: message.title, html: htmlBody, text: plainTextBody, tags: message.tags?.slice(0, 5) ?? [] }),
     });
 
     return jsonApiResponseToResult("email", response, (body) => Boolean(body.id));
@@ -118,7 +86,6 @@ function buildHtmlEmail(title: string, body: string): string {
   const escapedTitle = escapeHtml(title);
   const htmlLines = renderMarkdownLikeBody(body);
   const isLockedResearch = isLockedResearchReportBody(body);
-  const subtitle = isLockedResearch ? "全自动市场报告" : escapedTitle;
 
   return `<!DOCTYPE html>
 <html lang="zh">
@@ -134,13 +101,9 @@ function buildHtmlEmail(title: string, body: string): string {
         ${renderBrandHeader()}
         ${isLockedResearch ? "" : `<div style="padding:0 28px 20px;"><h1 style="margin:0;font-size:20px;font-weight:800;color:#f8fafc;line-height:1.35;">${escapedTitle}</h1></div>`}
       </div>
-      <div style="padding:20px 24px;">
-        ${htmlLines}
-      </div>
+      <div style="padding:20px 24px;">${htmlLines}</div>
     </div>
-    <p style="margin-top:16px;font-size:11px;color:#475569;text-align:center;">
-      GlobalPulse · 全自动市场报告推送服务
-    </p>
+    <p style="margin-top:16px;font-size:11px;color:#475569;text-align:center;">GlobalPulse · 全自动市场报告推送服务</p>
   </div>
 </body>
 </html>`;
@@ -153,8 +116,8 @@ function renderBrandHeader(): string {
         <td style="vertical-align:middle;">
           <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
             <tr>
-              <td width="88" style="width:88px;vertical-align:middle;">
-                ${renderLogoMark()}
+              <td width="92" style="width:92px;vertical-align:middle;">
+                <img src="${EMAIL_LOGO_URL}" alt="GlobalPulse" width="96" height="72" style="display:block;width:96px;height:72px;border:0;outline:none;text-decoration:none;object-fit:contain;">
               </td>
               <td width="1" style="width:1px;background:#5b7ba8;opacity:.55;font-size:0;line-height:0;">&nbsp;</td>
               <td style="vertical-align:middle;padding-left:28px;">
@@ -173,10 +136,6 @@ function renderBrandHeader(): string {
   </div>`;
 }
 
-function renderLogoMark(): string {
-  return `<div style="width:72px;height:72px;border-radius:50%;background:#1d4ed8;background-image:radial-gradient(circle at 31% 24%,#f8fbff 0%,#d7edff 11%,#8dc8ff 25%,#3b82f6 49%,#1d4ed8 72%,#0f2f78 100%);box-shadow:inset -13px -16px 24px rgba(5,25,74,.42),inset 10px 10px 18px rgba(255,255,255,.30),0 14px 30px rgba(37,99,235,.28);display:block;overflow:hidden;">&nbsp;</div>`;
-}
-
 function renderMarkdownLikeBody(markdown: string): string {
   const lines = markdown.replace(/\r\n/g, "\n").split("\n");
   const blocks: string[] = [];
@@ -185,11 +144,7 @@ function renderMarkdownLikeBody(markdown: string): string {
   while (i < lines.length) {
     const rawLine = lines[i] ?? "";
     const line = rawLine.trim();
-
-    if (!line) {
-      i += 1;
-      continue;
-    }
+    if (!line) { i += 1; continue; }
 
     if (isTableLine(line)) {
       const tableLines: string[] = [];
@@ -204,65 +159,34 @@ function renderMarkdownLikeBody(markdown: string): string {
 
     const ordered = /^(\d+)\.\s+(.+)$/.exec(line);
     if (ordered) {
-      const items: Array<{ num: number; parts: string[] }> = [];
+      const items: string[] = [];
       while (i < lines.length) {
         const current = (lines[i] ?? "").trim();
-        const currentMatch = /^(\d+)\.\s+(.+)$/.exec(current);
-        if (!currentMatch) break;
-
-        const num = Number(currentMatch[1]);
-        const parts = [(currentMatch[2] ?? "")];
+        const match = /^(\d+)\.\s+(.+)$/.exec(current);
+        if (!match) break;
+        items.push(match[2] ?? "");
         i += 1;
-
-        while (i < lines.length) {
-          const nextRaw = lines[i] ?? "";
-          const next = nextRaw.trim();
-          if (!next) {
-            i += 1;
-            if (/^\d+\.\s+/.test((lines[i] ?? "").trim())) break;
-            continue;
-          }
-          if (/^\d+\.\s+/.test(next) || /^#{1,3}\s+/.test(next) || /^[-*]\s+/.test(next) || isTableLine(next)) break;
-          parts.push(next);
-          i += 1;
-        }
-        items.push({ num: Number.isFinite(num) ? num : 1, parts });
       }
-
-      const start = Math.max(1, items[0]?.num ?? 1);
-      blocks.push(`<ol start="${start}" style="margin:8px 0 10px 22px;padding:0;">${items.map((item) => `<li style="margin:6px 0;">${item.parts.map((part, idx) => idx === 0 ? `${renderInline(part)}` : `<div style="margin-top:4px;color:#cbd5e1;">${renderInline(part)}</div>`).join("")}</li>`).join("")}</ol>`);
+      blocks.push(`<ol style="margin:8px 0 10px 22px;padding:0;">${items.map((item) => `<li style="margin:6px 0;">${renderInline(item)}</li>`).join("")}</ol>`);
       continue;
     }
 
     if (/^[-*]\s+/.test(line)) {
       const items: string[] = [];
       while (i < lines.length) {
-        const candidate = (lines[i] ?? "").trim();
-        if (!/^[-*]\s+/.test(candidate)) break;
-        items.push(candidate.replace(/^[-*]\s+/, ""));
+        const current = (lines[i] ?? "").trim();
+        if (!/^[-*]\s+/.test(current)) break;
+        items.push(current.replace(/^[-*]\s+/, ""));
         i += 1;
       }
       blocks.push(`<ul style="margin:8px 0 10px 20px;padding:0;">${items.map((item) => `<li style="margin:4px 0;">${renderInline(item)}</li>`).join("")}</ul>`);
       continue;
     }
 
-    if (line.startsWith("### ")) {
-      blocks.push(`<h3 style="margin:16px 0 8px;font-size:15px;font-weight:700;color:#f8fafc;">${renderInline(line.slice(4))}</h3>`);
-      i += 1;
-      continue;
-    }
-    if (line.startsWith("## ")) {
-      blocks.push(`<h2 style="margin:16px 0 8px;font-size:16px;font-weight:700;color:#f8fafc;">${renderInline(line.slice(3))}</h2>`);
-      i += 1;
-      continue;
-    }
-    if (line.startsWith("# ")) {
-      blocks.push(`<h1 style="margin:16px 0 8px;font-size:18px;font-weight:700;color:#f8fafc;">${renderInline(line.slice(2))}</h1>`);
-      i += 1;
-      continue;
-    }
-
-    blocks.push(`<p style="margin:6px 0;">${renderInline(line)}</p>`);
+    if (line.startsWith("### ")) blocks.push(`<h3 style="margin:16px 0 8px;font-size:15px;font-weight:700;color:#f8fafc;">${renderInline(line.slice(4))}</h3>`);
+    else if (line.startsWith("## ")) blocks.push(`<h2 style="margin:16px 0 8px;font-size:16px;font-weight:700;color:#f8fafc;">${renderInline(line.slice(3))}</h2>`);
+    else if (line.startsWith("# ")) blocks.push(`<h1 style="margin:16px 0 8px;font-size:18px;font-weight:700;color:#f8fafc;">${renderInline(line.slice(2))}</h1>`);
+    else blocks.push(`<p style="margin:6px 0;">${renderInline(line)}</p>`);
     i += 1;
   }
 
@@ -274,14 +198,10 @@ function isTableLine(line: string): boolean {
 }
 
 function renderTable(lines: string[]): string {
-  if (lines.length === 0) return "";
-  const rows = lines.map(parseMarkdownTableRow).filter((row) => row.length > 0);
-  const normalizedRows = rows.filter((row) => !isMarkdownSeparatorRow(row));
-  if (normalizedRows.length === 0) return "";
-
-  const header = normalizedRows[0] ?? [];
-  const bodyRows = normalizedRows.slice(1).map((row) => normalizeTableRow(row, header.length));
-
+  const rows = lines.map(parseMarkdownTableRow).filter((row) => row.length > 0 && !isMarkdownSeparatorRow(row));
+  if (!rows.length) return "";
+  const header = rows[0] ?? [];
+  const bodyRows = rows.slice(1).map((row) => normalizeTableRow(row, header.length));
   return `<div style="overflow-x:auto;margin:10px 0 14px;border:1px solid #263548;border-radius:10px;"><table style="border-collapse:collapse;width:100%;min-width:420px;font-size:13px;table-layout:auto;">
     <thead><tr>${header.map((cell) => `<th style="border-bottom:1px solid #263548;padding:8px 10px;background:#141f2e;text-align:left;color:#dbeafe;white-space:nowrap;">${renderInline(cell)}</th>`).join("")}</tr></thead>
     <tbody>${bodyRows.map((row) => `<tr>${row.map((cell) => `<td style="border-top:1px solid #1f2a3a;padding:8px 10px;color:#e2e8f0;vertical-align:top;white-space:nowrap;">${renderInline(cell || "—")}</td>`).join("")}</tr>`).join("")}</tbody>
@@ -289,9 +209,7 @@ function renderTable(lines: string[]): string {
 }
 
 function parseMarkdownTableRow(line: string): string[] {
-  const trimmed = line.trim();
-  const withoutOuterPipes = trimmed.replace(/^\|/, "").replace(/\|$/, "");
-  return withoutOuterPipes.split("|").map((cell) => cell.trim());
+  return line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((cell) => cell.trim());
 }
 
 function isMarkdownSeparatorRow(row: string[]): boolean {
@@ -299,8 +217,7 @@ function isMarkdownSeparatorRow(row: string[]): boolean {
 }
 
 function normalizeTableRow(row: string[], expectedLength: number): string[] {
-  if (expectedLength <= 0) return row;
-  if (row.length === expectedLength) return row;
+  if (expectedLength <= 0 || row.length === expectedLength) return row;
   if (row.length > expectedLength) return row.slice(0, expectedLength - 1).concat(row.slice(expectedLength - 1).join(" | "));
   return [...row, ...Array.from({ length: expectedLength - row.length }, () => "")];
 }
