@@ -1,6 +1,8 @@
 import type { Env } from "./env";
 import { getLogs, getSettings, mergeProviderSettings, normalizeSettings, saveSettings, type AppSettings } from "./config";
 import { renderAdminUi } from "./admin-ui";
+import { renderMarketDataAdminUi } from "./market-data-admin-ui";
+import { getMarketDataProviderSettings, saveMarketDataProviderSettings } from "./market-data-settings";
 import { createDeliveryEnv, sendIncomingMessage } from "./delivery";
 import { normalizeCloudflareEvent, normalizeGitHubActionsEvent } from "./events";
 import { getProviderStatus } from "./providers";
@@ -27,6 +29,10 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
 
     if (request.method === "GET" && url.pathname === "/admin") {
       return renderAdminUi();
+    }
+
+    if (request.method === "GET" && url.pathname === "/market-data-settings") {
+      return renderMarketDataAdminUi();
     }
 
     if (request.method === "GET" && url.pathname === "/health") {
@@ -88,6 +94,15 @@ async function handleAdminApi(request: Request, env: Env): Promise<Response> {
   }
 
   assertAdminAuthenticated(request, env);
+
+  if (request.method === "GET" && url.pathname === "/api/admin/market-data-settings") {
+    return json({ settings: await getMarketDataProviderSettings(env) }, env);
+  }
+
+  if (request.method === "PUT" && url.pathname === "/api/admin/market-data-settings") {
+    const body = await readJson(request);
+    return json({ settings: await saveMarketDataProviderSettings(env, body) }, env);
+  }
 
   if (request.method === "GET" && url.pathname === "/api/admin/settings") {
     const settings = await getSettings(env);
