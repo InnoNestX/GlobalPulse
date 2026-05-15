@@ -44,6 +44,7 @@ async function fetchUsMarket(env: MarketEnv, focus: string[], positions: string[
     { provider: "finnhub", endpoint: "quote", fetcher: (items) => fetchFinnhubUsQuotes(env, items), requiresKey: "FINNHUB_API_KEY" },
     { provider: "twelve_data", endpoint: "quote", fetcher: (items) => fetchTwelveDataUsQuotes(env, items), requiresKey: "TWELVE_DATA_API_KEY" },
     { provider: "yahoo", endpoint: "finance_quote", fetcher: fetchYahooUsQuotes },
+    { provider: "yahoo", endpoint: "chart_quote", fetcher: fetchYahooChartUsQuotes },
     { provider: "stooq", endpoint: "quote_csv", fetcher: fetchStooqUsQuotes },
   ], env);
   const indexSet = new Set(["SPY", "QQQ", "DIA", "IWM"]);
@@ -94,10 +95,10 @@ async function fetchWithFallback(symbols: string[], sources: QuoteSource[], env:
     try {
       const fetched = await source.fetcher(symbols);
       rows = mergeQuoteRows(rows, fetched);
-      usages.push({ provider: source.provider, endpoint: source.endpoint, success: fetched.length > 0, latency_ms: Date.now() - started, rate_limited: false });
+      usages.push({ provider: source.provider, endpoint: source.endpoint, success: fetched.length > 0, latency_ms: Date.now() - started, rate_limited: false, message: fetched.length > 0 ? undefined : "empty result" });
       if (quoteCoverage(rows, symbols) >= MIN_QUOTE_COVERAGE) break;
     } catch (error) {
-      usages.push({ provider: source.provider, endpoint: source.endpoint, success: false, latency_ms: Date.now() - started, rate_limited: isRateLimitError(error), message: error instanceof Error ? error.message.slice(0, 160) : "unknown error" });
+      usages.push({ provider: source.provider, endpoint: source.endpoint, success: false, latency_ms: Date.now() - started, rate_limited: isRateLimitError(error), message: error instanceof Error ? error.message.slice(0, 220) : "unknown error" });
     }
   }
   return { rows: sanitizeQuotes(rows), usages };
@@ -131,7 +132,8 @@ async function fetchAlphaVantageGlobalQuote(env: MarketEnv, apiSymbol: string, d
   url.searchParams.set("function", "GLOBAL_QUOTE");
   url.searchParams.set("symbol", apiSymbol);
   url.searchParams.set("apikey", env.ALPHA_VANTAGE_API_KEY ?? "");
-  const payload = await fetch(url.toString(), { headers: jsonHeaders() }).then(assertJsonResponse) as { "Global Quote"?: Record<string, string> };
+  const payload = await fetch(url.toString(), { headers: jsonHeaders() }).then(assertJsonResponse) as { "Global Quote"?: Record<string, string>; Note?: string; Information?: string };
+  if (payload.Note || payload.Information) throw new Error(`Alpha Vantage: ${(payload.Note ?? payload.Information ?? "rate limited").slice(0, 160)}`);
   const quote = payload["Global Quote"] ?? {};
   const price = Number(quote["05. price"]);
   const change = Number(String(quote["10. change percent"] ?? "").replace("%", ""));
@@ -193,7 +195,7 @@ async function fetchTwelveDataCryptoQuotes(env: MarketEnv, symbols: string[]): P
     }
     return { rows: sanitizeQuotes(rows), usage: { provider: "twelve_data", endpoint: "quote_crypto", success: rows.length > 0, latency_ms: Date.now() - started, rate_limited: false } };
   } catch (error) {
-    return { rows: [], usage: { provider: "twelve_data", endpoint: "quote_crypto", success: false, latency_ms: Date.now() - started, rate_limited: isRateLimitError(error), message: error instanceof Error ? error.message.slice(0, 160) : "unknown error" } };
+    return { rows: [], usage: { provider: "twelve_data", endpoint: "quote_crypto", success: false, latency_ms: Date.now() - started, rate_limited: isRateLimitError(error), message: error instanceof Error ? error.message.slice(0, 220) : "unknown error" } };
   }
 }
 
@@ -225,6 +227,31 @@ async function fetchYahooUsQuotes(symbols: string[]): Promise<MarketQuote[]> {
       if (!symbol || !Number.isFinite(price) || !Number.isFinite(change)) return [];
       return [withOptionalName({ symbol: symbol.split(".")[0] ?? symbol, price, change_pct: change, source: "Yahoo Finance" }, sanitizeUsDisplayName(typeof entry.shortName === "string" ? entry.shortName : symbol, symbol))];
     }));
+  }
+  return sanitizeQuotes(rows);
+}
+
+async function fetchYahooChartUsQuotes(symbols: string[]): Promise<MarketQuote[]> {
+  const rows: MarketQuote[] = [];
+  for (const symbol of symbols.slice(0, 70)) {
+    const url = new URL(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`);
+    url.searchParams.set("range", "5d");
+    url.searchParams.set("interval", "1d");
+    const payload = await fetch(url.toString(), { headers: jsonHeaders() }).then(assertJsonResponse) as { chart?: { result?: Array<{ meta?: Record<string, unknown>; indicators?: { quote?: Array<{ close?: Array<number | null> }> } }> } };
+    const result = payload.chart?.result?.[0];
+    const meta = result?.meta ?? {};
+    const price = Number(meta.regularMarketPrice);
+    const previousClose = Number(meta.previousClose ?? meta.chartPreviousClose);
+    if (Number.isFinite(price) && Number.isFinite(previousClose) && previousClose > 0) {
+      rows.push({ symbol: symbol.toUpperCase(), price, change_pct: ((price - previousClose) / previousClose) * 100, source: "Yahoo Chart" });
+      continue;
+    }
+    const closes = result?.indicators?.quote?.[0]?.close?.filter((value): value is number => typeof value === "number" && Number.isFinite(value)) ?? [];
+    const last = closes.at(-1);
+    const prev = closes.at(-2);
+    if (Number.isFinite(last) && Number.isFinite(prev) && prev && prev > 0) {
+      rows.push({ symbol: symbol.toUpperCase(), price: last, change_pct: ((last - prev) / prev) * 100, source: "Yahoo Chart" });
+    }
   }
   return sanitizeQuotes(rows);
 }
@@ -301,7 +328,7 @@ async function fetchCoingeckoQuotes(env: MarketEnv, symbols: string[]): Promise<
     });
     return { rows, usage: { provider: "coingecko", endpoint: "simple_price", success: rows.length > 0, latency_ms: Date.now() - started, rate_limited: false } };
   } catch (error) {
-    return { rows: [], usage: { provider: "coingecko", endpoint: "simple_price", success: false, latency_ms: Date.now() - started, rate_limited: isRateLimitError(error), message: error instanceof Error ? error.message.slice(0, 160) : "unknown error" } };
+    return { rows: [], usage: { provider: "coingecko", endpoint: "simple_price", success: false, latency_ms: Date.now() - started, rate_limited: isRateLimitError(error), message: error instanceof Error ? error.message.slice(0, 220) : "unknown error" } };
   }
 }
 
@@ -318,7 +345,7 @@ async function fetchAlternativeMeQuotes(symbols: string[]): Promise<{ rows: Mark
     });
     return { rows, usage: { provider: "alternative.me", endpoint: "ticker", success: rows.length > 0, latency_ms: Date.now() - started, rate_limited: false } };
   } catch (error) {
-    return { rows: [], usage: { provider: "alternative.me", endpoint: "ticker", success: false, latency_ms: Date.now() - started, rate_limited: isRateLimitError(error), message: error instanceof Error ? error.message.slice(0, 160) : "unknown error" } };
+    return { rows: [], usage: { provider: "alternative.me", endpoint: "ticker", success: false, latency_ms: Date.now() - started, rate_limited: isRateLimitError(error), message: error instanceof Error ? error.message.slice(0, 220) : "unknown error" } };
   }
 }
 
@@ -496,26 +523,35 @@ function normalizeCoverageSymbol(symbol: string): string {
 }
 
 async function assertTextResponse(response: Response): Promise<string> {
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.text();
+  const text = await response.text();
+  if (!response.ok) throw new Error(`HTTP ${response.status}: ${text.slice(0, 160)}`);
+  return text;
 }
 
 async function assertJsonResponse(response: Response): Promise<unknown> {
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return response.json();
+  const text = await response.text();
+  if (!response.ok) throw new Error(`HTTP ${response.status}: ${text.slice(0, 160)}`);
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new Error(`Invalid JSON: ${text.slice(0, 160)}`);
+  }
 }
 
 function jsonHeaders(): Record<string, string> {
-  return { ...userAgentHeaders(), "Accept": "application/json" };
+  return { ...userAgentHeaders(), "Accept": "application/json,text/plain,*/*" };
 }
 
 function userAgentHeaders(): Record<string, string> {
-  return { "User-Agent": "globalpulse-worker/0.1" };
+  return {
+    "User-Agent": "Mozilla/5.0 (compatible; GlobalPulse/1.0; +https://github.com/InnoNestX/GlobalPulse)",
+    "Accept-Language": "en-US,en;q=0.9",
+  };
 }
 
 function isRateLimitError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? "");
-  return /429|rate|limit|too many/i.test(message);
+  return /429|rate|limit|too many|forbidden|HTTP 403/i.test(message);
 }
 
 function chunkArray<T>(values: T[], size: number): T[][] {
