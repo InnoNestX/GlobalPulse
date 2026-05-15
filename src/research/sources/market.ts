@@ -3,7 +3,6 @@ import type { ReportType } from "../../config";
 import { dedupeSymbols, normalizeAShareCode, toCryptoPair } from "../normalize/ticker";
 import type { ApiUsageEntry } from "../types/common";
 import type { MarketQuote } from "../types/packet";
-import { cachedJsonFetch } from "./rateLimiter";
 
 export interface MarketDataResult {
   indices: MarketQuote[];
@@ -26,7 +25,7 @@ type QuoteSource = {
 };
 
 const MIN_QUOTE_COVERAGE = 0.85;
-const US_POOL = ["SPY", "QQQ", "DIA", "IWM", "XLK", "XLF", "XLE", "XLV", "SMH", "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AMD", "AVGO", "JPM", "LLY", "COIN", "MSTR"];
+const US_POOL = ["SPY", "QQQ", "DIA", "IWM", "XLK", "SMH", "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AMD"];
 const A_POOL = ["sh000001", "sz399001", "sh000300", "sz399006", "sh600519", "sz000858", "sh601318", "sh600036", "sz300750", "sh688981", "sz002594", "sz300059", "sh600030"];
 const CRYPTO_POOL = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "AVAXUSDT", "LINKUSDT", "TONUSDT", "PEPEUSDT"];
 
@@ -38,38 +37,38 @@ export async function fetchMarketData(env: Env, reportType: ReportType, focus: s
 }
 
 async function fetchUsMarket(env: MarketEnv, focus: string[], positions: string[]): Promise<MarketDataResult> {
-  const symbols = dedupeSymbols([...US_POOL, ...focus, ...positions]).slice(0, 70);
+  const symbols = dedupeSymbols([...US_POOL, ...focus, ...positions]).slice(0, 18);
   const { rows, usages } = await fetchWithFallback(symbols, [
-    { provider: "alpha_vantage", endpoint: "global_quote", fetcher: (items) => fetchAlphaVantageUsQuotes(env, items), requiresKey: "ALPHA_VANTAGE_API_KEY" },
-    { provider: "finnhub", endpoint: "quote", fetcher: (items) => fetchFinnhubUsQuotes(env, items), requiresKey: "FINNHUB_API_KEY" },
     { provider: "twelve_data", endpoint: "quote", fetcher: (items) => fetchTwelveDataUsQuotes(env, items), requiresKey: "TWELVE_DATA_API_KEY" },
     { provider: "yahoo", endpoint: "finance_quote", fetcher: fetchYahooUsQuotes },
-    { provider: "yahoo", endpoint: "chart_quote", fetcher: fetchYahooChartUsQuotes },
     { provider: "stooq", endpoint: "quote_csv", fetcher: fetchStooqUsQuotes },
+    { provider: "finnhub", endpoint: "quote_limited", fetcher: (items) => fetchFinnhubUsQuotes(env, items), requiresKey: "FINNHUB_API_KEY" },
+    { provider: "alpha_vantage", endpoint: "global_quote_limited", fetcher: (items) => fetchAlphaVantageUsQuotes(env, items), requiresKey: "ALPHA_VANTAGE_API_KEY" },
+    { provider: "yahoo", endpoint: "chart_quote_limited", fetcher: fetchYahooChartUsQuotes },
   ], env);
   const indexSet = new Set(["SPY", "QQQ", "DIA", "IWM"]);
   return { indices: rows.filter((row) => indexSet.has(row.symbol.toUpperCase())), universe: rows, usages };
 }
 
 async function fetchAShareMarket(env: MarketEnv, focus: string[], positions: string[]): Promise<MarketDataResult> {
-  const symbols = dedupeSymbols([...A_POOL, ...focus, ...positions]).map((symbol) => normalizeAShareCode(symbol) ?? symbol).slice(0, 70);
+  const symbols = dedupeSymbols([...A_POOL, ...focus, ...positions]).map((symbol) => normalizeAShareCode(symbol) ?? symbol).slice(0, 60);
   const { rows, usages } = await fetchWithFallback(symbols, [
-    { provider: "twelve_data", endpoint: "quote_cn", fetcher: (items) => fetchTwelveDataAShareQuotes(env, items), requiresKey: "TWELVE_DATA_API_KEY" },
-    { provider: "alpha_vantage", endpoint: "global_quote_cn", fetcher: (items) => fetchAlphaVantageAShareQuotes(env, items), requiresKey: "ALPHA_VANTAGE_API_KEY" },
     { provider: "eastmoney", endpoint: "push2_ulist", fetcher: fetchEastmoneyAQuotes },
     { provider: "sina", endpoint: "a_share_simple_quotes", fetcher: fetchSinaAQuotes },
     { provider: "tencent", endpoint: "a_share_quotes", fetcher: fetchTencentAQuotes },
+    { provider: "twelve_data", endpoint: "quote_cn", fetcher: (items) => fetchTwelveDataAShareQuotes(env, items), requiresKey: "TWELVE_DATA_API_KEY" },
+    { provider: "alpha_vantage", endpoint: "global_quote_cn", fetcher: (items) => fetchAlphaVantageAShareQuotes(env, items), requiresKey: "ALPHA_VANTAGE_API_KEY" },
   ], env);
   const indexSet = new Set(["SH000001", "SZ399001", "SH000300", "SZ399006"]);
   return { indices: rows.filter((row) => indexSet.has(row.symbol.toUpperCase())), universe: rows, usages };
 }
 
 async function fetchCryptoMarket(env: MarketEnv, focus: string[], positions: string[]): Promise<MarketDataResult> {
-  const symbols = dedupeSymbols([...CRYPTO_POOL, ...focus.map(toCryptoPair), ...positions.map(toCryptoPair)]).slice(0, 40);
+  const symbols = dedupeSymbols([...CRYPTO_POOL, ...focus.map(toCryptoPair), ...positions.map(toCryptoPair)]).slice(0, 30);
   let rows: MarketQuote[] = [];
   const usages: ApiUsageEntry[] = [];
   const providers = [
-    async () => fetchBinanceQuotes(env, symbols),
+    async () => fetchBinanceQuotes(symbols),
     async () => fetchCoingeckoQuotes(env, symbols),
     async () => fetchTwelveDataCryptoQuotes(env, symbols),
     async () => fetchAlternativeMeQuotes(symbols),
@@ -89,16 +88,18 @@ async function fetchWithFallback(symbols: string[], sources: QuoteSource[], env:
   for (const source of sources) {
     const started = Date.now();
     if (source.requiresKey && !env[source.requiresKey]) {
-      usages.push({ provider: source.provider, endpoint: source.endpoint, success: false, latency_ms: 0, rate_limited: false, message: `missing ${String(source.requiresKey)}` });
+      usages.push(apiUsage(source.provider, source.endpoint, false, 0, false, `missing ${String(source.requiresKey)}`));
       continue;
     }
     try {
-      const fetched = await source.fetcher(symbols);
+      const missing = symbols.filter((symbol) => !hasQuote(rows, symbol));
+      const fetched = await source.fetcher(missing.length ? missing : symbols);
       rows = mergeQuoteRows(rows, fetched);
-      usages.push({ provider: source.provider, endpoint: source.endpoint, success: fetched.length > 0, latency_ms: Date.now() - started, rate_limited: false, message: fetched.length > 0 ? undefined : "empty result" });
+      usages.push(apiUsage(source.provider, source.endpoint, fetched.length > 0, Date.now() - started, false, fetched.length > 0 ? undefined : "empty result"));
       if (quoteCoverage(rows, symbols) >= MIN_QUOTE_COVERAGE) break;
     } catch (error) {
-      usages.push({ provider: source.provider, endpoint: source.endpoint, success: false, latency_ms: Date.now() - started, rate_limited: isRateLimitError(error), message: error instanceof Error ? error.message.slice(0, 220) : "unknown error" });
+      const message = error instanceof Error ? error.message.slice(0, 220) : "unknown error";
+      usages.push(apiUsage(source.provider, source.endpoint, false, Date.now() - started, isRateLimitError(error), message));
     }
   }
   return { rows: sanitizeQuotes(rows), usages };
@@ -106,7 +107,7 @@ async function fetchWithFallback(symbols: string[], sources: QuoteSource[], env:
 
 async function fetchAlphaVantageUsQuotes(env: MarketEnv, symbols: string[]): Promise<MarketQuote[]> {
   const rows: MarketQuote[] = [];
-  for (const symbol of symbols.slice(0, 25)) {
+  for (const symbol of symbols.slice(0, 5)) {
     const quote = await fetchAlphaVantageGlobalQuote(env, symbol);
     if (quote) rows.push(quote);
   }
@@ -115,7 +116,7 @@ async function fetchAlphaVantageUsQuotes(env: MarketEnv, symbols: string[]): Pro
 
 async function fetchAlphaVantageAShareQuotes(env: MarketEnv, symbols: string[]): Promise<MarketQuote[]> {
   const rows: MarketQuote[] = [];
-  for (const symbol of symbols.slice(0, 25)) {
+  for (const symbol of symbols.slice(0, 8)) {
     for (const candidate of toAlphaVantageAShareSymbols(symbol)) {
       const quote = await fetchAlphaVantageGlobalQuote(env, candidate, symbol);
       if (quote) {
@@ -143,7 +144,7 @@ async function fetchAlphaVantageGlobalQuote(env: MarketEnv, apiSymbol: string, d
 
 async function fetchFinnhubUsQuotes(env: MarketEnv, symbols: string[]): Promise<MarketQuote[]> {
   const rows: MarketQuote[] = [];
-  for (const symbol of symbols.slice(0, 50)) {
+  for (const symbol of symbols.slice(0, 6)) {
     const url = new URL("https://finnhub.io/api/v1/quote");
     url.searchParams.set("symbol", symbol);
     url.searchParams.set("token", env.FINNHUB_API_KEY ?? "");
@@ -158,7 +159,7 @@ async function fetchFinnhubUsQuotes(env: MarketEnv, symbols: string[]): Promise<
 
 async function fetchTwelveDataUsQuotes(env: MarketEnv, symbols: string[]): Promise<MarketQuote[]> {
   const rows: MarketQuote[] = [];
-  for (const chunk of chunkArray(symbols, 8)) {
+  for (const chunk of chunkArray(symbols.slice(0, 18), 8)) {
     const url = new URL("https://api.twelvedata.com/quote");
     url.searchParams.set("symbol", chunk.join(","));
     url.searchParams.set("apikey", env.TWELVE_DATA_API_KEY ?? "");
@@ -170,7 +171,7 @@ async function fetchTwelveDataUsQuotes(env: MarketEnv, symbols: string[]): Promi
 
 async function fetchTwelveDataAShareQuotes(env: MarketEnv, symbols: string[]): Promise<MarketQuote[]> {
   const rows: MarketQuote[] = [];
-  for (const chunk of chunkArray(symbols, 8)) {
+  for (const chunk of chunkArray(symbols.slice(0, 16), 8)) {
     const url = new URL("https://api.twelvedata.com/quote");
     url.searchParams.set("symbol", chunk.map(toTwelveDataAShareSymbol).join(","));
     url.searchParams.set("apikey", env.TWELVE_DATA_API_KEY ?? "");
@@ -184,7 +185,7 @@ async function fetchTwelveDataCryptoQuotes(env: MarketEnv, symbols: string[]): P
   const started = Date.now();
   try {
     if (!env.TWELVE_DATA_API_KEY) throw new Error("missing TWELVE_DATA_API_KEY");
-    const pairs = symbols.map((symbol) => `${symbol.replace(/USDT$/i, "")}/USD`);
+    const pairs = symbols.slice(0, 16).map((symbol) => `${symbol.replace(/USDT$/i, "")}/USD`);
     const rows: MarketQuote[] = [];
     for (const chunk of chunkArray(pairs, 8)) {
       const url = new URL("https://api.twelvedata.com/quote");
@@ -193,29 +194,34 @@ async function fetchTwelveDataCryptoQuotes(env: MarketEnv, symbols: string[]): P
       const payload = await fetch(url.toString(), { headers: jsonHeaders() }).then(assertJsonResponse) as Record<string, unknown>;
       rows.push(...parseTwelveDataQuotePayload(payload, chunk, (symbol) => symbol.replace(/\/USD$/i, "")));
     }
-    return { rows: sanitizeQuotes(rows), usage: { provider: "twelve_data", endpoint: "quote_crypto", success: rows.length > 0, latency_ms: Date.now() - started, rate_limited: false } };
+    return { rows: sanitizeQuotes(rows), usage: apiUsage("twelve_data", "quote_crypto", rows.length > 0, Date.now() - started, false, rows.length ? undefined : "empty result") };
   } catch (error) {
-    return { rows: [], usage: { provider: "twelve_data", endpoint: "quote_crypto", success: false, latency_ms: Date.now() - started, rate_limited: isRateLimitError(error), message: error instanceof Error ? error.message.slice(0, 220) : "unknown error" } };
+    return { rows: [], usage: apiUsage("twelve_data", "quote_crypto", false, Date.now() - started, isRateLimitError(error), error instanceof Error ? error.message.slice(0, 220) : "unknown error") };
   }
 }
 
-async function fetchBinanceQuotes(env: Env, symbols: string[]): Promise<{ rows: MarketQuote[]; usage: ApiUsageEntry }> {
-  const url = new URL("https://api.binance.com/api/v3/ticker/24hr");
-  url.searchParams.set("symbols", JSON.stringify(symbols));
-  const result = await cachedJsonFetch<Array<{ symbol?: string; lastPrice?: string; priceChangePercent?: string }>>(env, "binance", "ticker_24hr", url.toString(), { headers: userAgentHeaders() }, 180);
-  const rows = (result.data ?? []).flatMap((entry): MarketQuote[] => {
-    const symbol = entry.symbol?.toUpperCase();
-    const price = Number(entry.lastPrice);
-    const change = Number(entry.priceChangePercent);
-    if (!symbol || !Number.isFinite(price) || !Number.isFinite(change)) return [];
-    return [{ symbol: symbol.replace(/USDT$/, ""), price, change_pct: change, source: "Binance" }];
-  });
-  return { rows, usage: result.usage };
+async function fetchBinanceQuotes(symbols: string[]): Promise<{ rows: MarketQuote[]; usage: ApiUsageEntry }> {
+  const started = Date.now();
+  try {
+    const url = new URL("https://api.binance.com/api/v3/ticker/24hr");
+    url.searchParams.set("symbols", JSON.stringify(symbols.slice(0, 30)));
+    const payload = await fetch(url.toString(), { headers: userAgentHeaders() }).then(assertJsonResponse) as Array<{ symbol?: string; lastPrice?: string; priceChangePercent?: string }>;
+    const rows = payload.flatMap((entry): MarketQuote[] => {
+      const symbol = entry.symbol?.toUpperCase();
+      const price = Number(entry.lastPrice);
+      const change = Number(entry.priceChangePercent);
+      if (!symbol || !Number.isFinite(price) || !Number.isFinite(change)) return [];
+      return [{ symbol: symbol.replace(/USDT$/, ""), price, change_pct: change, source: "Binance" }];
+    });
+    return { rows, usage: apiUsage("binance", "ticker_24hr", rows.length > 0, Date.now() - started, false, rows.length ? undefined : "empty result") };
+  } catch (error) {
+    return { rows: [], usage: apiUsage("binance", "ticker_24hr", false, Date.now() - started, isRateLimitError(error), error instanceof Error ? error.message.slice(0, 220) : "unknown error") };
+  }
 }
 
 async function fetchYahooUsQuotes(symbols: string[]): Promise<MarketQuote[]> {
   const rows: MarketQuote[] = [];
-  for (const chunk of chunkArray(symbols, 40)) {
+  for (const chunk of chunkArray(symbols.slice(0, 18), 18)) {
     const url = new URL("https://query1.finance.yahoo.com/v7/finance/quote");
     url.searchParams.set("symbols", chunk.join(","));
     const payload = await fetch(url.toString(), { headers: jsonHeaders() }).then(assertJsonResponse) as { quoteResponse?: { result?: Array<Record<string, unknown>> } };
@@ -233,7 +239,8 @@ async function fetchYahooUsQuotes(symbols: string[]): Promise<MarketQuote[]> {
 
 async function fetchYahooChartUsQuotes(symbols: string[]): Promise<MarketQuote[]> {
   const rows: MarketQuote[] = [];
-  for (const symbol of symbols.slice(0, 70)) {
+  const candidates = dedupeSymbols(["SPY", "QQQ", "DIA", "IWM", ...symbols]).slice(0, 6);
+  for (const symbol of candidates) {
     const url = new URL(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`);
     url.searchParams.set("range", "5d");
     url.searchParams.set("interval", "1d");
@@ -257,14 +264,11 @@ async function fetchYahooChartUsQuotes(symbols: string[]): Promise<MarketQuote[]
 }
 
 async function fetchStooqUsQuotes(symbols: string[]): Promise<MarketQuote[]> {
-  const rows: MarketQuote[] = [];
-  for (const chunk of chunkArray(symbols, 80)) {
-    const stooqSymbols = chunk.map((symbol) => `${symbol.toLowerCase().replace(".", "-")}.us`).join(",");
-    const url = `https://stooq.com/q/l/?s=${encodeURIComponent(stooqSymbols)}&f=sd2t2oc&h&e=csv`;
-    const csv = await fetch(url, { headers: userAgentHeaders() }).then(assertTextResponse);
-    rows.push(...parseStooqCsv(csv));
-  }
-  return sanitizeQuotes(rows);
+  const stooqSymbols = symbols.slice(0, 18).map((symbol) => `${symbol.toLowerCase().replace(".", "-")}.us`).join(",");
+  if (!stooqSymbols) return [];
+  const url = `https://stooq.com/q/l/?s=${encodeURIComponent(stooqSymbols)}&f=sd2t2oc&h&e=csv`;
+  const csv = await fetch(url, { headers: userAgentHeaders() }).then(assertTextResponse);
+  return sanitizeQuotes(parseStooqCsv(csv));
 }
 
 async function fetchTencentAQuotes(symbols: string[]): Promise<MarketQuote[]> {
@@ -326,9 +330,9 @@ async function fetchCoingeckoQuotes(env: MarketEnv, symbols: string[]): Promise<
       if (!symbol || !Number.isFinite(entry.usd) || !Number.isFinite(entry.usd_24h_change)) return [];
       return [{ symbol, price: Number(entry.usd), change_pct: Number(entry.usd_24h_change), source: "CoinGecko" }];
     });
-    return { rows, usage: { provider: "coingecko", endpoint: "simple_price", success: rows.length > 0, latency_ms: Date.now() - started, rate_limited: false } };
+    return { rows, usage: apiUsage("coingecko", "simple_price", rows.length > 0, Date.now() - started, false, rows.length ? undefined : "empty result") };
   } catch (error) {
-    return { rows: [], usage: { provider: "coingecko", endpoint: "simple_price", success: false, latency_ms: Date.now() - started, rate_limited: isRateLimitError(error), message: error instanceof Error ? error.message.slice(0, 220) : "unknown error" } };
+    return { rows: [], usage: apiUsage("coingecko", "simple_price", false, Date.now() - started, isRateLimitError(error), error instanceof Error ? error.message.slice(0, 220) : "unknown error") };
   }
 }
 
@@ -343,9 +347,9 @@ async function fetchAlternativeMeQuotes(symbols: string[]): Promise<{ rows: Mark
       if (!symbol || !wanted.has(symbol) || !Number.isFinite(quote?.price) || !Number.isFinite(quote?.percent_change_24h)) return [];
       return [{ symbol, price: Number(quote?.price), change_pct: Number(quote?.percent_change_24h), source: "alternative.me" }];
     });
-    return { rows, usage: { provider: "alternative.me", endpoint: "ticker", success: rows.length > 0, latency_ms: Date.now() - started, rate_limited: false } };
+    return { rows, usage: apiUsage("alternative.me", "ticker", rows.length > 0, Date.now() - started, false, rows.length ? undefined : "empty result") };
   } catch (error) {
-    return { rows: [], usage: { provider: "alternative.me", endpoint: "ticker", success: false, latency_ms: Date.now() - started, rate_limited: isRateLimitError(error), message: error instanceof Error ? error.message.slice(0, 220) : "unknown error" } };
+    return { rows: [], usage: apiUsage("alternative.me", "ticker", false, Date.now() - started, isRateLimitError(error), error instanceof Error ? error.message.slice(0, 220) : "unknown error") };
   }
 }
 
@@ -502,6 +506,10 @@ function withOptionalName(row: MarketQuote, name?: string): MarketQuote {
   return { ...row, name: clean };
 }
 
+function hasQuote(rows: MarketQuote[], symbol: string): boolean {
+  return rows.some((row) => normalizeCoverageSymbol(row.symbol) === normalizeCoverageSymbol(symbol));
+}
+
 function quoteCoverage(rows: MarketQuote[], requestedSymbols: string[]): number {
   if (!requestedSymbols.length) return rows.length > 0 ? 1 : 0;
   const available = new Set(rows.map((row) => normalizeCoverageSymbol(row.symbol)));
@@ -514,12 +522,13 @@ function quoteCoverage(rows: MarketQuote[], requestedSymbols: string[]): number 
 }
 
 function normalizeCoverageSymbol(symbol: string): string {
-  return symbol.toUpperCase()
-    .replace(/^(US|S_)/, "")
-    .replace(/USDT$/, "")
-    .replace(/\.US$/, "")
-    .replace(/:SSE$|:SZSE$/, "")
-    .replace(/^(SH|SZ)(\d{6})$/, "$1$2");
+  return symbol.toUpperCase().replace(/^(US|S_)/, "").replace(/USDT$/, "").replace(/\.US$/, "").replace(/:SSE$|:SZSE$/, "").replace(/^(SH|SZ)(\d{6})$/, "$1$2");
+}
+
+function apiUsage(provider: string, endpoint: string, success: boolean, latencyMs: number, rateLimited: boolean, message?: string): ApiUsageEntry {
+  const entry: ApiUsageEntry = { provider, endpoint, success, latency_ms: latencyMs, rate_limited: rateLimited };
+  if (message) entry.message = message;
+  return entry;
 }
 
 async function assertTextResponse(response: Response): Promise<string> {
@@ -543,10 +552,7 @@ function jsonHeaders(): Record<string, string> {
 }
 
 function userAgentHeaders(): Record<string, string> {
-  return {
-    "User-Agent": "Mozilla/5.0 (compatible; GlobalPulse/1.0; +https://github.com/InnoNestX/GlobalPulse)",
-    "Accept-Language": "en-US,en;q=0.9",
-  };
+  return { "User-Agent": "Mozilla/5.0 (compatible; GlobalPulse/1.0; +https://github.com/InnoNestX/GlobalPulse)", "Accept-Language": "en-US,en;q=0.9" };
 }
 
 function isRateLimitError(error: unknown): boolean {
