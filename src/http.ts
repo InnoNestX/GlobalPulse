@@ -104,7 +104,7 @@ async function handleAdminApi(request: Request, env: Env): Promise<Response> {
   }
 
   if (request.method === "GET" && url.pathname === "/api/admin/settings") {
-    const settings = await getSettings(env);
+    const settings = await getAdminSettings(env);
 
     return json({
       settings,
@@ -114,12 +114,15 @@ async function handleAdminApi(request: Request, env: Env): Promise<Response> {
 
   if (request.method === "PUT" && url.pathname === "/api/admin/settings") {
     const body = await readJson(request);
+    await saveMarketDataSettingsFromAdminPayload(env, body);
     let settings: AppSettings;
     try {
       settings = await saveSettings(env, body);
     } catch (error) {
       throw new HttpError(400, error instanceof Error ? error.message : "Invalid settings payload");
     }
+
+    settings = await mergeMarketDataSettingsIntoAdminSettings(env, settings);
 
     return json({
       settings,
@@ -176,6 +179,47 @@ async function handleAdminApi(request: Request, env: Env): Promise<Response> {
   }
 
   return json({ error: "Not found" }, env, 404);
+}
+
+async function getAdminSettings(env: Env): Promise<AppSettings> {
+  return mergeMarketDataSettingsIntoAdminSettings(env, await getSettings(env));
+}
+
+async function mergeMarketDataSettingsIntoAdminSettings(env: Env, settings: AppSettings): Promise<AppSettings> {
+  const marketDataSettings = await getMarketDataProviderSettings(env);
+  return {
+    ...settings,
+    providerSettings: {
+      ...(settings.providerSettings || {}),
+      ...marketDataSettings,
+    },
+  };
+}
+
+async function saveMarketDataSettingsFromAdminPayload(env: Env, body: unknown): Promise<void> {
+  if (!isRecord(body) || !isRecord(body.providerSettings)) {
+    return;
+  }
+
+  const existing = await getMarketDataProviderSettings(env);
+  await saveMarketDataProviderSettings(env, {
+    ...existing,
+    alphaVantageApiKey: readOptionalAdminSetting(body.providerSettings.alphaVantageApiKey, existing.alphaVantageApiKey),
+    finnhubApiKey: readOptionalAdminSetting(body.providerSettings.finnhubApiKey, existing.finnhubApiKey),
+    twelveDataApiKey: readOptionalAdminSetting(body.providerSettings.twelveDataApiKey, existing.twelveDataApiKey),
+    coingeckoApiKey: readOptionalAdminSetting(body.providerSettings.coingeckoApiKey, existing.coingeckoApiKey),
+  });
+}
+
+function readOptionalAdminSetting(value: unknown, fallback: string | undefined): string | undefined {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.startsWith("••••")) {
+    return fallback;
+  }
+  return trimmed;
 }
 
 async function deliverMessage(incomingMessage: IncomingMessageBody, env: Env): Promise<Response> {
