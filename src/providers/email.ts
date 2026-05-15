@@ -174,15 +174,7 @@ function renderBrandHeader(): string {
 }
 
 function renderLogoMark(): string {
-  return `<div style="width:72px;height:72px;border-radius:50%;background:radial-gradient(circle at 38% 30%,#dbeafe 0%,#8ec5ff 33%,#1447a6 66%,#082b63 100%);box-shadow:0 12px 30px rgba(56,189,248,.24);position:relative;text-align:center;line-height:72px;overflow:hidden;">
-    <svg width="72" height="72" viewBox="0 0 72 72" role="img" aria-label="GlobalPulse" style="display:block;border:0;">
-      <circle cx="36" cy="36" r="29" fill="none" stroke="#dbeafe" stroke-width="3" opacity=".95"/>
-      <path d="M14 36h13l4-12 8 25 7-22 4 9h8" fill="none" stroke="#22d3ee" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M18 27c8-9 23-12 36-4M17 45c10 9 28 10 40 1" fill="none" stroke="#bfdbfe" stroke-width="2" opacity=".75" stroke-linecap="round"/>
-      <path d="M35 8c-8 10-9 43 0 56M46 11c7 11 7 40 0 50" fill="none" stroke="#bfdbfe" stroke-width="1.6" opacity=".65" stroke-linecap="round"/>
-      <path d="M19 33h12M46 33h9M17 40h11M47 40h8" fill="none" stroke="#e0f2fe" stroke-width="1.8" opacity=".7" stroke-linecap="round"/>
-    </svg>
-  </div>`;
+  return `<div style="width:72px;height:72px;border-radius:50%;background:#1d4ed8;background-image:radial-gradient(circle at 31% 24%,#f8fbff 0%,#d7edff 11%,#8dc8ff 25%,#3b82f6 49%,#1d4ed8 72%,#0f2f78 100%);box-shadow:inset -13px -16px 24px rgba(5,25,74,.42),inset 10px 10px 18px rgba(255,255,255,.30),0 14px 30px rgba(37,99,235,.28);display:block;overflow:hidden;">&nbsp;</div>`;
 }
 
 function renderMarkdownLikeBody(markdown: string): string {
