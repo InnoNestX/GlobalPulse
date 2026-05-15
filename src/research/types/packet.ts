@@ -8,7 +8,7 @@ export interface MarketQuote {
   name?: string;
   price: number;
   change_pct: number;
-  volume_ratio?: number;
+  volume_ratio?: number | undefined;
   source: string;
 }
 
@@ -18,7 +18,7 @@ export interface MacroSnapshot {
     event: string;
     source: string;
     source_grade: string;
-    release_time?: string;
+    release_time?: string | undefined;
   }>;
   notes: string[];
 }
