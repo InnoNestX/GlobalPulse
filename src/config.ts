@@ -95,6 +95,9 @@ export interface ProviderSettings {
   geminiModel?: string;
   workersAiModel?: string;
   alphaVantageApiKey?: string;
+  finnhubApiKey?: string;
+  twelveDataApiKey?: string;
+  coingeckoApiKey?: string;
   fredApiKey?: string;
   blsApiKey?: string;
   beaApiKey?: string;
@@ -349,6 +352,9 @@ export function mergeProviderSettings(env: Env, settings: AppSettings): Env {
   assignIfMissing(deliveryEnv, "GEMINI_MODEL", providerSettings.geminiModel);
   assignIfMissing(deliveryEnv, "WORKERS_AI_MODEL", providerSettings.workersAiModel);
   assignIfMissing(deliveryEnv, "ALPHA_VANTAGE_API_KEY", providerSettings.alphaVantageApiKey);
+  assignIfMissing(deliveryEnv, "FINNHUB_API_KEY", providerSettings.finnhubApiKey);
+  assignIfMissing(deliveryEnv, "TWELVE_DATA_API_KEY", providerSettings.twelveDataApiKey);
+  assignIfMissing(deliveryEnv, "COINGECKO_API_KEY", providerSettings.coingeckoApiKey);
   assignIfMissing(deliveryEnv, "FRED_API_KEY", providerSettings.fredApiKey);
   assignIfMissing(deliveryEnv, "BLS_API_KEY", providerSettings.blsApiKey);
   assignIfMissing(deliveryEnv, "BEA_API_KEY", providerSettings.beaApiKey);
@@ -500,6 +506,9 @@ function readProviderSettings(value: unknown): ProviderSettings {
     ...readOptionalSecret(value.geminiModel, "geminiModel", 120),
     ...readOptionalSecret(value.workersAiModel, "workersAiModel", 160),
     ...readOptionalSecret(value.alphaVantageApiKey, "alphaVantageApiKey", 120),
+    ...readOptionalSecret(value.finnhubApiKey, "finnhubApiKey", 180),
+    ...readOptionalSecret(value.twelveDataApiKey, "twelveDataApiKey", 180),
+    ...readOptionalSecret(value.coingeckoApiKey, "coingeckoApiKey", 180),
     ...readOptionalSecret(value.fredApiKey, "fredApiKey", 120),
     ...readOptionalSecret(value.blsApiKey, "blsApiKey", 120),
     ...readOptionalSecret(value.beaApiKey, "beaApiKey", 120),

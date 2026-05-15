@@ -24,6 +24,8 @@ type QuoteSource = {
   requiresKey?: keyof MarketEnv;
 };
 
+type QuoteCoveragePredicate = (rows: MarketQuote[]) => boolean;
+
 const MIN_QUOTE_COVERAGE = 0.85;
 const US_POOL = ["SPY", "QQQ", "DIA", "IWM", "XLK", "SMH", "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AMD"];
 const A_POOL = ["sh000001", "sz399001", "sh000300", "sz399006", "sh600519", "sz000858", "sh601318", "sh600036", "sz300750", "sh688981", "sz002594", "sz300059", "sh600030"];
@@ -38,15 +40,15 @@ export async function fetchMarketData(env: Env, reportType: ReportType, focus: s
 
 async function fetchUsMarket(env: MarketEnv, focus: string[], positions: string[]): Promise<MarketDataResult> {
   const symbols = dedupeSymbols([...US_POOL, ...focus, ...positions]).slice(0, 18);
+  const indexSet = new Set(["SPY", "QQQ", "DIA", "IWM"]);
   const { rows, usages } = await fetchWithFallback(symbols, [
     { provider: "twelve_data", endpoint: "quote", fetcher: (items) => fetchTwelveDataUsQuotes(env, items), requiresKey: "TWELVE_DATA_API_KEY" },
-    { provider: "yahoo", endpoint: "finance_quote", fetcher: fetchYahooUsQuotes },
     { provider: "stooq", endpoint: "quote_csv", fetcher: fetchStooqUsQuotes },
     { provider: "finnhub", endpoint: "quote_limited", fetcher: (items) => fetchFinnhubUsQuotes(env, items), requiresKey: "FINNHUB_API_KEY" },
     { provider: "alpha_vantage", endpoint: "global_quote_limited", fetcher: (items) => fetchAlphaVantageUsQuotes(env, items), requiresKey: "ALPHA_VANTAGE_API_KEY" },
     { provider: "yahoo", endpoint: "chart_quote_limited", fetcher: fetchYahooChartUsQuotes },
-  ], env);
-  const indexSet = new Set(["SPY", "QQQ", "DIA", "IWM"]);
+    { provider: "yahoo", endpoint: "finance_quote", fetcher: fetchYahooUsQuotes },
+  ], env, (rows) => hasCoreUsCoverage(rows, indexSet));
   return { indices: rows.filter((row) => indexSet.has(row.symbol.toUpperCase())), universe: rows, usages };
 }
 
@@ -82,13 +84,18 @@ async function fetchCryptoMarket(env: MarketEnv, focus: string[], positions: str
   return { indices: rows.filter((row) => ["BTC", "ETH", "SOL", "DOGE"].includes(row.symbol.toUpperCase())), universe: rows, usages };
 }
 
-async function fetchWithFallback(symbols: string[], sources: QuoteSource[], env: MarketEnv): Promise<{ rows: MarketQuote[]; usages: ApiUsageEntry[] }> {
+async function fetchWithFallback(
+  symbols: string[],
+  sources: QuoteSource[],
+  env: MarketEnv,
+  isCoverageEnough?: QuoteCoveragePredicate,
+): Promise<{ rows: MarketQuote[]; usages: ApiUsageEntry[] }> {
   let rows: MarketQuote[] = [];
   const usages: ApiUsageEntry[] = [];
+  const hasEnoughCoverage = () => isCoverageEnough ? isCoverageEnough(rows) : quoteCoverage(rows, symbols) >= MIN_QUOTE_COVERAGE;
   for (const source of sources) {
     const started = Date.now();
     if (source.requiresKey && !env[source.requiresKey]) {
-      usages.push(apiUsage(source.provider, source.endpoint, false, 0, false, `missing ${String(source.requiresKey)}`));
       continue;
     }
     try {
@@ -96,7 +103,7 @@ async function fetchWithFallback(symbols: string[], sources: QuoteSource[], env:
       const fetched = await source.fetcher(missing.length ? missing : symbols);
       rows = mergeQuoteRows(rows, fetched);
       usages.push(apiUsage(source.provider, source.endpoint, fetched.length > 0, Date.now() - started, false, fetched.length > 0 ? undefined : "empty result"));
-      if (quoteCoverage(rows, symbols) >= MIN_QUOTE_COVERAGE) break;
+      if (hasEnoughCoverage()) break;
     } catch (error) {
       const message = error instanceof Error ? error.message.slice(0, 220) : "unknown error";
       usages.push(apiUsage(source.provider, source.endpoint, false, Date.now() - started, isRateLimitError(error), message));
@@ -264,9 +271,9 @@ async function fetchYahooChartUsQuotes(symbols: string[]): Promise<MarketQuote[]
 }
 
 async function fetchStooqUsQuotes(symbols: string[]): Promise<MarketQuote[]> {
-  const stooqSymbols = symbols.slice(0, 18).map((symbol) => `${symbol.toLowerCase().replace(".", "-")}.us`).join(",");
+  const stooqSymbols = symbols.slice(0, 18).map((symbol) => `${symbol.toLowerCase().replace(".", "-")}.us`).join("+");
   if (!stooqSymbols) return [];
-  const url = `https://stooq.com/q/l/?s=${encodeURIComponent(stooqSymbols)}&f=sd2t2oc&h&e=csv`;
+  const url = `https://stooq.com/q/l/?s=${stooqSymbols}&f=sd2t2oc&h&e=csv`;
   const csv = await fetch(url, { headers: userAgentHeaders() }).then(assertTextResponse);
   return sanitizeQuotes(parseStooqCsv(csv));
 }
@@ -519,6 +526,12 @@ function quoteCoverage(rows: MarketQuote[], requestedSymbols: string[]): number 
     if (available.has(symbol)) hits += 1;
   }
   return hits / requested.size;
+}
+
+function hasCoreUsCoverage(rows: MarketQuote[], indexSet: Set<string>): boolean {
+  const available = new Set(rows.map((row) => row.symbol.toUpperCase()));
+  const hasAllIndices = [...indexSet].every((symbol) => available.has(symbol));
+  return hasAllIndices && rows.length >= Math.min(10, US_POOL.length);
 }
 
 function normalizeCoverageSymbol(symbol: string): string {
