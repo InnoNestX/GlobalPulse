@@ -2,6 +2,7 @@ import type { Env } from "./env";
 import { getLogs, getSettings, mergeProviderSettings, normalizeSettings, saveSettings, type AppSettings } from "./config";
 import { renderAdminUiWithLogEnhancements } from "./admin-logs-enhance";
 import { getMarketDataProviderSettings, saveMarketDataProviderSettings } from "./market-data-settings";
+import { DEFAULT_GLOBALPULSE_LOGO_SRC } from "./providers/email-logo";
 import { createDeliveryEnv, sendIncomingMessage } from "./delivery";
 import { normalizeCloudflareEvent, normalizeGitHubActionsEvent } from "./events";
 import { getProviderStatus } from "./providers";
@@ -24,6 +25,10 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
   try {
     if (request.method === "GET" && url.pathname === "/") {
       return Response.redirect(`${url.origin}/admin`, 302);
+    }
+
+    if (request.method === "GET" && url.pathname === "/assets/globalpulse-logo.jpg") {
+      return serveGlobalPulseLogo();
     }
 
     if (request.method === "GET" && url.pathname === "/admin") {
@@ -227,6 +232,17 @@ async function deliverMessage(incomingMessage: IncomingMessageBody, env: Env): P
   const status = summary.failed > 0 ? 502 : 202;
 
   return json(summary, env, status);
+}
+
+function serveGlobalPulseLogo(): Response {
+  const base64 = DEFAULT_GLOBALPULSE_LOGO_SRC.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
+  const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+  return new Response(bytes, {
+    headers: {
+      "Content-Type": "image/jpeg",
+      "Cache-Control": "public, max-age=31536000, immutable",
+    },
+  });
 }
 
 function formatLogsForAdmin(logs: Awaited<ReturnType<typeof getLogs>>, settings: AppSettings): Awaited<ReturnType<typeof getLogs>> {
