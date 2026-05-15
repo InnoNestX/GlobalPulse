@@ -15,8 +15,6 @@ import type { StockPacket } from "./types/packet";
 import type { ResearchReportJson } from "./types/report";
 import { defaultDecisionPolicy } from "./types/common";
 
-const MIN_PUSH_COMPLETENESS_SCORE = 85;
-
 export interface ResearchMarketReportResult {
   title: string;
   body: string;
@@ -86,32 +84,11 @@ export async function buildResearchMarketReport(
     },
   };
 
-  assertEnoughDataQualityForPush(packet);
-
   const llm = await buildStructuredResearchReport(env, packet);
   const report = enforceConfidenceCaps(packet, llm.report, llm.fallbackUsed);
   const body = renderResearchMarkdown(packet, report);
   await persistResearchRun(env, packet, report, llm, marketData.usages);
   return { title: extractMarkdownTitle(body), body, packet, report };
-}
-
-function assertEnoughDataQualityForPush(packet: StockPacket): void {
-  const score = packet.data_quality.completeness_score;
-  if (score >= MIN_PUSH_COMPLETENESS_SCORE) {
-    return;
-  }
-
-  const successfulApis = packet.api_usage?.filter((entry) => entry.success).length ?? 0;
-  const totalApis = packet.api_usage?.length ?? 0;
-  const failedApis = packet.api_usage
-    ?.filter((entry) => !entry.success)
-    .map((entry) => `${entry.provider}/${entry.endpoint}${entry.message || entry.error ? `: ${entry.message ?? entry.error}` : ""}`)
-    .join("; ") || "无";
-  const missing = packet.data_quality.missing_fields.join("、") || "无";
-
-  throw new Error(
-    `数据完整度 ${score}% 低于 ${MIN_PUSH_COMPLETENESS_SCORE}% 推送门槛，已取消推送。缺失字段：${missing}。API 成功 ${successfulApis}/${totalApis}，失败接口：${failedApis}`,
-  );
 }
 
 function resolveResearchSymbols(schedule: PulseSchedule): string[] {
