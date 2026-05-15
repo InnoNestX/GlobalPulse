@@ -27,8 +27,8 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       return Response.redirect(`${url.origin}/admin`, 302);
     }
 
-    if (request.method === "GET" && (url.pathname === "/assets/globalpulse-logo.jpg" || url.pathname === "/assets/globalpulse-symbol-v5.jpg")) {
-      return serveGlobalPulseLogo(url.pathname.includes("v5") ? 86400 : 3600);
+    if (request.method === "GET" && isGlobalPulseLogoPath(url.pathname)) {
+      return serveGlobalPulseLogo(url.pathname.includes("v6") ? 31536000 : 3600);
     }
 
     if (request.method === "GET" && url.pathname === "/admin") {
@@ -234,15 +234,31 @@ async function deliverMessage(incomingMessage: IncomingMessageBody, env: Env): P
   return json(summary, env, status);
 }
 
+function isGlobalPulseLogoPath(pathname: string): boolean {
+  return pathname === "/assets/globalpulse-logo.jpg"
+    || pathname === "/assets/globalpulse-symbol-v5.jpg"
+    || pathname === "/assets/globalpulse-symbol-v6.svg";
+}
+
 function serveGlobalPulseLogo(maxAgeSeconds: number): Response {
-  const base64 = DEFAULT_GLOBALPULSE_LOGO_SRC.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
-  const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
-  return new Response(bytes, {
+  const { contentType, body } = decodeLogoAsset(DEFAULT_GLOBALPULSE_LOGO_SRC);
+  return new Response(body, {
     headers: {
-      "Content-Type": "image/jpeg",
+      "Content-Type": contentType,
       "Cache-Control": `public, max-age=${maxAgeSeconds}`,
     },
   });
+}
+
+function decodeLogoAsset(src: string): { contentType: string; body: string | Uint8Array } {
+  const match = /^data:([^;,]+)(?:;charset=[^;,]+)?(;base64)?,(.*)$/s.exec(src);
+  if (!match) return { contentType: "image/svg+xml; charset=utf-8", body: "" };
+  const contentType = match[1] ?? "application/octet-stream";
+  const isBase64 = Boolean(match[2]);
+  const payload = match[3] ?? "";
+  if (!isBase64) return { contentType, body: decodeURIComponent(payload) };
+  const bytes = Uint8Array.from(atob(payload), (char) => char.charCodeAt(0));
+  return { contentType, body: bytes };
 }
 
 function formatLogsForAdmin(logs: Awaited<ReturnType<typeof getLogs>>, settings: AppSettings): Awaited<ReturnType<typeof getLogs>> {
