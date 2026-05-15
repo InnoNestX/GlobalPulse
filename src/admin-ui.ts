@@ -1032,6 +1032,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
                 <p class="muted" data-i18n="providerHelp">这里配置的 token / webhook 会存入 KV；Cloudflare secrets 也会继续生效。</p>
                 <div class="provider-grid" id="providerStatus"></div>
                 <div class="provider-form" id="providerSettingsForm"></div>
+                <div class="provider-form" id="researchSettingsForm"></div>
                 <div class="stack hidden" id="providerExtras">
                   <div class="provider-config">
                     <h3><span>Email Provider</span><span class="badge">Brevo / Resend</span></h3>
@@ -1360,7 +1361,15 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         moduleCatalysts: "催化剂",
         moduleXSentiment: "X情绪",
         modulePositions: "持仓",
-        moduleMacro: "宏观"
+        moduleMacro: "宏观",
+        researchEngine: "研究引擎",
+        geminiApiKey: "Gemini API Key",
+        geminiBaseUrl: "Gemini Base URL",
+        geminiModel: "Gemini Model",
+        alphaVantageApiKey: "Alpha Vantage API Key",
+        fredApiKey: "FRED API Key",
+        blsApiKey: "BLS API Key",
+        beaApiKey: "BEA API Key"
       },
       en: {
         feedback: "Bug / request",
@@ -1518,7 +1527,15 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         moduleCatalysts: "Catalysts",
         moduleXSentiment: "X Sentiment",
         modulePositions: "Positions",
-        moduleMacro: "Macro"
+        moduleMacro: "Macro",
+        researchEngine: "Research Engine",
+        geminiApiKey: "Gemini API Key",
+        geminiBaseUrl: "Gemini Base URL",
+        geminiModel: "Gemini Model",
+        alphaVantageApiKey: "Alpha Vantage API Key",
+        fredApiKey: "FRED API Key",
+        blsApiKey: "BLS API Key",
+        beaApiKey: "BEA API Key"
       }
     };
     const dayLabels = {
@@ -1630,6 +1647,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       renderTargetList($("defaultTargets"), state.defaultTargets, "default");
       renderProviderStatus();
       renderProviderSettings();
+      renderResearchSettings();
       renderProviderExtras();
       renderSlotBuilder();
       renderSchedules();
@@ -1706,6 +1724,22 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       const group = groups[activeProvider];
       $("providerSettingsForm").innerHTML = '<div class="provider-config" data-provider-group="' + activeProvider + '"><h3><span>' + group.name + '</span><span class="badge">' + t("providerConfig") + '</span></h3>' +
         group.fields.map(([key, label, type]) => renderMaskedProviderField(values, key, label, type)).join("") + '</div>';
+    }
+
+    function renderResearchSettings() {
+      const values = state.providerSettings || {};
+      const fields = [
+        ["geminiApiKey", t("geminiApiKey"), "password"],
+        ["geminiBaseUrl", t("geminiBaseUrl"), "text"],
+        ["geminiModel", t("geminiModel"), "text"],
+        ["alphaVantageApiKey", t("alphaVantageApiKey"), "password"],
+        ["fredApiKey", t("fredApiKey"), "password"],
+        ["blsApiKey", t("blsApiKey"), "password"],
+        ["beaApiKey", t("beaApiKey"), "password"]
+      ];
+      $("researchSettingsForm").innerHTML = '<div class="provider-config"><h3><span>' + t("researchEngine") + '</span><span class="badge">Gemini / Alpha / Macro</span></h3>' +
+        '<p class="muted">' + t("providerHelp") + '</p>' +
+        fields.map(([key, label, type]) => renderMaskedProviderField(values, key, label, type)).join("") + '</div>';
     }
 
     function renderProviderExtras() {
@@ -2049,6 +2083,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
         $("saveStatus").textContent = t("saved");
         renderProviderStatus();
         renderProviderSettings();
+        renderResearchSettings();
         renderProviderExtras();
         return;
       }
@@ -2056,6 +2091,7 @@ l45lM2sBfKp0GGAq7dM3jcXn9vmDYX1kcaKwML2sqnttYUlkarC3254d9Po/u97qBGyR1JbNOdkDOoY4
       $("saveStatus").textContent = "";
       renderProviderStatus();
       renderProviderSettings();
+      renderResearchSettings();
       renderProviderExtras();
     }
 

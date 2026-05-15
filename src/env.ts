@@ -1,6 +1,7 @@
 export interface Env {
   APP_KV?: KVNamespace;
   APP_STATE_DO?: DurableObjectNamespace;
+  RESEARCH_DB?: D1Database;
   AI?: Ai;
   ADMIN_PASSWORD?: string;
   API_TOKEN?: string;
@@ -21,4 +22,11 @@ export interface Env {
   RESEND_API_KEY?: string;
   EMAIL_FROM?: string;
   EMAIL_TO?: string;
+  GEMINI_API_KEY?: string;
+  GEMINI_BASE_URL?: string;
+  GEMINI_MODEL?: string;
+  ALPHA_VANTAGE_API_KEY?: string;
+  FRED_API_KEY?: string;
+  BLS_API_KEY?: string;
+  BEA_API_KEY?: string;
 }

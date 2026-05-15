@@ -90,6 +90,13 @@ export interface ProviderSettings {
   emailFrom?: string;
   /** Optional override of the global EMAIL_FROM for this user */
   emailFromOverride?: string;
+  geminiApiKey?: string;
+  geminiBaseUrl?: string;
+  geminiModel?: string;
+  alphaVantageApiKey?: string;
+  fredApiKey?: string;
+  blsApiKey?: string;
+  beaApiKey?: string;
 }
 
 export interface AppSettings {
@@ -336,6 +343,13 @@ export function mergeProviderSettings(env: Env, settings: AppSettings): Env {
   assignIfMissing(deliveryEnv, "TELEGRAM_CHAT_ID", providerSettings.telegramChatId);
   assignIfMissing(deliveryEnv, "BREVO_API_KEY", providerSettings.brevoApiKey);
   assignIfMissing(deliveryEnv, "EMAIL_FROM", providerSettings.emailFrom);
+  assignIfMissing(deliveryEnv, "GEMINI_API_KEY", providerSettings.geminiApiKey);
+  assignIfMissing(deliveryEnv, "GEMINI_BASE_URL", providerSettings.geminiBaseUrl);
+  assignIfMissing(deliveryEnv, "GEMINI_MODEL", providerSettings.geminiModel);
+  assignIfMissing(deliveryEnv, "ALPHA_VANTAGE_API_KEY", providerSettings.alphaVantageApiKey);
+  assignIfMissing(deliveryEnv, "FRED_API_KEY", providerSettings.fredApiKey);
+  assignIfMissing(deliveryEnv, "BLS_API_KEY", providerSettings.blsApiKey);
+  assignIfMissing(deliveryEnv, "BEA_API_KEY", providerSettings.beaApiKey);
 
   if (providerSettings.emailFromOverride) {
     (deliveryEnv as Env & { EMAIL_FROM_OVERRIDE?: string }).EMAIL_FROM_OVERRIDE = providerSettings.emailFromOverride;
@@ -479,6 +493,13 @@ function readProviderSettings(value: unknown): ProviderSettings {
     ...readOptionalSecret(value.brevoApiKey, "brevoApiKey", 260),
     ...readOptionalSecret(value.emailFrom, "emailFrom", 200),
     ...readOptionalSecret(value.emailFromOverride, "emailFromOverride", 200),
+    ...readOptionalSecret(value.geminiApiKey, "geminiApiKey", 260),
+    ...readOptionalUrlSetting(value.geminiBaseUrl, "geminiBaseUrl"),
+    ...readOptionalSecret(value.geminiModel, "geminiModel", 120),
+    ...readOptionalSecret(value.alphaVantageApiKey, "alphaVantageApiKey", 120),
+    ...readOptionalSecret(value.fredApiKey, "fredApiKey", 120),
+    ...readOptionalSecret(value.blsApiKey, "blsApiKey", 120),
+    ...readOptionalSecret(value.beaApiKey, "beaApiKey", 120),
   };
 }
 
