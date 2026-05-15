@@ -1,5 +1,6 @@
 import type { Env } from "../env";
 import type { Provider } from "./types";
+import { DEFAULT_GLOBALPULSE_LOGO_SRC } from "./email-logo";
 import { formatPlainText, isLockedResearchReportBody } from "./format";
 import { jsonApiResponseToResult, providerNotConfigured } from "./shared";
 
@@ -14,12 +15,6 @@ import { jsonApiResponseToResult, providerNotConfigured } from "./shared";
  *
  * Optional env vars:
  *   GLOBALPULSE_LOGO_URL — Optional hosted logo image URL shown at the top of HTML emails
- *
- * Provider settings (per-user, stored in KV):
- *   emailRecipients      — Comma-separated recipient list (overrides EMAIL_TO)
- *   emailFromOverride    — Optional override of EMAIL_FROM for this user
- *
- * Resend free tier: 3,000 emails/day. No domain required for sandbox (onboarding@resend.dev).
  */
 export const emailProvider: Provider = {
   name: "email",
@@ -31,13 +26,11 @@ export const emailProvider: Provider = {
       return providerNotConfigured("email");
     }
 
-    // Check if email is explicitly disabled for this schedule (empty emailRecipientIds)
     const emailDisabled = (env as Env & { EMAIL_DISABLED?: boolean }).EMAIL_DISABLED;
     if (emailDisabled) {
       return { provider: "email", ok: true, status: 200, message: "Email disabled for this schedule (no recipients selected)" };
     }
 
-    // Determine recipient(s): injected override > env default
     const recipientList = (env as Env & { EMAIL_RECIPIENTS?: string }).EMAIL_RECIPIENTS
       ?? env.EMAIL_TO
       ?? "";
@@ -67,9 +60,9 @@ export const emailProvider: Provider = {
 
     const fromAddress = (env as Env & { EMAIL_FROM_OVERRIDE?: string }).EMAIL_FROM_OVERRIDE
       ?? env.EMAIL_FROM;
-    const logoUrl = (env as Env & { GLOBALPULSE_LOGO_URL?: string }).GLOBALPULSE_LOGO_URL;
+    const configuredLogoUrl = (env as Env & { GLOBALPULSE_LOGO_URL?: string }).GLOBALPULSE_LOGO_URL;
+    const logoUrl = normalizeHttpUrl(configuredLogoUrl) ?? DEFAULT_GLOBALPULSE_LOGO_SRC;
 
-    // Build HTML email body — markdown-ish rendering
     const htmlBody = buildHtmlEmail(message.title, message.body, logoUrl);
     const plainTextBody = formatPlainText(message);
 
@@ -93,9 +86,7 @@ export const emailProvider: Provider = {
         body: JSON.stringify(payload),
       });
 
-      return jsonApiResponseToResult("email", response, (body) => {
-        return Boolean(body.messageId || body.messageIds);
-      });
+      return jsonApiResponseToResult("email", response, (body) => Boolean(body.messageId || body.messageIds));
     }
 
     const payload = {
@@ -116,25 +107,20 @@ export const emailProvider: Provider = {
       body: JSON.stringify(payload),
     });
 
-    return jsonApiResponseToResult("email", response, (body) => {
-      // Resend returns { id: "..." } on success
-      return Boolean(body.id);
-    });
+    return jsonApiResponseToResult("email", response, (body) => Boolean(body.id));
   },
 };
 
 function parseSender(input: string): { email: string; name?: string } {
   const trimmed = input.trim();
   const match = /^(.*?)<([^>]+)>$/.exec(trimmed);
-  if (!match) {
-    return { email: trimmed };
-  }
+  if (!match) return { email: trimmed };
   const name = (match[1] ?? "").trim().replace(/^"|"$/g, "");
   const email = (match[2] ?? trimmed).trim();
   return name ? { email, name } : { email };
 }
 
-function buildHtmlEmail(title: string, body: string, logoUrl?: string): string {
+function buildHtmlEmail(title: string, body: string, logoUrl: string): string {
   const escapedTitle = escapeHtml(title);
   const htmlLines = renderMarkdownLikeBody(body);
   const isLockedResearch = isLockedResearchReportBody(body);
@@ -167,21 +153,9 @@ function buildHtmlEmail(title: string, body: string, logoUrl?: string): string {
 </html>`;
 }
 
-function renderBrandHeader(logoUrl?: string): string {
-  const safeLogoUrl = normalizeHttpUrl(logoUrl);
-
-  if (safeLogoUrl) {
-    return `<div style="display:flex;align-items:center;gap:12px;">
-      <img src="${escapeHtml(safeLogoUrl)}" alt="GlobalPulse" width="36" height="36" style="display:block;width:36px;height:36px;border-radius:10px;object-fit:contain;background:#0b1220;border:1px solid #2b3a50;">
-      <div>
-        <div style="font-size:17px;line-height:1;font-weight:800;letter-spacing:.2px;color:#f8fafc;">GlobalPulse</div>
-        <div style="margin-top:4px;font-size:11px;color:#60a5fa;text-transform:uppercase;letter-spacing:.12em;">Market Intelligence</div>
-      </div>
-    </div>`;
-  }
-
+function renderBrandHeader(logoUrl: string): string {
   return `<div style="display:flex;align-items:center;gap:12px;">
-    <div aria-label="GlobalPulse logo" style="width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,#2563eb,#22c55e);display:inline-flex;align-items:center;justify-content:center;color:#ffffff;font-weight:900;font-size:15px;letter-spacing:-.03em;box-shadow:0 8px 24px rgba(37,99,235,.35);">GP</div>
+    <img src="${escapeHtml(logoUrl)}" alt="GlobalPulse" width="120" height="40" style="display:block;width:120px;max-width:120px;height:auto;border:0;object-fit:contain;background:transparent;">
     <div>
       <div style="font-size:17px;line-height:1;font-weight:800;letter-spacing:.2px;color:#f8fafc;">GlobalPulse</div>
       <div style="margin-top:4px;font-size:11px;color:#60a5fa;text-transform:uppercase;letter-spacing:.12em;">Market Intelligence</div>
@@ -231,30 +205,18 @@ function renderMarkdownLikeBody(markdown: string): string {
           const next = nextRaw.trim();
           if (!next) {
             i += 1;
-            if (/^\d+\.\s+/.test((lines[i] ?? "").trim())) {
-              break;
-            }
+            if (/^\d+\.\s+/.test((lines[i] ?? "").trim())) break;
             continue;
           }
-          if (/^\d+\.\s+/.test(next) || /^#{1,3}\s+/.test(next) || /^[-*]\s+/.test(next) || isTableLine(next)) {
-            break;
-          }
+          if (/^\d+\.\s+/.test(next) || /^#{1,3}\s+/.test(next) || /^[-*]\s+/.test(next) || isTableLine(next)) break;
           parts.push(next);
           i += 1;
         }
-
         items.push({ num: Number.isFinite(num) ? num : 1, parts });
       }
 
       const start = Math.max(1, items[0]?.num ?? 1);
-      blocks.push(
-        `<ol start="${start}" style="margin:8px 0 10px 22px;padding:0;">${
-          items.map((item) => `<li style="margin:6px 0;">${item.parts.map((part, idx) =>
-            idx === 0
-              ? `${renderInline(part)}`
-              : `<div style="margin-top:4px;color:#cbd5e1;">${renderInline(part)}</div>`).join("")}</li>`).join("")
-        }</ol>`
-      );
+      blocks.push(`<ol start="${start}" style="margin:8px 0 10px 22px;padding:0;">${items.map((item) => `<li style="margin:6px 0;">${item.parts.map((part, idx) => idx === 0 ? `${renderInline(part)}` : `<div style="margin-top:4px;color:#cbd5e1;">${renderInline(part)}</div>`).join("")}</li>`).join("")}</ol>`);
       continue;
     }
 
@@ -266,11 +228,7 @@ function renderMarkdownLikeBody(markdown: string): string {
         items.push(candidate.replace(/^[-*]\s+/, ""));
         i += 1;
       }
-      blocks.push(
-        `<ul style="margin:8px 0 10px 20px;padding:0;">${
-          items.map((item) => `<li style="margin:4px 0;">${renderInline(item)}</li>`).join("")
-        }</ul>`
-      );
+      blocks.push(`<ul style="margin:8px 0 10px 20px;padding:0;">${items.map((item) => `<li style="margin:4px 0;">${renderInline(item)}</li>`).join("")}</ul>`);
       continue;
     }
 
@@ -303,9 +261,7 @@ function isTableLine(line: string): boolean {
 
 function renderTable(lines: string[]): string {
   if (lines.length === 0) return "";
-  const rows = lines
-    .map(parseMarkdownTableRow)
-    .filter((row) => row.length > 0);
+  const rows = lines.map(parseMarkdownTableRow).filter((row) => row.length > 0);
   const normalizedRows = rows.filter((row) => !isMarkdownSeparatorRow(row));
   if (normalizedRows.length === 0) return "";
 
@@ -329,43 +285,24 @@ function isMarkdownSeparatorRow(row: string[]): boolean {
 }
 
 function normalizeTableRow(row: string[], expectedLength: number): string[] {
-  if (expectedLength <= 0) {
-    return row;
-  }
-
-  if (row.length === expectedLength) {
-    return row;
-  }
-
-  if (row.length > expectedLength) {
-    return row.slice(0, expectedLength - 1).concat(row.slice(expectedLength - 1).join(" | "));
-  }
-
+  if (expectedLength <= 0) return row;
+  if (row.length === expectedLength) return row;
+  if (row.length > expectedLength) return row.slice(0, expectedLength - 1).concat(row.slice(expectedLength - 1).join(" | "));
   return [...row, ...Array.from({ length: expectedLength - row.length }, () => "")];
 }
 
 function renderInline(value: string): string {
   const escaped = escapeHtml(value);
-
-  const linked = escaped.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (_match, text, url) => {
-    return `<a href="${url}" style="color:#60a5fa;text-decoration:none;">${text}</a>`;
-  });
-
+  const linked = escaped.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, (_match, text, url) => `<a href="${url}" style="color:#60a5fa;text-decoration:none;">${text}</a>`);
   const bolded = linked.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-
   return bolded.replace(/`([^`]+)`/g, `<code style="background:#1e293b;border:1px solid #334155;border-radius:4px;padding:0 4px;">$1</code>`);
 }
 
 function normalizeHttpUrl(value: string | undefined): string | undefined {
-  if (!value) {
-    return undefined;
-  }
-
+  if (!value) return undefined;
   try {
     const parsed = new URL(value.trim());
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return undefined;
-    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return undefined;
     return parsed.toString();
   } catch {
     return undefined;
@@ -373,9 +310,5 @@ function normalizeHttpUrl(value: string | undefined): string | undefined {
 }
 
 function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
