@@ -93,6 +93,7 @@ export interface ProviderSettings {
   geminiApiKey?: string;
   geminiBaseUrl?: string;
   geminiModel?: string;
+  workersAiModel?: string;
   alphaVantageApiKey?: string;
   fredApiKey?: string;
   blsApiKey?: string;
@@ -346,6 +347,7 @@ export function mergeProviderSettings(env: Env, settings: AppSettings): Env {
   assignIfMissing(deliveryEnv, "GEMINI_API_KEY", providerSettings.geminiApiKey);
   assignIfMissing(deliveryEnv, "GEMINI_BASE_URL", providerSettings.geminiBaseUrl);
   assignIfMissing(deliveryEnv, "GEMINI_MODEL", providerSettings.geminiModel);
+  assignIfMissing(deliveryEnv, "WORKERS_AI_MODEL", providerSettings.workersAiModel);
   assignIfMissing(deliveryEnv, "ALPHA_VANTAGE_API_KEY", providerSettings.alphaVantageApiKey);
   assignIfMissing(deliveryEnv, "FRED_API_KEY", providerSettings.fredApiKey);
   assignIfMissing(deliveryEnv, "BLS_API_KEY", providerSettings.blsApiKey);
@@ -496,6 +498,7 @@ function readProviderSettings(value: unknown): ProviderSettings {
     ...readOptionalSecret(value.geminiApiKey, "geminiApiKey", 260),
     ...readOptionalUrlSetting(value.geminiBaseUrl, "geminiBaseUrl"),
     ...readOptionalSecret(value.geminiModel, "geminiModel", 120),
+    ...readOptionalSecret(value.workersAiModel, "workersAiModel", 160),
     ...readOptionalSecret(value.alphaVantageApiKey, "alphaVantageApiKey", 120),
     ...readOptionalSecret(value.fredApiKey, "fredApiKey", 120),
     ...readOptionalSecret(value.blsApiKey, "blsApiKey", 120),
