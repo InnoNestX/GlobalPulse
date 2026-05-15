@@ -256,7 +256,7 @@ async function fetchYahooChartUsQuotes(symbols: string[]): Promise<MarketQuote[]
     const closes = result?.indicators?.quote?.[0]?.close?.filter((value): value is number => typeof value === "number" && Number.isFinite(value)) ?? [];
     const last = closes.at(-1);
     const prev = closes.at(-2);
-    if (Number.isFinite(last) && Number.isFinite(prev) && prev && prev > 0) {
+    if (typeof last === "number" && typeof prev === "number" && Number.isFinite(last) && Number.isFinite(prev) && prev > 0) {
       rows.push({ symbol: symbol.toUpperCase(), price: last, change_pct: ((last - prev) / prev) * 100, source: "Yahoo Chart" });
     }
   }
