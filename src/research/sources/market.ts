@@ -24,6 +24,12 @@ type QuoteSource = {
   requiresKey?: keyof MarketEnv;
 };
 
+type YahooSessionQuote = {
+  price: number;
+  changePct: number;
+  session: "盘前" | "盘中" | "盘后" | "收盘";
+};
+
 const MIN_QUOTE_COVERAGE = 0.85;
 const US_POOL = ["SPY", "QQQ", "DIA", "IWM", "XLK", "SMH", "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AMD"];
 const A_POOL = ["sh000001", "sz399001", "sh000300", "sz399006", "sh600519", "sz000858", "sh601318", "sh600036", "sz300750", "sh688981", "sz002594", "sz300059", "sh600030"];
@@ -40,7 +46,7 @@ async function fetchUsMarket(env: MarketEnv, focus: string[], positions: string[
   const symbols = dedupeSymbols([...US_POOL, ...focus, ...positions]).slice(0, 18);
   const indexSet = new Set(["SPY", "QQQ", "DIA", "IWM"]);
   const { rows, usages } = await fetchWithFallback(symbols, [
-    { provider: "yahoo", endpoint: "finance_quote_volume", fetcher: fetchYahooUsQuotes },
+    { provider: "yahoo", endpoint: "finance_quote_session_aware", fetcher: fetchYahooUsQuotes },
     { provider: "yahoo", endpoint: "chart_volume_limited", fetcher: fetchYahooChartUsQuotes },
     { provider: "twelve_data", endpoint: "quote", fetcher: (items) => fetchTwelveDataUsQuotes(env, items), requiresKey: "TWELVE_DATA_API_KEY" },
     { provider: "stooq", endpoint: "quote_csv", fetcher: fetchStooqUsQuotes },
@@ -232,14 +238,43 @@ async function fetchYahooUsQuotes(symbols: string[]): Promise<MarketQuote[]> {
     const result = payload.quoteResponse?.result ?? [];
     rows.push(...result.flatMap((entry): MarketQuote[] => {
       const symbol = String(entry.symbol ?? "").toUpperCase();
-      const price = Number(entry.regularMarketPrice);
-      const change = Number(entry.regularMarketChangePercent);
+      const quote = selectYahooSessionQuote(entry);
       const volumeRatio = volumeRatioFromFields(entry.regularMarketVolume, entry.averageDailyVolume10Day ?? entry.averageDailyVolume3Month);
-      if (!symbol || !Number.isFinite(price) || !Number.isFinite(change)) return [];
-      return [withOptionalName({ symbol: symbol.split(".")[0] ?? symbol, price, change_pct: change, volume_ratio: volumeRatio, source: "Yahoo Finance" }, sanitizeUsDisplayName(typeof entry.shortName === "string" ? entry.shortName : symbol, symbol))];
+      if (!symbol || !quote) return [];
+      return [withOptionalName({ symbol: symbol.split(".")[0] ?? symbol, price: quote.price, change_pct: quote.changePct, volume_ratio: volumeRatio, source: `Yahoo Finance ${quote.session}` }, sanitizeUsDisplayName(typeof entry.shortName === "string" ? entry.shortName : symbol, symbol))];
     }));
   }
   return sanitizeQuotes(rows);
+}
+
+function selectYahooSessionQuote(entry: Record<string, unknown>): YahooSessionQuote | undefined {
+  const marketState = String(entry.marketState ?? "").toUpperCase();
+  const regularPrice = Number(entry.regularMarketPrice);
+  const regularPreviousClose = Number(entry.regularMarketPreviousClose ?? entry.regularMarketPreviousClosePrice);
+  const regularChange = Number(entry.regularMarketChangePercent);
+  const postPrice = Number(entry.postMarketPrice);
+  const postChange = Number(entry.postMarketChangePercent);
+  const prePrice = Number(entry.preMarketPrice);
+  const preChange = Number(entry.preMarketChangePercent);
+
+  if ((marketState.includes("POST") || marketState === "CLOSED") && Number.isFinite(postPrice) && postPrice > 0) {
+    return buildYahooSessionQuote(postPrice, regularPreviousClose, postChange, "盘后");
+  }
+  if (marketState.includes("PRE") && Number.isFinite(prePrice) && prePrice > 0) {
+    return buildYahooSessionQuote(prePrice, regularPreviousClose, preChange, "盘前");
+  }
+  if (Number.isFinite(regularPrice) && regularPrice > 0) {
+    return buildYahooSessionQuote(regularPrice, regularPreviousClose, regularChange, marketState === "REGULAR" ? "盘中" : "收盘");
+  }
+  return undefined;
+}
+
+function buildYahooSessionQuote(price: number, previousClose: number, fallbackChangePct: number, session: YahooSessionQuote["session"]): YahooSessionQuote | undefined {
+  if (!Number.isFinite(price) || price <= 0) return undefined;
+  const calculatedChange = Number.isFinite(previousClose) && previousClose > 0 ? ((price - previousClose) / previousClose) * 100 : undefined;
+  const changePct = Number.isFinite(calculatedChange) ? Number(calculatedChange) : fallbackChangePct;
+  if (!Number.isFinite(changePct)) return undefined;
+  return { price, changePct, session };
 }
 
 async function fetchYahooChartUsQuotes(symbols: string[]): Promise<MarketQuote[]> {
