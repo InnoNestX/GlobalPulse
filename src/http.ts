@@ -1,6 +1,6 @@
 import type { Env } from "./env";
 import { getLogs, getSettings, mergeProviderSettings, normalizeSettings, saveSettings, type AppSettings } from "./config";
-import { renderAdminUiWithMarketDataSettings } from "./admin-market-data-inline";
+import { renderAdminUiWithSystemSections } from "./admin-system-sections";
 import { getMarketDataProviderSettings, saveMarketDataProviderSettings } from "./market-data-settings";
 import { createDeliveryEnv, sendIncomingMessage } from "./delivery";
 import { normalizeCloudflareEvent, normalizeGitHubActionsEvent } from "./events";
@@ -27,7 +27,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     }
 
     if (request.method === "GET" && url.pathname === "/admin") {
-      return renderAdminUiWithMarketDataSettings();
+      return renderAdminUiWithSystemSections();
     }
 
     if (request.method === "GET" && url.pathname === "/market-data-settings") {
