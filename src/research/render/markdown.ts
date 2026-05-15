@@ -20,7 +20,7 @@ export function renderUSStockReport(packet: StockPacket, report: ResearchReportJ
     requiredSymbols: ["SPY", "QQQ", "DIA", "IWM"],
     formatPrice: (quote) => formatCurrency(quote?.price),
     summaryFallback: "美股主要指数分化，科技股与小盘股强弱决定短线风险偏好，当前以观察为主。",
-    forbiddenPattern: /\b(BTC|ETH|SOL|DOGE|XRP|USDT|Crypto Fear|funding rate|liquidation|open interest|BTC Dominance)\b/i,
+    forbiddenPattern: /\b(BTC|ETH|SOL|DOGE|XRP|USDT|Crypto Fear|funding rate|liquidation|open interest|BTC Dominance|GitHub Trending|Hacker News)\b/i,
   });
 }
 
@@ -55,7 +55,7 @@ export function renderCryptoReport(packet: StockPacket, report: ResearchReportJs
     minRows: 3,
     formatPrice: (quote) => formatCurrency(quote?.price),
     summaryFallback: "加密市场短线震荡，BTC 主导与杠杆资金状态决定波动方向，需观察资金费率和爆仓数据。",
-    forbiddenPattern: /\b(SH000001|SZ399001|上证指数|深证成指|SPY|QQQ|DIA|IWM)\b/i,
+    forbiddenPattern: /\b(SH000001|SZ399001|上证指数|深证成指|SPY|QQQ|DIA|IWM|GitHub Trending|Hacker News)\b/i,
   });
 }
 
@@ -235,10 +235,13 @@ function buildCatalysts(packet: StockPacket, report: ResearchReportJson, forbidd
   const rows = report.news_review
     .map((item) => ({ review: item, evidence: byTitle.get(item.title) }))
     .filter(({ review, evidence }) => {
-      const text = `${review.title}\n${review.source}`;
+      const text = `${review.title}\n${review.source}\n${evidence?.source ?? ""}`;
       if (forbiddenPattern.test(text)) return false;
-      if (packet.meta.market === "a_share" && /hacker news|github/i.test(review.source)) return false;
-      return Boolean(evidence?.url) || review.used_in_conclusion || review.source_grade !== "C";
+      if (isCommunityOrCodeSource(review.source) || isCommunityOrCodeSource(evidence?.source)) {
+        return Boolean(review.used_in_conclusion && evidence?.related_tickers?.length);
+      }
+      if (review.source_grade === "C") return Boolean(review.used_in_conclusion && evidence?.related_tickers?.length);
+      return review.used_in_conclusion || review.source_grade === "S" || review.source_grade === "A" || review.source_grade === "B";
     })
     .slice(0, 6);
 
@@ -379,6 +382,10 @@ function filterMovers(rows: MarketQuote[], forbiddenPattern: RegExp): MarketQuot
 function formatMoverName(row: MarketQuote | undefined): string {
   if (!row) return MISSING;
   return row.name && row.name !== row.symbol ? row.name : row.symbol;
+}
+
+function isCommunityOrCodeSource(source: string | undefined): boolean {
+  return /github|hacker news|reddit|x\.com|twitter|stocktwits|forum|社区|论坛/i.test(source ?? "");
 }
 
 function marketScore(packet: StockPacket): number {
