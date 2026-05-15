@@ -40,6 +40,7 @@ export interface ApiUsageEntry {
   success: boolean;
   latency_ms: number;
   error?: string;
+  message?: string;
   rate_limited: boolean;
 }
 
@@ -59,4 +60,3 @@ export const defaultDecisionPolicy: DecisionPolicy = {
   max_confidence_without_primary_source: 60,
   require_invalidation_rule: true,
 };
-
