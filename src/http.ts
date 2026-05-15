@@ -1,7 +1,6 @@
 import type { Env } from "./env";
 import { getLogs, getSettings, mergeProviderSettings, normalizeSettings, saveSettings, type AppSettings } from "./config";
-import { renderAdminUi } from "./admin-ui";
-import { renderMarketDataAdminUi } from "./market-data-admin-ui";
+import { renderAdminUiWithMarketDataSettings } from "./admin-market-data-inline";
 import { getMarketDataProviderSettings, saveMarketDataProviderSettings } from "./market-data-settings";
 import { createDeliveryEnv, sendIncomingMessage } from "./delivery";
 import { normalizeCloudflareEvent, normalizeGitHubActionsEvent } from "./events";
@@ -28,11 +27,11 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     }
 
     if (request.method === "GET" && url.pathname === "/admin") {
-      return renderAdminUi();
+      return renderAdminUiWithMarketDataSettings();
     }
 
     if (request.method === "GET" && url.pathname === "/market-data-settings") {
-      return renderMarketDataAdminUi();
+      return Response.redirect(`${url.origin}/admin`, 302);
     }
 
     if (request.method === "GET" && url.pathname === "/health") {
