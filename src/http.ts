@@ -27,8 +27,8 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       return Response.redirect(`${url.origin}/admin`, 302);
     }
 
-    if (request.method === "GET" && url.pathname === "/assets/globalpulse-logo.jpg") {
-      return serveGlobalPulseLogo();
+    if (request.method === "GET" && (url.pathname === "/assets/globalpulse-logo.jpg" || url.pathname === "/assets/globalpulse-symbol-v5.jpg")) {
+      return serveGlobalPulseLogo(url.pathname.includes("v5") ? 86400 : 3600);
     }
 
     if (request.method === "GET" && url.pathname === "/admin") {
@@ -234,13 +234,13 @@ async function deliverMessage(incomingMessage: IncomingMessageBody, env: Env): P
   return json(summary, env, status);
 }
 
-function serveGlobalPulseLogo(): Response {
+function serveGlobalPulseLogo(maxAgeSeconds: number): Response {
   const base64 = DEFAULT_GLOBALPULSE_LOGO_SRC.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
   const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
   return new Response(bytes, {
     headers: {
       "Content-Type": "image/jpeg",
-      "Cache-Control": "public, max-age=31536000, immutable",
+      "Cache-Control": `public, max-age=${maxAgeSeconds}`,
     },
   });
 }
