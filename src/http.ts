@@ -7,6 +7,7 @@ import { getProviderStatus } from "./providers";
 import { HttpError, type IncomingMessageBody, normalizeMessage } from "./messages";
 import { createSchedulePreview } from "./preview";
 import { runSchedule, runScheduleById } from "./scheduler";
+import { getLocalTimeParts } from "./time";
 
 const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
@@ -131,7 +132,8 @@ async function handleAdminApi(request: Request, env: Env): Promise<Response> {
   }
 
   if (request.method === "GET" && url.pathname === "/api/admin/logs") {
-    return json({ logs: await getLogs(env) }, env);
+    const settings = await getSettings(env);
+    return json({ logs: formatLogsForAdmin(await getLogs(env), settings) }, env);
   }
 
   if (request.method === "POST" && url.pathname === "/api/admin/run") {
@@ -167,6 +169,23 @@ async function deliverMessage(incomingMessage: IncomingMessageBody, env: Env): P
   const status = summary.failed > 0 ? 502 : 202;
 
   return json(summary, env, status);
+}
+
+function formatLogsForAdmin(logs: Awaited<ReturnType<typeof getLogs>>, settings: AppSettings): Awaited<ReturnType<typeof getLogs>> {
+  const timezone = settings.timezone || "UTC";
+  const language = settings.language || "zh";
+
+  return logs.map((log) => {
+    const parsed = new Date(log.createdAt);
+    if (Number.isNaN(parsed.getTime())) {
+      return log;
+    }
+
+    return {
+      ...log,
+      createdAt: `${getLocalTimeParts(parsed, timezone, language).label} (${timezone})`,
+    };
+  });
 }
 
 function assertAuthenticated(request: Request, env: Env): void {
