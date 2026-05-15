@@ -3,7 +3,7 @@ import type { Provider } from "./types";
 import { formatPlainText, isLockedResearchReportBody } from "./format";
 import { jsonApiResponseToResult, providerNotConfigured } from "./shared";
 
-const EMAIL_LOGO_URL = "https://pulse.xuxuclassmate.com/assets/globalpulse-symbol-v5.jpg";
+const EMAIL_LOGO_URL = "https://pulse.xuxuclassmate.com/assets/globalpulse-symbol-v6.svg";
 
 /**
  * Email provider via Brevo (preferred) or Resend (fallback compatibility)
@@ -116,8 +116,8 @@ function renderBrandHeader(): string {
         <td style="vertical-align:middle;">
           <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
             <tr>
-              <td width="86" style="width:86px;vertical-align:middle;">
-                <img src="${EMAIL_LOGO_URL}" alt="GlobalPulse" width="72" height="54" style="display:block;width:72px;height:54px;border:0;outline:none;text-decoration:none;object-fit:contain;">
+              <td width="120" style="width:120px;vertical-align:middle;">
+                <img src="${EMAIL_LOGO_URL}" alt="GlobalPulse" width="112" height="86" style="display:block;width:112px;height:86px;border:0;outline:none;text-decoration:none;object-fit:contain;">
               </td>
               <td width="1" style="width:1px;background:#5b7ba8;opacity:.55;font-size:0;line-height:0;">&nbsp;</td>
               <td style="vertical-align:middle;padding-left:28px;">
