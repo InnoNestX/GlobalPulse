@@ -1,6 +1,6 @@
 import type { Env } from "./env";
 import { getLogs, getSettings, mergeProviderSettings, normalizeSettings, saveSettings, type AppSettings } from "./config";
-import { renderAdminUiWithSystemSections } from "./admin-system-sections";
+import { renderAdminUiWithLogEnhancements } from "./admin-logs-enhance";
 import { getMarketDataProviderSettings, saveMarketDataProviderSettings } from "./market-data-settings";
 import { createDeliveryEnv, sendIncomingMessage } from "./delivery";
 import { normalizeCloudflareEvent, normalizeGitHubActionsEvent } from "./events";
@@ -27,7 +27,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     }
 
     if (request.method === "GET" && url.pathname === "/admin") {
-      return renderAdminUiWithSystemSections();
+      return renderAdminUiWithLogEnhancements();
     }
 
     if (request.method === "GET" && url.pathname === "/market-data-settings") {
@@ -150,7 +150,7 @@ async function handleAdminApi(request: Request, env: Env): Promise<Response> {
 
   if (request.method === "GET" && url.pathname === "/api/admin/logs") {
     const settings = await getSettings(env);
-    return json({ logs: formatLogsForAdmin(await getLogs(env), settings) }, env);
+    return json({ logs: formatLogsForAdmin(await getLogs(env), settings).slice(0, 10) }, env);
   }
 
   if (request.method === "POST" && url.pathname === "/api/admin/run") {
