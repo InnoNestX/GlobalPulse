@@ -77,10 +77,9 @@ function renderMarketReport(packet: StockPacket, report: ResearchReportJson, opt
   const title = buildReportTitle(packet, options.titleMarketName);
   const rows = buildSummaryRows(packet, options);
   const summary = sanitizeLine(report.executive_summary, options.forbiddenPattern) || buildMarketSummary(packet, report, options.summaryFallback);
-  const leaders = formatMovers(packet.market.leaders, options.forbiddenPattern);
-  const losers = formatMovers(packet.market.losers, options.forbiddenPattern);
   const catalysts = buildCatalysts(packet, report, options.forbiddenPattern);
   const stockSection = renderConfiguredStockCards(packet, report, options.forbiddenPattern);
+  const moverSpotlight = renderMoverSpotlight(packet.market.leaders, packet.market.losers, options.forbiddenPattern);
   const watchItems = report.risk_actions.watch_items_next_session
     .map((item) => sanitizeLine(item, options.forbiddenPattern))
     .filter(Boolean)
@@ -96,8 +95,7 @@ function renderMarketReport(packet: StockPacket, report: ResearchReportJson, opt
     "|---------|------|------|------|",
     ...rows.map((row) => `| ${row.asset} | ${row.price} | ${row.change} | ${row.status} |`),
     "",
-    `**涨幅领先:** ${leaders}`,
-    `**跌幅较大:** ${losers}`,
+    ...moverSpotlight,
     "",
     "### 💡 市场状态判断",
     `- **综合情绪**：${renderBias(report.market_view.bias)}（score=${marketScore(packet)}，置信度=${boundedPercent(report.market_view.confidence)}%）`,
@@ -258,8 +256,8 @@ function buildTrendLine(rows: Array<{ quote?: MarketQuote }>): string {
   if (valid.length === 0) return "数据不足，暂不判断趋势。";
   const strong = valid.filter((row) => row.quote && row.quote.change_pct > 0.3).length;
   const weak = valid.filter((row) => row.quote && row.quote.change_pct < -0.3).length;
-  if (strong > weak) return "核心资产多数走强，趋势偏震荡上行，但仍需量能确认。";
-  if (weak > strong) return "核心资产多数走弱，趋势偏防御，需观察是否放量下破。";
+  if (strong > weak) return "核心资产多数走强，趋势偏震荡上行，继续看成交量是否同步放大。";
+  if (weak > strong) return "核心资产多数走弱，趋势偏防御，重点观察是否放量下破。";
   return "核心资产涨跌互现，短线以结构分化和区间震荡看待。";
 }
 
@@ -286,11 +284,24 @@ function buildMarketExplanation(packet: StockPacket, report: ResearchReportJson,
 }
 
 function buildTechnicalLine(quote: MarketQuote | undefined): string {
-  if (!quote) return "暂无完整价格与量能数据，技术信号为数据不足。";
+  if (!quote) return "价格和成交量都没有拿全，暂时不做技术判断。";
   const status = statusFromChange(quote.change_pct);
-  const momentum = quote.change_pct > 0 ? "短线动量为正" : quote.change_pct < 0 ? "短线动量为负" : "短线动量中性";
-  const volume = quote.volume_ratio ? `量能约为常态 ${quote.volume_ratio.toFixed(2)} 倍` : "量能数据暂未完整接入";
-  return `${momentum}，当前状态${status}，${volume}。`;
+  const momentum = quote.change_pct > 0
+    ? "近期价格走势向上，说明短线买盘更主动"
+    : quote.change_pct < 0
+      ? "近期价格走势回落，说明短线卖压更明显"
+      : "近期价格基本横盘，说明多空暂时没有明显胜负";
+  return `${momentum}；当前表现${status}；${formatVolumeSignal(quote)}。`;
+}
+
+function formatVolumeSignal(quote: MarketQuote): string {
+  const ratio = Number(quote.volume_ratio);
+  if (!Number.isFinite(ratio) || ratio <= 0) return "本次行情源未返回可用成交量，先按价格走势观察，不单独判断量价配合";
+  if (ratio >= 1.5 && quote.change_pct >= 0) return `成交量约为平常的 ${ratio.toFixed(2)} 倍，属于放量上涨，资金参与度较高`;
+  if (ratio >= 1.5 && quote.change_pct < 0) return `成交量约为平常的 ${ratio.toFixed(2)} 倍，属于放量下跌，卖压需要重点留意`;
+  if (ratio <= 0.7 && quote.change_pct >= 0) return `成交量约为平常的 ${ratio.toFixed(2)} 倍，属于缩量上涨，上涨持续性还需要继续确认`;
+  if (ratio <= 0.7 && quote.change_pct < 0) return `成交量约为平常的 ${ratio.toFixed(2)} 倍，属于缩量回落，暂时更像观望或轻度调整`;
+  return `成交量约为平常的 ${ratio.toFixed(2)} 倍，量能处于正常区间，价格信号可信度中等`;
 }
 
 function formatMacroLine(packet: StockPacket, forbiddenPattern: RegExp): string {
@@ -338,12 +349,30 @@ function buildDefaultWatchItems(market: ReportType): string[] {
   return ["SPY/QQQ 能否延续相对强势", "DIA/IWM 是否补涨或继续拖累广度", "美债收益率与美元是否压制估值", "财报与宏观数据是否改变风险偏好"];
 }
 
-function formatMovers(rows: MarketQuote[], forbiddenPattern: RegExp): string {
-  const values = rows
-    .filter((row) => !forbiddenPattern.test(row.symbol) && !forbiddenPattern.test(row.name ?? ""))
-    .slice(0, 5)
-    .map((row) => `${row.name && row.name !== row.symbol ? row.name : row.symbol} ${formatSignedPercent(row.change_pct)}`);
-  return values.length > 0 ? values.join(", ") : MISSING;
+function renderMoverSpotlight(leaders: MarketQuote[], losers: MarketQuote[], forbiddenPattern: RegExp): string[] {
+  const leaderRows = filterMovers(leaders, forbiddenPattern).slice(0, 5);
+  const loserRows = filterMovers(losers, forbiddenPattern).slice(0, 5);
+  const size = Math.max(leaderRows.length, loserRows.length, 1);
+  const lines = [
+    "### 🚦 领涨 / 领跌速览",
+    "| 🚀 领涨资产 | 涨幅 | 🔻 领跌资产 | 跌幅 |",
+    "|---|---:|---|---:|",
+  ];
+  for (let index = 0; index < size; index += 1) {
+    const leader = leaderRows[index];
+    const loser = loserRows[index];
+    lines.push(`| ${formatMoverName(leader)} | ${leader ? formatSignedPercent(leader.change_pct) : MISSING} | ${formatMoverName(loser)} | ${loser ? formatSignedPercent(loser.change_pct) : MISSING} |`);
+  }
+  return lines;
+}
+
+function filterMovers(rows: MarketQuote[], forbiddenPattern: RegExp): MarketQuote[] {
+  return rows.filter((row) => !forbiddenPattern.test(row.symbol) && !forbiddenPattern.test(row.name ?? ""));
+}
+
+function formatMoverName(row: MarketQuote | undefined): string {
+  if (!row) return MISSING;
+  return row.name && row.name !== row.symbol ? row.name : row.symbol;
 }
 
 function marketScore(packet: StockPacket): number {
