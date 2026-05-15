@@ -306,7 +306,13 @@ function formatVolumeSignal(quote: MarketQuote): string {
 
 function formatMacroLine(packet: StockPacket, forbiddenPattern: RegExp): string {
   const note = packet.macro.notes.map((item) => sanitizeLine(item, forbiddenPattern)).find(Boolean);
-  return note || "宏观字段暂未完整接入，本次以行情、新闻证据和数据质量为主。";
+  return note || defaultMacroObservation(packet.meta.market);
+}
+
+function defaultMacroObservation(market: ReportType): string {
+  if (market === "a_share") return "宏观观察：关注国内政策预期、人民币汇率、海外利率、成交额和北向资金。政策预期改善且成交额放大时，风险偏好更容易修复。";
+  if (market === "crypto") return "宏观观察：关注美元流动性、美债收益率、ETF资金流、资金费率和未平仓合约。流动性改善且杠杆不过热时，加密资产更容易延续反弹。";
+  return "宏观观察：关注美债收益率、美元指数、通胀、就业和美联储政策预期。利率下行通常改善科技成长股风险偏好，利率上行则增加估值压力。";
 }
 
 function formatCapitalLine(packet: StockPacket): string {
@@ -319,8 +325,8 @@ function formatCapitalLine(packet: StockPacket): string {
 
 function formatKeyVariableLine(market: ReportType): string {
   if (market === "a_share") return "成交额、北向资金、板块轮动、涨跌停扩散与交易所公告。";
-  if (market === "crypto") return "BTC Dominance、资金费率、open interest、爆仓数据与交易所净流入。";
-  return "美债收益率、美元、财报预期、经济数据与核心板块成交量。";
+  if (market === "crypto") return "BTC Dominance、资金费率、open interest、ETF资金流、稳定币流动性与交易所净流入。";
+  return "美债收益率、美元、通胀、就业、财报预期与核心板块成交量。";
 }
 
 function buildConclusion(
