@@ -10,6 +10,11 @@ WORKERS_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"
 [ai]
 binding = "AI"
 
+[[d1_databases]]
+binding = "RESEARCH_DB"
+database_name = "globalpulse-research"
+database_id = "347ffe26-c003-4408-a42d-2a44021f77d1"
+
 [[durable_objects.bindings]]
 name = "APP_STATE_DO"
 class_name = "AppStateDurableObject"
