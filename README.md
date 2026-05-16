@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://pulse.xuxuclassmate.com/assets/globalpulse-project-logo.svg?v=20260516-svg" alt="GlobalPulse project logo" width="180" />
+  <img src="https://pulse.xuxuclassmate.com/assets/globalpulse-project-logo.svg?v=20260516-circle" alt="GlobalPulse project logo" width="180" height="180" />
 </p>
 
 <h1 align="center">GlobalPulse</h1>
