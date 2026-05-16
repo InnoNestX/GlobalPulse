@@ -1,10 +1,10 @@
 import type { Env } from "../env";
 import type { Provider } from "./types";
 import { formatPlainText, isLockedResearchReportBody } from "./format";
-import { DEFAULT_GLOBALPULSE_LOGO_SRC } from "./email-logo";
+import { GLOBALPULSE_PROJECT_LOGO_URL } from "./email-logo";
 import { jsonApiResponseToResult, providerNotConfigured } from "./shared";
 
-const EMAIL_LOGO_SRC = DEFAULT_GLOBALPULSE_LOGO_SRC;
+const EMAIL_LOGO_SRC = GLOBALPULSE_PROJECT_LOGO_URL;
 
 /**
  * Email provider via Brevo (preferred) or Resend (fallback compatibility)
@@ -121,7 +121,7 @@ function renderBrandHeader(): string {
                 <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:0;">
                   <tr>
                     <td style="vertical-align:middle;padding:11px 12px;background:#f8fbff;border:1px solid rgba(255,255,255,.62);border-radius:16px;box-shadow:0 12px 28px rgba(2,8,23,.24);line-height:0;">
-                      <img src="${EMAIL_LOGO_SRC}" alt="GlobalPulse" width="96" height="76" style="display:block;width:96px;height:76px;border:0;outline:none;text-decoration:none;object-fit:contain;">
+                      <img src="${EMAIL_LOGO_SRC}" alt="GlobalPulse" width="96" height="96" style="display:block;width:96px;height:96px;border:0;outline:none;text-decoration:none;object-fit:contain;">
                     </td>
                   </tr>
                 </table>
