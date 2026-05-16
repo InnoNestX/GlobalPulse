@@ -1,6 +1,6 @@
 import { renderAdminUi } from "./admin-ui";
 
-const GLOBALPULSE_LOGO_ASSET = "/assets/globalpulse-logo.jpg";
+const GLOBALPULSE_LOGO_ASSET = "/assets/globalpulse-project-logo.svg?v=20260516-svg";
 
 export async function renderAdminUiWithSystemSections(): Promise<Response> {
   const response = renderAdminUi();
@@ -14,7 +14,7 @@ export async function renderAdminUiWithSystemSections(): Promise<Response> {
 
 function enhanceAdminHtml(html: string): string {
   return html
-    .replace('href="https://avatars.githubusercontent.com/u/273979879?v=4" sizes="any" type="image/png"', `href="${GLOBALPULSE_LOGO_ASSET}" sizes="any" type="image/jpeg"`)
+    .replace('href="https://avatars.githubusercontent.com/u/273979879?v=4" sizes="any" type="image/png"', `href="${GLOBALPULSE_LOGO_ASSET}" sizes="any" type="image/svg+xml"`)
     .replace('<a class="brand" href="https://github.com/InnoNestX" target="_blank" rel="noreferrer">', '<a class="brand" href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noreferrer">')
     .replace('<img class="brand-logo" src="https://avatars.githubusercontent.com/u/273979879?v=4" alt="InnoNestX">', `<img class="brand-logo" src="${GLOBALPULSE_LOGO_ASSET}" alt="GlobalPulse">`)
     .replace('<div class="muted">by InnoNestX</div>', '<div class="muted">Market Intelligence</div>')
