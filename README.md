@@ -1,4 +1,12 @@
-# GlobalPulse
+<p align="center">
+  <img src="https://pulse.xuxuclassmate.com/assets/globalpulse-logo.jpg" alt="GlobalPulse project logo" width="180" />
+</p>
+
+<h1 align="center">GlobalPulse</h1>
+
+<p align="center">
+  Market Intelligence · Scheduled finance and global hotspot briefings
+</p>
 
 GlobalPulse is a Cloudflare Workers app for scheduled finance and global hotspot briefings. It includes a password-protected Admin Web UI, KV-backed configuration, cron execution, message previews, and push providers for Feishu, WeChat, and Telegram.
 
@@ -77,26 +85,3 @@ See [Data generation notes](docs/data-generation.md) for the current source stra
 ## Cloudflare Notes
 
 Cloudflare Cron Triggers execute on UTC. GlobalPulse uses a fixed Worker cron of `*/5 * * * *`, then checks each saved schedule against the user's selected timezone from KV.
-
-The project uses a local `wrangler.jsonc`, Workers KV, and generated runtime types from `wrangler types`. The generated `worker-configuration.d.ts` file is ignored because it can include account-specific bindings.
-
-## Scripts
-
-```bash
-npm run dev
-npm run check
-npm run deploy
-```
-
-## References
-
-- [Cloudflare Workers](https://developers.cloudflare.com/workers/)
-- [Wrangler configuration](https://developers.cloudflare.com/workers/wrangler/configuration/)
-- [Cron Triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/)
-- [Feishu custom bot guide](https://open.feishu.cn/document/client-docs/bot-v3/add-custom-bot?lang=zh-CN)
-- [WeChat Official Account access token](https://developers.weixin.qq.com/doc/offiaccount/Basic_Information/Get_access_token.html)
-- [WeChat Official Account customer-service messages](https://developers.weixin.qq.com/doc/offiaccount/Message_Management/Service_Center_messages.html)
-
-## License
-
-MIT
