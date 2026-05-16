@@ -17,8 +17,17 @@ function enhanceAdminHtml(html: string): string {
       '<details class="collapsible-section" id="researchEngineSettings"><summary><span class="section-title"><span class="emoji">🧠</span> <span>研究引擎</span></span><span class="chevron">▾</span></summary><div class="section-body stack"><div class="provider-form" id="researchSettingsForm"></div></div></details><details class="collapsible-section" id="marketDataProviderSettings"><summary><span class="section-title"><span class="emoji">📈</span> <span>行情/宏观数据源</span></span><span class="chevron">▾</span></summary><div class="section-body stack"><div class="provider-form" id="marketDataSettingsForm"></div></div></details>',
     )
     .replace(oldRenderResearchSettings, newRenderResearchSettings)
-    .replace('renderResearchSettings();\n      renderProviderExtras();', 'renderResearchSettings();\n      renderMarketDataSettings();\n      renderProviderExtras();');
+    .replace('renderResearchSettings();\n      renderProviderExtras();', 'renderResearchSettings();\n      renderMarketDataSettings();\n      renderProviderExtras();')
+    .replace('function render() {', collapseHelper + '\n\n    function render() {')
+    .replace('renderPreviewSelect();\n      applyI18n();', 'renderPreviewSelect();\n      applyI18n();\n      collapseAdminSectionsByDefault();')
+    .replace('return \'<details class="schedule" data-index="\' + index + \'"\' + (index === 0 ? " open" : "") + \'>\' +', 'return \'<details class="schedule" data-index="\' + index + \'">\' +');
 }
+
+const collapseHelper = `    function collapseAdminSectionsByDefault() {
+      document.querySelectorAll("details.collapsible-section, details.schedule").forEach((node) => {
+        node.removeAttribute("open");
+      });
+    }`;
 
 const oldRenderResearchSettings = `    function renderResearchSettings() {
       const values = state.providerSettings || {};
