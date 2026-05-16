@@ -22,6 +22,7 @@ type QuoteSource = {
   endpoint: string;
   fetcher: (symbols: string[]) => Promise<MarketQuote[]>;
   requiresKey?: keyof MarketEnv;
+  maxSymbols?: number;
 };
 
 type YahooSessionQuote = {
@@ -31,7 +32,8 @@ type YahooSessionQuote = {
 };
 
 const MIN_QUOTE_COVERAGE = 0.85;
-const US_POOL = ["SPY", "QQQ", "DIA", "IWM", "XLK", "SMH", "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AMD"];
+const US_CORE = ["SPY", "QQQ", "DIA", "IWM"];
+const US_POOL = [...US_CORE, "XLK", "SMH", "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "TSLA", "AMD"];
 const A_POOL = ["sh000001", "sz399001", "sh000300", "sz399006", "sh600519", "sz000858", "sh601318", "sh600036", "sz300750", "sh688981", "sz002594", "sz300059", "sh600030"];
 const CRYPTO_POOL = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT", "ADAUSDT", "AVAXUSDT", "LINKUSDT", "TONUSDT", "PEPEUSDT"];
 
@@ -43,15 +45,15 @@ export async function fetchMarketData(env: Env, reportType: ReportType, focus: s
 }
 
 async function fetchUsMarket(env: MarketEnv, focus: string[], positions: string[]): Promise<MarketDataResult> {
-  const symbols = dedupeSymbols([...US_POOL, ...focus, ...positions]).slice(0, 18);
-  const indexSet = new Set(["SPY", "QQQ", "DIA", "IWM"]);
+  const symbols = dedupeSymbols([...US_CORE, ...US_POOL, ...focus, ...positions]).slice(0, 12);
+  const indexSet = new Set(US_CORE);
   const { rows, usages } = await fetchWithFallback(symbols, [
-    { provider: "yahoo", endpoint: "finance_quote_session_aware", fetcher: fetchYahooUsQuotes },
-    { provider: "yahoo", endpoint: "chart_volume_limited", fetcher: fetchYahooChartUsQuotes },
-    { provider: "twelve_data", endpoint: "quote", fetcher: (items) => fetchTwelveDataUsQuotes(env, items), requiresKey: "TWELVE_DATA_API_KEY" },
-    { provider: "stooq", endpoint: "quote_csv", fetcher: fetchStooqUsQuotes },
-    { provider: "finnhub", endpoint: "quote_limited", fetcher: (items) => fetchFinnhubUsQuotes(env, items), requiresKey: "FINNHUB_API_KEY" },
-    { provider: "alpha_vantage", endpoint: "global_quote_limited", fetcher: (items) => fetchAlphaVantageUsQuotes(env, items), requiresKey: "ALPHA_VANTAGE_API_KEY" },
+    { provider: "yahoo", endpoint: "finance_quote_session_aware", fetcher: fetchYahooUsQuotes, maxSymbols: 12 },
+    { provider: "yahoo", endpoint: "chart_volume_core", fetcher: fetchYahooChartUsQuotes, maxSymbols: 4 },
+    { provider: "stooq", endpoint: "quote_csv_limited", fetcher: fetchStooqUsQuotes, maxSymbols: 8 },
+    { provider: "twelve_data", endpoint: "quote_limited", fetcher: (items) => fetchTwelveDataUsQuotes(env, items), requiresKey: "TWELVE_DATA_API_KEY", maxSymbols: 4 },
+    { provider: "finnhub", endpoint: "quote_limited", fetcher: (items) => fetchFinnhubUsQuotes(env, items), requiresKey: "FINNHUB_API_KEY", maxSymbols: 2 },
+    { provider: "alpha_vantage", endpoint: "global_quote_limited", fetcher: (items) => fetchAlphaVantageUsQuotes(env, items), requiresKey: "ALPHA_VANTAGE_API_KEY", maxSymbols: 2 },
   ], env, (rows) => hasCoreUsCoverage(rows, indexSet));
   return { indices: rows.filter((row) => indexSet.has(row.symbol.toUpperCase())), universe: rows, usages };
 }
@@ -101,11 +103,13 @@ async function fetchWithFallback(
     const started = Date.now();
     if (source.requiresKey && !env[source.requiresKey]) continue;
     try {
-      const missing = symbols.filter((symbol) => !hasQuote(rows, symbol) || !hasVolume(rows, symbol));
-      const fetched = await source.fetcher(missing.length ? missing : symbols);
+      const missing = symbols.filter((symbol) => !hasQuote(rows, symbol));
+      const candidates = (missing.length ? missing : symbols).slice(0, source.maxSymbols ?? symbols.length);
+      if (!candidates.length) continue;
+      const fetched = await source.fetcher(candidates);
       rows = mergeQuoteRows(rows, fetched);
       usages.push(apiUsage(source.provider, source.endpoint, fetched.length > 0, Date.now() - started, false, fetched.length > 0 ? undefined : "empty result"));
-      if (hasEnoughCoverage() && rows.filter((row) => Number.isFinite(row.volume_ratio)).length >= Math.min(4, rows.length)) break;
+      if (hasEnoughCoverage()) break;
     } catch (error) {
       const message = error instanceof Error ? error.message.slice(0, 220) : "unknown error";
       usages.push(apiUsage(source.provider, source.endpoint, false, Date.now() - started, isRateLimitError(error), message));
@@ -116,7 +120,7 @@ async function fetchWithFallback(
 
 async function fetchAlphaVantageUsQuotes(env: MarketEnv, symbols: string[]): Promise<MarketQuote[]> {
   const rows: MarketQuote[] = [];
-  for (const symbol of symbols.slice(0, 5)) {
+  for (const symbol of symbols.slice(0, 2)) {
     const quote = await fetchAlphaVantageGlobalQuote(env, symbol);
     if (quote) rows.push(quote);
   }
@@ -153,7 +157,7 @@ async function fetchAlphaVantageGlobalQuote(env: MarketEnv, apiSymbol: string, d
 
 async function fetchFinnhubUsQuotes(env: MarketEnv, symbols: string[]): Promise<MarketQuote[]> {
   const rows: MarketQuote[] = [];
-  for (const symbol of symbols.slice(0, 6)) {
+  for (const symbol of symbols.slice(0, 2)) {
     const url = new URL("https://finnhub.io/api/v1/quote");
     url.searchParams.set("symbol", symbol);
     url.searchParams.set("token", env.FINNHUB_API_KEY ?? "");
@@ -168,7 +172,7 @@ async function fetchFinnhubUsQuotes(env: MarketEnv, symbols: string[]): Promise<
 
 async function fetchTwelveDataUsQuotes(env: MarketEnv, symbols: string[]): Promise<MarketQuote[]> {
   const rows: MarketQuote[] = [];
-  for (const chunk of chunkArray(symbols.slice(0, 18), 8)) {
+  for (const chunk of chunkArray(symbols.slice(0, 4), 4)) {
     const url = new URL("https://api.twelvedata.com/quote");
     url.searchParams.set("symbol", chunk.join(","));
     url.searchParams.set("apikey", env.TWELVE_DATA_API_KEY ?? "");
@@ -231,7 +235,7 @@ async function fetchBinanceQuotes(symbols: string[]): Promise<{ rows: MarketQuot
 
 async function fetchYahooUsQuotes(symbols: string[]): Promise<MarketQuote[]> {
   const rows: MarketQuote[] = [];
-  for (const chunk of chunkArray(symbols.slice(0, 18), 18)) {
+  for (const chunk of chunkArray(symbols.slice(0, 12), 12)) {
     const url = new URL("https://query1.finance.yahoo.com/v7/finance/quote");
     url.searchParams.set("symbols", chunk.join(","));
     const payload = await fetch(url.toString(), { headers: jsonHeaders() }).then(assertJsonResponse) as { quoteResponse?: { result?: Array<Record<string, unknown>> } };
@@ -279,7 +283,7 @@ function buildYahooSessionQuote(price: number, previousClose: number, fallbackCh
 
 async function fetchYahooChartUsQuotes(symbols: string[]): Promise<MarketQuote[]> {
   const rows: MarketQuote[] = [];
-  const candidates = dedupeSymbols(["SPY", "QQQ", "DIA", "IWM", ...symbols]).slice(0, 8);
+  const candidates = dedupeSymbols([...US_CORE, ...symbols]).slice(0, 4);
   for (const symbol of candidates) {
     const url = new URL(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`);
     url.searchParams.set("range", "10d");
@@ -306,7 +310,7 @@ async function fetchYahooChartUsQuotes(symbols: string[]): Promise<MarketQuote[]
 }
 
 async function fetchStooqUsQuotes(symbols: string[]): Promise<MarketQuote[]> {
-  const stooqSymbols = symbols.slice(0, 18).map((symbol) => `${symbol.toLowerCase().replace(".", "-")}.us`).join("+");
+  const stooqSymbols = symbols.slice(0, 8).map((symbol) => `${symbol.toLowerCase().replace(".", "-")}.us`).join("+");
   if (!stooqSymbols) return [];
   const url = `https://stooq.com/q/l/?s=${stooqSymbols}&f=sd2t2ocv&h&e=csv`;
   const csv = await fetch(url, { headers: userAgentHeaders() }).then(assertTextResponse);
@@ -577,8 +581,7 @@ function quoteCoverage(rows: MarketQuote[], requestedSymbols: string[]): number 
 function hasCoreUsCoverage(rows: MarketQuote[], indexSet: Set<string>): boolean {
   const available = new Set(rows.map((row) => row.symbol.toUpperCase()));
   const hasAllIndices = [...indexSet].every((symbol) => available.has(symbol));
-  const hasCoreVolume = [...indexSet].every((symbol) => rows.some((row) => row.symbol.toUpperCase() === symbol && Number.isFinite(row.volume_ratio)));
-  return hasAllIndices && hasCoreVolume && rows.length >= Math.min(10, US_POOL.length);
+  return hasAllIndices && rows.length >= Math.min(8, US_POOL.length);
 }
 
 function normalizeCoverageSymbol(symbol: string): string {
