@@ -1,4 +1,5 @@
 import { renderAdminUi } from "./admin-ui";
+import { DEFAULT_GLOBALPULSE_LOGO_SRC } from "./providers/email-logo";
 
 export async function renderAdminUiWithSystemSections(): Promise<Response> {
   const response = renderAdminUi();
@@ -12,6 +13,10 @@ export async function renderAdminUiWithSystemSections(): Promise<Response> {
 
 function enhanceAdminHtml(html: string): string {
   return html
+    .replace('href="https://avatars.githubusercontent.com/u/273979879?v=4" sizes="any" type="image/png"', `href="${DEFAULT_GLOBALPULSE_LOGO_SRC}" sizes="any" type="image/jpeg"`)
+    .replace('<a class="brand" href="https://github.com/InnoNestX" target="_blank" rel="noreferrer">', '<a class="brand" href="https://github.com/InnoNestX/GlobalPulse" target="_blank" rel="noreferrer">')
+    .replace('<img class="brand-logo" src="https://avatars.githubusercontent.com/u/273979879?v=4" alt="InnoNestX">', `<img class="brand-logo" src="${DEFAULT_GLOBALPULSE_LOGO_SRC}" alt="GlobalPulse">`)
+    .replace('<div class="muted">by InnoNestX</div>', '<div class="muted">Market Intelligence</div>')
     .replace(
       '<div class="provider-form" id="researchSettingsForm"></div>',
       '<details class="collapsible-section" id="researchEngineSettings"><summary><span class="section-title"><span class="emoji">🧠</span> <span>研究引擎</span></span><span class="chevron">▾</span></summary><div class="section-body stack"><div class="provider-form" id="researchSettingsForm"></div></div></details><details class="collapsible-section" id="marketDataProviderSettings"><summary><span class="section-title"><span class="emoji">📈</span> <span>行情/宏观数据源</span></span><span class="chevron">▾</span></summary><div class="section-body stack"><div class="provider-form" id="marketDataSettingsForm"></div></div></details>',
