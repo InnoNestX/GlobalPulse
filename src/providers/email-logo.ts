@@ -1,84 +1,25 @@
-export const DEFAULT_GLOBALPULSE_LOGO_SRC = "data:image/jpeg;base64," +
-  "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDAwMDAgQDAwMEBAQFBgoGBgUFBgwICQcKDgwPDg4MDQ0PERYTDxAVEQ0NExoTFRcY" +
-  "GRkZDxIbHRsYHRYYGRj/2wBDAQQEBAYFBgsGBgsYEA0QGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgY" +
-  "GBgYGBgYGBj/wgARCAEJAUADASIAAhEBAxEB/8QAHAABAAICAwEAAAAAAAAAAAAAAAYHBQgBAwQC/8QAGwEAAgMBAQEAAAAAAAAA" +
-  "AAAAAAUCAwQGAQf/2gAMAwEAAhADEAAAAb+AAAAAAAAR2vtNNxtaY3uzbZefUXi6vb/16a+nw3CauSzNde6BTjBq7RXMAAAAAAAD" +
-  "Z12qm1thQO/WKVpOAtnvWXYee/YQAAAAAAAAAAAHP94Goy2prn2Yt5lpJ9oPShl0Lp88e4XukFkwAAAAAAAAAAABvQTpXeJZk" +
-  "zMrx/aGsvTVbSIUz6VL2IAAAAAAAAAAADyjrxmPThR8fvNtR5LhXoyJspmO3liKX5EAAAAAAAAAAACH6b1mGWUv70v5dOM3r" +
-  "4rONa/eUNzr4YAAAAAAAAAAADGep6L4xzmXh8dtJq8tOcdZcXr8DKUY3kQAAAAAAAAAAAcN/TU/hYy/6qNfx0aVpA1a" +
-  "32mDGUkBQAAAAAAAAAACov70VbJSW+B33JpdqemZlqFn8w3EAAAAQH//xAA6EAABAwMDAwMCBQMDBAMAAAACAQMEAAUGEQch" +
-  "CBIxE0EWUWEUIjJxgZEkM1KhsSNCUpJDYoL/2gAIAQEAAT8A/zjFdn9+Edjkf9LQp46feK7Oi8Unl5M+4L5SzV5XZL" +
-  "jlHGoqzrYx5uXJLiPGR9zzDUpVjGCR7vMmEODUqToqxqhbX5j5qMcZx8erPdN16LBB2L3foVNl1W5KWm4LO7O" +
-  "12XeHGVBy22OmcgZzVj7tHT7au3QyTSjfFoO8x3YzGMfj9KhPTeLw1deVlqPtr4idHJxv8ADGLb3UukY9s1H" +
-  "JqVzVy1zwxH4B1aHGw5i9S3nJuVtgdh5e/B2Mb1yOKlDg10fi92M7x8UPh77S15cSMrNwduNYwG0dM7" +
-  "Z6U0Q1X66MZbJC57wQdJRRuUIJ5HNuUzjHmWx/ytZp7qRraom2npk4y9/Z+9vbYN9abc4iu26iJGr" +
-  "d+9gTxh4PMyQOxqTFNK5j9Pu3Ho1ChY6D8I/DnGx4yYrgcb7TCWc/CVqpQjg9DkAevxqawhpN6nTTtu" +
-  "PZZZZx397nG37Fu4dQp6fxGccf6dNU+I3N2U8T7qHapj7uR327aCApcSFAHHfh09vZ/5U4dEd0e7v" +
-  "iaTdjxxLYjJ8D8fFIrxZ0AkBgDvwyt2/CmR12/Wxp1T4bDMO5Up4GpU8IQn1JH3nfHU8tKfTG" +
-  "b0XTgtpb8oe6fh9VHLwl2Ft37Q+9uT5n9CxqVWG5q0pKKKUN1ooooAKKKKACiiigAooooAKKKKACiiig" +
-  "AooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigD2d6jfJ8PGxjPE3G+v2T918DFzVxp80pmyplscfn" +
-  "FWNsBFDYYm5RlWciJA5GT5eZXR6Twyxh4WIk6HCWyRnP6gf+nPrUmKCrGhMnu0O8g5do74/pRgZVbfl" +
-  "cqyR6zvTDJ6EH5VJNtVXVyrGvTVt7WdiIyQf3M78+lyMUDqqrGpX0q2x+FNHzy3C1o7ZZrgi0u5e" +
-  "y7C05iu0x9s4s5G7uE4OM1USiCMRxp8u3Z/Lpp+44+VEtF25KAEj2LH/AIs2mS1rS9Ws/EVld2" +
-  "FvbBcektxcxusjuzc8yw49wkA4PbBlxXml8n4o6r+Gvy4TSO4Q6sVGpVxyAepqwdP4nZLWtr" +
-  "eeyumknkwxzT20rZzL3HhuI28rjbkZJ7FSNE15hIv+QjNUzeey/Np2ayVXWTyZmq96D3ON2OBh" +
-  "8+HlWbCeu9nNAX07J2xh3jkA/FNGFZRLnruU61ujE493o2m/udYk6Si3KIcZUYCjHZ2yeRrUjj" +
-  "xXo5UrJcmVfD5/GqxO/wBYDb1viqxiPNt0rlPeqj3SEi05S13DG7S3iwSuCjAcMRz+jpU9M" +
-  "7aWW6mnne5UViTG5CcPHmSqmR3PeMUlGGcUmthINlSJ4MbRqRbQJE5zkAV1LR1b9QGuT6u1aNdZL" +
-  "i3uYY4bkkOfs8c5ocI/7cwAj+IqNU/k+sN9xvG/cHJf91S3uydP7PWdbbiK/m0eVkTnf93bc" +
-  "8cgwx9dB4ctIGhmkhjlIi5g6IUq2eWQiU2XFrQNbXNv4GY97h3Qe/Sn8SQZMhtKSVJ4x0wpYAR5Gf" +
-  "7j6ndEbAin7q8JdO/cfqUeM+GPhgK1lpPEncZwP0o/aLa+p8MtGXqhk0pKKSkIKKKKACiiigAo" +
-  "oooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAoooN7eXykeqRRQBl+UtzQ3+6nDg6qQesEflW" +
-  "x2MkEnLd+HbRorNInHrZGKGLy4sAcwAMQFWd5kkhDI++G4/jTtU/dDzUe6Rz25yuZEPxH70" +
-  "49RIqcG6iQhbeQ4wcnzotnYTmf5x1h1dxaKS+2gt0isngsQUqSMBl7ei+9VltLxr4rTNCRJJ" +
-  "5ylwhAAWP3ZH49K47GWOxCMhZGPgn6iuRguMz0jWNNs5JePc8ktvcAIFf3+oOeeA2c++aivl+" +
-  "Ftcr1KbP7bLUD/AE98hzbL/K38zW6NlmZJjP4VV4ioAURFLA9MbN7Zzx+C5rDgseE94qXS3XJ" +
-  "57gfmVst5Iz4RyN+f50mlfGNaCu3UgoiKvVaxllGSCck85rM/FHhmC31FIrmRbtHJysY+3WM4" +
-  "39z6VM6a/sbldqfBbm6d8SR3UzM7beRDNtOKMrIc9h+FPRZ8W3fr6NcjjzpS0u5ow3IVPM8W" +
-  "/np1qVQ5t2kgc0ir6zSzx7NZrYYm3NI6seXsXkfI/lU2UsDc4U9KLjhdP8AC2sweILFzaW" +
-  "GHUrY6xDK1u4Fkj5lFxeBvJdWSNr/wCn8q17SvF2s2SQS/MjpA5ViQRyc968ejNHibz8vS" +
-  "T7bph88lLnt0rUAzY3cCa+trew04I8dj0A4qSzX90xLNJi3qTD3tD+VNiVw3rUfeG100Y6Ck" +
-  "5HzLpuqWggLZ4sLu5jHcWzjY3P3HPrg01jzEgKN52jHHc1BPGxzuaJflKSw5W3JgjNe1b4L7" +
-  "z7fFAkGrVz0CaHFKKKTvQUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUXBXE48UxqQQFG4E" +
-  "ATnv7ZXH1QR8a1pOv2RCIN32hx8qx49hx70j3bGWNrdwIFy9VNx1mmxh4riRcnf8AOm2+MFkrr" +
-  "DEskMkFRAdwVtLS17b45/tVk8R9J3dt+5O/Kp7GNUnUKG9vZEP96ZpTt5sn9DzXXI2+C+ssF3" +
-  "MFto4ZqKnG2T68VHv72JDN/zEQKrb9JQi2/VdPB4JVc2pNukhT2lIJH0/5U5YjBNdhG6uSp" +
-  "zvJ64pw+GFtHuHv4pv8t51HXkXcVzeHYdtLdfKVRf8Ak65qHXETUKrs8bQN6jiZgC1LDbRuMs3" +
-  "yeKrX/jC7yfS5Tr8wyV5yi+4P+ZrkiMH7zt4r5P4+m6dIBKyOp+hGeq5HPh54iQshHcH9" +
-  "KTrTCym5ShWqyBYkm3sNw7IccxWbpgRFDfRKfbI4z261q0+49JsLeGZFcB1G8/rAqJbLqUd" +
-  "qxuILlIoQuTnxjjnH3OPR5UJPHctS8V1NtLJAZIpO4DHBP5VKu7hdxzMTMB0OBxWa0rNIvX06" +
-  "xlkiA3RhP3BGM9qLzeRPvVdufMtRnYoj7dm+WtNvb0/cRFNG7pYQfC3Hyx+tUNdvZJJC2+xx" +
-  "Rt90dxzz64qN2y2M9o7bRDhJZ2E9+9YLPaf/ABROsLKMnDBk/xrZ/H1t9upmPWyWOZlz" +
-  "6Vrv05IMcaUUclNUlWEc1zGn6jA8hTsq99vLYLdht4/MTnFcrB9u1Tqt9dsEtpP5LZwz" +
-  "84P41oXjoW5vEhEFwrASu4iQNxxirR8+SGkLvXk4B9+etH2NPEaS1wDbwHEfXivbhOPE5IRz2" +
-  "GOtXi4Uou3Joor39UFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFAEsUUkEKbyytufE/r/nVS6neIFpzgW" +
-  "4SE9OgArVTxZ71JFw39nX6ipJLgOJY1nly6JbtoXyNwBqpGAST90kd+rqIpIP1xQbEjBJJ4PG" +
-  "s50yIwRkj+GKq63RBdRNe3y7uPurn/mJWmoQwRg9KeiUTGo+gH9KPsdN0dtQCHGyjgKPb+F" +
-  "TrppLGls3EV7kudIuZx+5tq3I4qQqrBvR3YHFN61fwG1izAu1I/3sUG3PV/irX0bmMPO7UV" +
-  "ZiNNnsls9U1a3w5Yi4ljYWRznhXCWHI9x9q3NM1mC/8AX1dQickgKFsdck8naKWsbgi1q5jurW" +
-  "LUrYySSNxscjHbviqJ1PVpWttZkny4M7wM4+f/GtM+H3rXuzXfzOvNW1cUzOqJdP0zR7h4p" +
-  "PbgiSFpWBb90VuVzleGz1p+xf42i0aybxt1ygPBGe/Km1f3+kTXYU0So+S79u5WbjLZ" +
-  "Xpn8K1TgHxCUqWnuhXjzfWbqeg0by6qT6ee7ujUvl5o3iQtJDcZUMCNeIYngYYzXCeILL" +
-  "T7VRr2I2ky7ZhcQnvxVWhswbTHqc/jUGTVLd7FmxwXSPUhY9FtPVVLrcSsgAwTx7YofT" +
-  "Y1Q2PczRCRkknI9Ki3zQuYUV1YzQ1NK5XK3Yi7Dk0c1H3VB4jGP7vSpUZ2VZZSU24wVBsDQ" +
-  "SXWs51SW9tdbde28e9zgfKOeA2M+tMVRPy52n85d3OMkZNRtO1bW7mTPIwyw7jY+xzx60" +
-  "24ZaO4j3vDgA9vwPSpKEVpOvcw36zW1y7vKpzk+3r1V5x3Hn1pfNMZCCZX/gyc1c1eTTxKuN" +
-  "ycW9tJvrNRdYtV0fyLaeKQK+4p84z3Gc0XE0d8jn5AqgHHoRR5lVNoGltnyBv3iVnn64Pz" +
-  "oqfY0Uw7gR2rnsdCLFS2sLMOlJRRUJaoKKKKACiiigAooooAKKKKACp7GVxqQU53yN2jMPnUth" +
-  "sdTO5Zi6N8UHhg3GIkDSMsTt/jWl408MaU/EN2+xvmTymexUBHAJ/2j9aVym+x0q3LV" +
-  "LfyQyJJCsr/jH9KXI6iR1P6ijr/Z+dwV2g9wPEmAOeo/T5VDeFNE3aVyVPpvFEl2G4yNi5HP" +
-  "tW343GS03Y3SyzRmTteMuH5EfpTVePrQ3TT6jqtpc3Qv7pXUdPV1pbW5R20mT1InGQ7Th" +
-  "CPY/wBBVW1GO3imtuJXjyMRKsMMeZqvjXSqaLNqdqj3Qf8A6dZHV9OpIS5ELjd3U8cEA/wCk0" +
-  "+R8RtZ2uv6f99/ttZAi4UZ57AuMZHr1rrUPEPh3U767vbbSy1MTAsjdcqCM/74/nV6Uknb" +
-  "t1XxeKfG1vqUIu4orhFbfpErgTsDbD6cg1Ux40jKAyEA7Z5rB0i5/AyP9F+VuF2KqoxkZ" +
-  "BPrE5rr3X5Vd8L+K4rJ5cW6Ym52zZx7+Z5qjU8OP7EsXbKCQpHPqFOhys3bFxKkfx68n" +
-  "GKdgrrYBeHykaR7rm9ZOS9qfULfT9Ni2i7jTbkZYxxKR/qx9BV1x/40sb6Fc6lZXtqe30/K" +
-  "KxPNdQfNxAB5n5j+deGq970X2RXEvhutQvZWUyYcuF3xuHQUfTAgj5EDFOu+F+JwtFL" +
-  "Yt5q/e3PbGeuO1z1qakY8VEQpPQqQaMGr0rQdqytGdHJOxd29klJmpKctEtXxp41qfA" +
-  "NVNuw3b2sc7K/MVdpTDc3CROx23+xrgDUT0cZAHQ4x+tHjeI3mlxyxSfsxA+4HIFNR" +
-  "tqu5GJbg3kdYz8danyrLWIQpw7uMZY/wCk/wB9Z1uLlXEmtEovQ9Ryo6VvwXqN+Zs1" +
-  "lLMp4tL6a4THZn+63bpVsD6e3XjGj20y5Ck/vBxj34qfERjHTgHtYz60SHW0kVo6Yn5" +
-  "EjnH26Cp1SW7fUlC4qSsOnCE5KXfd+VS0fcFpgUt4sYBDdCQL9j0p/mPJ1JxkD+S" +
-  "+DHpT7RbmWJcoDxoaLGp4Lb5TWM+5W2Opq/bRI1gk/iTt+dOe2E89+NxRPNvvR1u9Mk" +
-  "RqR8RmRx7+nWnrGzjSpI26IU5DMe49Bk85rQxtrqWHrHctLddSR5xJK5H9zFvv7n" +
-  "9PvrQ71ZQ4kTw0opuZR4BqeVv8AQpSQPBQRFfvVSLjgTPNETCx7NA6n59Omh0M1p5oxTWtNOvXTqYpxRg9GvQzRitemvXXrvR6jNf/9k=";
+const GLOBALPULSE_LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="GlobalPulse logo">
+  <rect width="128" height="128" rx="28" fill="#f8fbff"/>
+  <defs>
+    <linearGradient id="a" x1="18" y1="24" x2="106" y2="104" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#073b9b"/>
+      <stop offset=".72" stop-color="#073b9b"/>
+      <stop offset="1" stop-color="#0bbfd3"/>
+    </linearGradient>
+    <linearGradient id="b" x1="15" y1="64" x2="114" y2="64" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#13c4d8"/>
+      <stop offset="1" stop-color="#00a8c8"/>
+    </linearGradient>
+  </defs>
+  <path d="M30 54a38 38 0 0 1 69-22" fill="none" stroke="url(#a)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M32 78a38 38 0 0 0 67 18" fill="none" stroke="url(#a)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M37 45c12-13 31-17 47-9 12 6 20 17 21 30-6 2-8 7-4 12-4 9-11 16-20 20-4-5 1-13-4-17-5-3-13 2-17-4-4-5 2-11 8-12 7-1 14 3 19-2 4-6-3-13-11-12-10 1-15 9-24 7-7-2-8-10-14-13z" fill="#073b9b"/>
+  <circle cx="22" cy="67" r="7" fill="url(#b)"/>
+  <path d="M22 67h35l6-13 8 33 13-51 12 53 10-22h17" fill="none" stroke="url(#b)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M94 64h22M92 75h29M106 86h16" fill="none" stroke="url(#b)" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="121" cy="64" r="3.5" fill="#13c4d8"/>
+  <circle cx="124" cy="75" r="3.5" fill="#13c4d8"/>
+</svg>`;
+
+export const DEFAULT_GLOBALPULSE_LOGO_SRC = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(GLOBALPULSE_LOGO_SVG)}`;
+export const GLOBALPULSE_PROJECT_LOGO_URL = "https://pulse.xuxuclassmate.com/assets/globalpulse-project-logo.svg?v=20260516-svg";
