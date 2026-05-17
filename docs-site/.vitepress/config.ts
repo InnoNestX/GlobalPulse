@@ -3,8 +3,6 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'GlobalPulse',
   description: 'Market Intelligence · Scheduled Finance & Global Hotspot Briefings',
-  srcDir: '.',
-  lang: 'en-US',
   cleanUrls: true,
   ignoreDeadLinks: true,
   head: [
@@ -18,7 +16,7 @@ export default defineConfig({
     nav: [
       { text: 'Docs', link: '/en/' },
       { text: 'API', link: '/en/api' },
-      { text: 'GitHub', link: 'https://github.com/nestjs/globalpulse' },
+      { text: 'GitHub', link: 'https://github.com/InnoNestX/GlobalPulse' },
     ],
     sidebar: {
       '/en/': [
@@ -93,7 +91,7 @@ export default defineConfig({
       copyright: 'Copyright © 2024 GlobalPulse'
     },
     editLink: {
-      pattern: 'https://github.com/nestjs/globalpulse/edit/main/docs-site/:path',
+      pattern: 'https://github.com/InnoNestX/GlobalPulse/edit/main/docs-site/docs/:path',
       text: 'Edit this page on GitHub'
     },
     search: {
@@ -123,4 +121,4 @@ export default defineConfig({
     },
     lineNumbers: true
   },
-  
+})

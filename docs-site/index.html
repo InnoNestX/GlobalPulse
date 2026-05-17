@@ -1,21 +1,12 @@
-# VitePress Redirect for Language Selection
 <!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="refresh" content="0;url=/en/">
-  <title>GlobalPulse Documentation</title>
-  <script>
-    const lang = navigator.language.toLowerCase();
-    if (lang.startsWith('zh')) {
-      window.location.href = '/zh/';
-    } else {
-      window.location.href = '/en/';
-    }
-  </script>
-</head>
-<body>
-  <p>Redirecting to documentation...</p>
-  <p><a href="/en/">English</a> | <a href="/zh/">中文</a></p>
-</body>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GlobalPulse Documentation</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/.vitepress/config.ts"></script>
+  </body>
 </html>
