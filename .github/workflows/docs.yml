@@ -42,7 +42,10 @@ jobs:
           rm -rf _site
           mkdir -p _site
           cp -r .vitepress/dist/docs/* _site/
-          cp .vitepress/dist/404.html _site/ 2>/dev/null || true
+          cp .vitepress/dist/assets _site/ -r
+          cp .vitepress/dist/*.css _site/ 2>/dev/null || true
+          cp .vitepress/dist/*.json _site/ 2>/dev/null || true
+          cp .vitepress/dist/logo.svg _site/ 2>/dev/null || true
           cat > _site/index.html << 'EOF'
 <!DOCTYPE html>
 <html lang="en">
