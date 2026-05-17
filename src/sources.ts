@@ -109,17 +109,17 @@ async function fetchGoogleNewsItems(query: string, language: AppLanguage, limit 
 async function fetchChineseDomesticNewsItems(language: AppLanguage, limit = 10): Promise<TopicItem[]> {
   const queries = language === "zh"
     ? [
-        "中国 国内新闻 政策 民生 经济 产业 -site:cctv.com -site:xinhuanet.com",
-        "site:rthk.hk OR site:scmp.com OR site:thepaper.cn OR site:caixin.com OR site:mingpao.com OR site:Initium 国内 政策 经济 民生",
+        "中国 国内新闻 政策 民生 经济 产业 -site:cctv.com -site:xinhuanet.com -site:thepaper.cn",
+        "site:rthk.hk OR site:scmp.com OR site:ifeng.com OR site:caixin.com OR site:mingpao.com OR site:Initium OR site:tvbs.com.hk 国内 政策 经济 民生",
       ]
     : [
-        "China domestic policy economy society technology industry -site:cctv.com -site:xinhuanet.com",
-        "site:rthk.hk OR site:scmp.com OR site:thepaper.cn OR site:caixin.com OR site:mingpao.com China policy economy society",
+        "China domestic policy economy society technology industry -site:cctv.com -site:xinhuanet.com -site:thepaper.cn",
+        "site:rthk.hk OR site:scmp.com OR site:ifeng.com OR site:caixin.com OR site:mingpao.com OR site:Initium OR site:tvbs.com.hk China policy economy society",
       ];
   const results = await Promise.allSettled(queries.map((item) => fetchGoogleNewsItems(item, language, Math.ceil(limit / 2))));
   return dedupeTopicItems(results.flatMap((result) => result.status === "fulfilled" ? result.value : [])).map((item) => ({
     ...item,
-    source: item.source ? `国内新闻 / ${item.source}` : "国内新闻",
+    source: item.source ? `${item.source}` : "国内新闻",
     section: "domestic" as const,
     score: (item.score ?? 0) + 1200,
   })).filter((item) => {
