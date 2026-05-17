@@ -4,7 +4,7 @@
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `{{generatedAt}}` | UTC timestamp | `2024-01-15 10:30:00 UTC` |
+| `{{generatedAt}}` | UTC timestamp | `2026-01-15 10:30:00 UTC` |
 | `{{timezone}}` | Schedule timezone | `Asia/Hong_Kong` |
 | `{{appName}}` | Configured app name | `GlobalPulse` |
 | `{{scheduleName}}` | Schedule identifier | `US Morning Brief` |
@@ -56,7 +56,7 @@ JSON array of news items:
     "summary": "Revenue: $119.6B...",
     "url": "https://example.com/article",
     "source": "NewsAPI",
-    "publishedAt": "2024-01-15T10:00:00Z"
+    "publishedAt": "2026-01-15T10:00:00Z"
   }
 ]
 ```
@@ -80,7 +80,7 @@ AI-generated research report with:
 Example structure:
 
 ```markdown
-# US Market Briefing - 2024-01-15
+# US Market Briefing - 2026-01-15
 
 ## Market Summary
 S&P 500 +1.2% | Nasdaq +1.5% | Dow +0.8%

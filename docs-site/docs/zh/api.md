@@ -10,7 +10,7 @@ GET /health
 
 响应：
 ```json
-{ "status": "ok", "timestamp": "2024-01-15T10:30:00Z" }
+{ "status": "ok", "timestamp": "2026-01-15T10:30:00Z" }
 ```
 
 ## 管理后台 API
@@ -75,7 +75,7 @@ GET /api/admin/logs?limit=50
   "logs": [
     {
       "id": "log_xxx",
-      "timestamp": "2024-01-15T10:30:00Z",
+      "timestamp": "2026-01-15T10:30:00Z",
       "scheduleName": "美股早报",
       "provider": "telegram",
       "status": "success",

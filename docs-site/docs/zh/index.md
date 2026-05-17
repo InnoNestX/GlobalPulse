@@ -6,7 +6,7 @@ title: GlobalPulse
 <div class="gp-shell">
   <header class="gp-grid gp-nav">
     <a class="gp-cell gp-logo" href="/GlobalPulse/zh/">
-      <span class="gp-mark">GP</span>
+      <span class="gp-mark"><img src="/globalpulse-project-logo.png" alt="GlobalPulse" /></span>
       <span>
         <span class="gp-brand">GlobalPulse</span>
         <span class="gp-subbrand">Market signal relay</span>

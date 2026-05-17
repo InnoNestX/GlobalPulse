@@ -4,6 +4,10 @@ dist-worker/
 .wrangler/
 references/
 deploy/
+!docs-site/docs/en/deploy/
+!docs-site/docs/en/deploy/*.md
+!docs-site/docs/zh/deploy/
+!docs-site/docs/zh/deploy/*.md
 wrangler.jsonc
 worker-configuration.d.ts
 .dev.vars

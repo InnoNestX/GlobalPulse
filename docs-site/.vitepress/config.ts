@@ -12,7 +12,7 @@ export default defineConfig({
   cleanUrls: false,
   ignoreDeadLinks: true,
   head: [
-    ['link', { rel: 'icon', href: `${base}logo.svg`, type: 'image/svg+xml' }],
+    ['link', { rel: 'icon', href: `${base}globalpulse-project-logo.png`, type: 'image/png' }],
     ['meta', { name: 'theme-color', content: '#061310' }],
     ['meta', { name: 'og:type', content: 'website' }],
     ['meta', { name: 'og:title', content: 'GlobalPulse Documentation' }],
@@ -20,7 +20,7 @@ export default defineConfig({
   ],
   themeConfig: {
     logo: {
-      src: '/logo.svg',
+      src: '/globalpulse-project-logo.png',
       alt: 'GlobalPulse'
     },
     siteTitle: 'GlobalPulse',
@@ -99,7 +99,7 @@ export default defineConfig({
     },
     footer: {
       message: 'Open Source / MIT License',
-      copyright: 'Copyright (c) 2026 InnoNestX'
+      copyright: '© 2026 InnoNestX · Made with ❤️ for the community'
     },
     editLink: {
       pattern: 'https://github.com/InnoNestX/GlobalPulse/edit/main/docs-site/docs/:path',

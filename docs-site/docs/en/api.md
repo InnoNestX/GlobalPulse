@@ -10,7 +10,7 @@ GET /health
 
 Response:
 ```json
-{ "status": "ok", "timestamp": "2024-01-15T10:30:00Z" }
+{ "status": "ok", "timestamp": "2026-01-15T10:30:00Z" }
 ```
 
 ## Admin API
@@ -75,7 +75,7 @@ Response:
   "logs": [
     {
       "id": "log_xxx",
-      "timestamp": "2024-01-15T10:30:00Z",
+      "timestamp": "2026-01-15T10:30:00Z",
       "scheduleName": "US Morning",
       "provider": "telegram",
       "status": "success",
