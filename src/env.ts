@@ -26,6 +26,7 @@ export interface Env {
   GEMINI_BASE_URL?: string;
   GEMINI_MODEL?: string;
   WORKERS_AI_MODEL?: string;
+  NEWSAPI_API_KEY?: string;
   ALPHA_VANTAGE_API_KEY?: string;
   FINNHUB_API_KEY?: string;
   TWELVE_DATA_API_KEY?: string;
