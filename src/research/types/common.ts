@@ -22,7 +22,7 @@ export interface DataQuality {
   source_score: number;
   consistency_score: number;
   missing_fields: string[];
-  degraded_reason?: string;
+  degraded_reason?: string | undefined;
   degrade_level: DegradeLevel;
 }
 
@@ -39,8 +39,8 @@ export interface ApiUsageEntry {
   endpoint: string;
   success: boolean;
   latency_ms: number;
-  error?: string;
-  message?: string;
+  error?: string | undefined;
+  message?: string | undefined;
   rate_limited: boolean;
 }
 
