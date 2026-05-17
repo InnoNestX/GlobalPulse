@@ -129,18 +129,24 @@ async function fetchChineseDomesticNewsItems(language: AppLanguage, limit = 10):
 }
 
 async function fetchPlatformHotDiscussionItems(language: AppLanguage, limit = 8): Promise<TopicItem[]> {
-  const query = language === "zh"
-    ? "抖音热搜 OR 微博热搜 OR 百度热搜 OR 热度破亿 OR 热度千万 OR 阅读破亿 OR 全网热议"
-    : "Douyin trending OR Weibo hot search OR Baidu hot search OR viral China social media";
-  const items = await fetchGoogleNewsItems(query, language, limit * 2);
-  return items.map((item) => ({
-    ...item,
-    source: item.source ? `平台热搜讨论 / ${item.source}` : "平台热搜讨论",
-    category: "platform-hot",
-    section: "platform" as const,
-    score: (item.score ?? 0) + scorePlatformHotDiscussion(item),
-    summary: item.summary || inferPlatformHotSummary(item.title),
-  })).slice(0, limit);
+  const queries = language === "zh"
+    ? [
+        "微博热搜 OR 抖音热点 OR 百度热搜 OR 知乎热榜 OR 小红书热搜 OR 微博 知乎 百度",
+      ]
+    : [
+        "Weibo trending OR Douyin trending OR Baidu hot search OR Baidu hot topic",
+      ];
+  const results = await Promise.allSettled(queries.map((q) => fetchGoogleNewsItems(q, language, limit * 2)));
+  const allItems = results.flatMap((r) => r.status === "fulfilled" ? r.value : []);
+  return allItems
+    .filter((item) => /微博|抖音|小红书|知乎|百度|热搜|破亿|千万|热议|热点话题/i.test(item.title))
+    .map((item) => ({
+      ...item,
+      source: item.source ?? "平台热搜",
+      section: "platform" as const,
+      score: (item.score ?? 0) + scorePlatformHotDiscussion(item),
+      summary: item.summary || inferPlatformHotSummary(item.title),
+    })).slice(0, limit);
 }
 
 async function fetchNewsApiDailyHotItems(query: string, language: AppLanguage, apiKey: string): Promise<TopicItem[]> {
@@ -229,7 +235,7 @@ function inferSection(item: TopicItem): "domestic" | "platform" | "global" {
 
 function inferSectionFromText(text: string, source?: string | null): "domestic" | "platform" | "global" {
   const merged = `${text}\n${source ?? ""}`.toLowerCase();
-  if (/抖音|微博|百度热搜|平台热搜|douyin|weibo|hot search/.test(merged)) return "platform";
+  if (/抖音|微博|小红书|知乎|百度|热搜|hot search|douyin|weibo|xhs/.test(merged)) return "platform";
   if (/中国|国内|北京|上海|深圳|广州|杭州|成都|重庆|国家|国务院|央行|工信部|证监会|新华社|央视|人民日报|cctv|xinhuanet|people.cn|gov.cn/.test(merged)) return "domestic";
   return "global";
 }
