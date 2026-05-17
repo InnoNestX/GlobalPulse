@@ -135,7 +135,7 @@ function buildEffectiveQuery(schedule: PulseSchedule): string {
 
 function selectDigestItems(schedule: PulseSchedule, items: TopicItem[], now: Date): TopicItem[] {
   if (schedule.reportType === "daily_hot") {
-    return selectDailyHotItems(items, now).slice(0, 10);
+    return selectDailyHotItems(items, now);
   }
   return selectRelevantItems(schedule, items, now).slice(0, 6);
 }
@@ -143,6 +143,7 @@ function selectDigestItems(schedule: PulseSchedule, items: TopicItem[], now: Dat
 function selectDailyHotItems(items: TopicItem[], now: Date): TopicItem[] {
   const nowMs = now.getTime();
   const filtered = items.filter((item) => !isDeveloperOnlyItem(item) && !isSingleCompanyFinanceItem(item));
+
   const scored = filtered.map((item, index) => {
     const text = `${item.title}\n${item.summary ?? ""}`.toLowerCase();
     let score = item.score ?? 0;
@@ -164,11 +165,62 @@ function selectDailyHotItems(items: TopicItem[], now: Date): TopicItem[] {
     return { item, index, score, publishedAtMs: Number.isFinite(publishedAtMs) ? publishedAtMs : 0 };
   });
 
-  const selected = scored
-    .sort((a, b) => b.score - a.score || b.publishedAtMs - a.publishedAtMs || a.index - b.index)
-    .map((entry) => entry.item);
+  const urlSet = new Set<string>();
+  const result: TopicItem[] = [];
 
-  return selected.length > 0 ? selected : items.slice(0, 10);
+  const bySection = { global: [] as typeof scored, domestic: [] as typeof scored, platform: [] as typeof scored };
+  for (const entry of scored) {
+    const section = entry.item.section ?? inferSectionFromText(`${entry.item.title}\n${entry.item.summary ?? ""}`, entry.item.source);
+    if (section === "domestic") bySection.domestic.push(entry);
+    else if (section === "platform") bySection.platform.push(entry);
+    else bySection.global.push(entry);
+  }
+
+  const pickFrom = (candidates: typeof scored, max: number): TopicItem[] => {
+    const selected: TopicItem[] = [];
+    const sorted = [...candidates].sort((a, b) => b.score - a.score || b.publishedAtMs - a.publishedAtMs || a.index - b.index);
+    for (const entry of sorted) {
+      if (selected.length >= max) break;
+      const key = normalizeUrlKey(entry.item.url);
+      if (urlSet.has(key)) continue;
+      urlSet.add(key);
+      selected.push(entry.item);
+    }
+    return selected;
+  };
+
+  result.push(...pickFrom(bySection.global, 4));
+  result.push(...pickFrom(bySection.domestic, 4));
+  result.push(...pickFrom(bySection.platform, 3));
+  if (bySection.platform.length > 3) {
+    const platformSorted = [...bySection.platform].sort((a, b) => b.score - a.score || b.publishedAtMs - a.publishedAtMs || a.index - b.index);
+    for (const entry of platformSorted) {
+      if (result.length >= 12) break;
+      const key = normalizeUrlKey(entry.item.url);
+      if (urlSet.has(key)) continue;
+      urlSet.add(key);
+      result.push(entry.item);
+      break;
+    }
+  }
+
+  return result.length > 0 ? result : items.slice(0, 12);
+}
+
+function inferSectionFromText(text: string, source?: string | null): "domestic" | "platform" | "global" {
+  const merged = `${text}\n${source ?? ""}`.toLowerCase();
+  if (/抖音|微博|百度热搜|平台热搜|douyin|weibo|hot search/.test(merged)) return "platform";
+  if (/中国|国内|北京|上海|深圳|广州|杭州|成都|重庆|国家|国务院|央行|工信部|证监会|新华社|央视|人民日报|cctv|xinhuanet|people.cn|gov.cn/.test(merged)) return "domestic";
+  return "global";
+}
+
+function normalizeUrlKey(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.hostname.replace(/^www\./, "") + u.pathname.replace(/\/$/, "");
+  } catch {
+    return url.toLowerCase();
+  }
 }
 
 function selectRelevantItems(schedule: PulseSchedule, items: TopicItem[], now: Date): TopicItem[] {
