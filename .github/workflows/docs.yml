@@ -6,13 +6,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
 
 jobs:
   build-deploy:
@@ -24,7 +20,7 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install and Build
+      - name: Build
         run: |
           cd docs-site
           npm ci
@@ -50,10 +46,10 @@ jobs:
 </html>
 HTMLEOF
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions/gh-pages@v3
         with:
-          path: docs-site/_site
-
-      - name: Deploy
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: docs-site/_site
+          user_name: github-actions[bot]
+          user_email: github-actions[bot]@users.noreply.github.com
