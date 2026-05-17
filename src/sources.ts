@@ -1,4 +1,4 @@
-import type { AppLanguage } from "./config";
+import type { AppLanguage, ReportType } from "./config";
 
 export interface TopicItem {
   title: string;
@@ -10,10 +10,24 @@ export interface TopicItem {
   summary?: string;
 }
 
-export async function fetchTopicItems(query: string, language: AppLanguage, sourceUrl?: string): Promise<{
+export interface TopicFetchOptions {
+  mode?: ReportType;
+  newsApiKey?: string;
+}
+
+export async function fetchTopicItems(
+  query: string,
+  language: AppLanguage,
+  sourceUrl?: string,
+  options: TopicFetchOptions = {},
+): Promise<{
   sourceUrl: string;
   items: TopicItem[];
 }> {
+  if (!sourceUrl && options.mode === "daily_hot") {
+    return fetchDailyHotTopicItems(query, language, options.newsApiKey);
+  }
+
   if (!sourceUrl) {
     return fetchCompositeTopicItems(query, language);
   }
@@ -34,6 +48,22 @@ export async function fetchTopicItems(query: string, language: AppLanguage, sour
   return {
     sourceUrl,
     items: parseRssItems(xml).slice(0, 12),
+  };
+}
+
+async function fetchDailyHotTopicItems(query: string, language: AppLanguage, newsApiKey?: string): Promise<{
+  sourceUrl: string;
+  items: TopicItem[];
+}> {
+  const sources = await Promise.allSettled([
+    newsApiKey ? fetchNewsApiItems(query, language, newsApiKey) : Promise.resolve([]),
+    fetchGoogleNewsItems(query, language, 14),
+  ]);
+  const items = dedupeTopicItems(sources.flatMap((source) => source.status === "fulfilled" ? source.value : []));
+
+  return {
+    sourceUrl: newsApiKey ? "NewsAPI, Google News" : "Google News",
+    items: sortTopicItems(items).slice(0, 24),
   };
 }
 
@@ -73,7 +103,7 @@ export function buildGoogleNewsRssUrl(query: string, language: AppLanguage): str
   return url.toString();
 }
 
-async function fetchGoogleNewsItems(query: string, language: AppLanguage): Promise<TopicItem[]> {
+async function fetchGoogleNewsItems(query: string, language: AppLanguage, limit = 8): Promise<TopicItem[]> {
   const sourceUrl = buildGoogleNewsRssUrl(query, language);
   const response = await fetch(sourceUrl, {
     headers: {
@@ -90,7 +120,69 @@ async function fetchGoogleNewsItems(query: string, language: AppLanguage): Promi
     ...item,
     source: item.source ?? "Google News",
     category: "news",
-  })).slice(0, 8);
+  })).slice(0, limit);
+}
+
+async function fetchNewsApiItems(query: string, language: AppLanguage, apiKey: string): Promise<TopicItem[]> {
+  const url = new URL("https://newsapi.org/v2/everything");
+  url.searchParams.set("q", buildNewsApiQuery(query, language));
+  url.searchParams.set("sortBy", "publishedAt");
+  url.searchParams.set("pageSize", "20");
+  url.searchParams.set("language", language === "zh" ? "zh" : "en");
+  url.searchParams.set("apiKey", apiKey);
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      "User-Agent": "globalpulse-worker/0.1",
+      "Accept": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    return [];
+  }
+
+  const payload = await response.json() as {
+    articles?: Array<{
+      title?: string;
+      description?: string | null;
+      url?: string;
+      publishedAt?: string;
+      source?: { name?: string | null };
+    }>;
+  };
+
+  return (payload.articles ?? []).flatMap((article): TopicItem[] => {
+    if (!article.title || !article.url || article.title === "[Removed]") return [];
+    const item: TopicItem = {
+      title: cleanText(article.title),
+      url: article.url,
+      source: article.source?.name || "NewsAPI",
+      category: classifyNewsCategory(`${article.title}\n${article.description ?? ""}`),
+      score: 100,
+    };
+    const summary = article.description ? cleanText(article.description) : undefined;
+    if (summary) item.summary = summary;
+    if (article.publishedAt) item.publishedAt = article.publishedAt;
+    return [item];
+  });
+}
+
+function buildNewsApiQuery(query: string, language: AppLanguage): string {
+  const base = query.trim();
+  const defaultQuery = language === "zh"
+    ? "全球 热点 国际 新闻 地缘政治 政策 宏观 产业 趋势 国际关系"
+    : "global news geopolitics policy macro economy industry trends international relations";
+  return (base || defaultQuery).slice(0, 260);
+}
+
+function classifyNewsCategory(text: string): string {
+  const lower = text.toLowerCase();
+  if (/war|military|nato|russia|ukraine|israel|gaza|geopolitic|国防|军事|战争|俄乌|中东|地缘/.test(lower)) return "geopolitics";
+  if (/policy|government|regulation|tariff|election|央行|政策|监管|关税|选举|财政/.test(lower)) return "policy";
+  if (/inflation|rate|fed|central bank|cpi|gdp|通胀|利率|美联储|宏观|经济/.test(lower)) return "macro";
+  if (/industry|supply chain|ai|energy|chip|产业|供应链|能源|芯片|科技/.test(lower)) return "industry";
+  return "global-news";
 }
 
 async function fetchSinaFinanceItems(): Promise<TopicItem[]> {
@@ -301,6 +393,36 @@ async function fetchFearGreedItem(): Promise<TopicItem[]> {
   return [topic];
 }
 
+function dedupeTopicItems(items: TopicItem[]): TopicItem[] {
+  const seen = new Set<string>();
+  const output: TopicItem[] = [];
+  for (const item of items) {
+    const key = normalizeTopicKey(item);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    output.push(item);
+  }
+  return output;
+}
+
+function normalizeTopicKey(item: TopicItem): string {
+  try {
+    const url = new URL(item.url);
+    return url.hostname.replace(/^www\./, "") + url.pathname.replace(/\/$/, "");
+  } catch {
+    return item.title.toLowerCase().replace(/\s+/g, " ").trim();
+  }
+}
+
+function sortTopicItems(items: TopicItem[]): TopicItem[] {
+  return items.slice().sort((a, b) => {
+    const aTime = a.publishedAt ? Date.parse(a.publishedAt) : 0;
+    const bTime = b.publishedAt ? Date.parse(b.publishedAt) : 0;
+    if (bTime !== aTime) return bTime - aTime;
+    return (b.score ?? 0) - (a.score ?? 0);
+  });
+}
+
 function parseRssItems(xml: string): TopicItem[] {
   const itemMatches = xml.matchAll(/<item\b[\s\S]*?<\/item>/gi);
   const items: TopicItem[] = [];
@@ -341,9 +463,6 @@ function readTag(xml: string, tagName: string): string | undefined {
   return match?.[1]?.trim();
 }
 
-// Decodes XML/HTML entities only. Does NOT strip HTML — use cleanText() for that.
-// Uses single-pass character iteration to avoid CodeQL 'double-unescaping' false positives
-// that arise from sequential .replace() chains.
 function decodeXml(value: string): string {
   let result = "";
   let i = 0;
@@ -364,30 +483,26 @@ function decodeXml(value: string): string {
   return result;
 }
 
-// Combines entity decode + HTML strip into a single pass so CodeQL sees one cross-product.
-// Replaces: strip first then decode (which CodeQL flags as "strip may be incomplete after decode").
 function cleanText(value: string): string {
   let result = "";
   let i = 0;
   while (i < value.length) {
-    // HTML comment
     if (value[i] === "<" && value.slice(i, i + 4) === "<!--") {
-      i = value.indexOf("-->", i + 4) + 3 || value.length;
+      const end = value.indexOf("-->", i + 4);
+      i = end >= 0 ? end + 3 : value.length;
       continue;
     }
-    // CDATA section
     if (value[i] === "<" && value.slice(i, i + 9) === "<![CDATA[") {
       const end = value.indexOf("]]>", i + 9);
       result += value.slice(i + 9, end >= i + 9 ? end : value.length);
       i = end >= i + 9 ? end + 3 : value.length;
       continue;
     }
-    // HTML tag
     if (value[i] === "<") {
-      i = value.indexOf(">", i + 1) + 1 || value.length + 1;
+      const end = value.indexOf(">", i + 1);
+      i = end >= 0 ? end + 1 : value.length;
       continue;
     }
-    // Numeric hex entity &name;
     if (value[i] === "&") {
       const semi = value.indexOf(";", i);
       if (semi !== -1) {
