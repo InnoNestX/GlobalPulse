@@ -37,14 +37,13 @@ jobs:
       - name: Build
         run: npm run docs:build
 
-      - name: Move docs to root
+      - name: Flatten docs structure
         run: |
+          rm -rf _site
           mkdir -p _site
           cp -r .vitepress/dist/docs/* _site/
-          cp -r .vitepress/dist/assets _site/
-          cp -r .vitepress/dist/*.css _site/ 2>/dev/null || true
-          cp -r .vitepress/dist/*.html _site/ 2>/dev/null || true
-          cp -r .vitepress/dist/hashmap.json _site/ 2>/dev/null || true
+          cp .vitepress/dist/404.html _site/ 2>/dev/null || true
+          cp .vitepress/dist/logo.svg _site/ 2>/dev/null || true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
