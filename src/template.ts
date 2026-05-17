@@ -71,8 +71,8 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
   const bySection = groupItemsBySection(items);
   const internationalItems = bySection.global.slice(0, 4);
   const domesticItems = bySection.domestic.slice(0, 4);
-  const platformItems = bySection.platform.slice(0, 3);
-  const topPlatformItem = bySection.platform.length > 3 ? bySection.platform[3] : null;
+  const topPlatformItem = selectTopPlatformItem(bySection.platform);
+  const platformItems = bySection.platform.filter((item) => !isSameTopicItem(item, topPlatformItem)).slice(0, 3);
 
   if (zh) {
     const sections = [
@@ -184,18 +184,30 @@ function groupItemsBySection(items: TopicItem[]): { global: TopicItem[]; domesti
   return result;
 }
 
+function selectTopPlatformItem(items: TopicItem[]): TopicItem | null {
+  if (items.length === 0) return null;
+  return items.slice().sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0] ?? null;
+}
+
+function isSameTopicItem(item: TopicItem, other: TopicItem | null): boolean {
+  if (!other) return false;
+  const itemUrl = normalizeHttpUrl(item.url);
+  const otherUrl = normalizeHttpUrl(other.url);
+  if (itemUrl && otherUrl && itemUrl === otherUrl) return true;
+  return item.title.trim().toLowerCase() === other.title.trim().toLowerCase();
+}
+
 function renderDailyHotSectionItems(items: TopicItem[], schedule: PulseSchedule): string {
   if (items.length === 0) {
     return schedule.language === "zh" ? "_暂无相关内容。_" : "_No items available._";
   }
   return items.map((item, index) => {
-    const source = item.source ? ` — ${escapeMarkdown(item.source)}` : "";
     const url = normalizeHttpUrl(item.url);
     const link = url ? ` [🔗](${url})` : "";
     const summary = item.summary ? ` ${escapeMarkdown(item.summary)}` : "";
     const observation = inferDailyHotObservation(item, schedule);
     const observationLine = observation ? `\n   ${observation}` : "";
-    return `${index + 1}. **${escapeMarkdown(item.title)}**${source}${link}${summary}${observationLine}`;
+    return `${index + 1}. **${escapeMarkdown(item.title)}**${link}${summary}${observationLine}`;
   }).join("\n");
 }
 

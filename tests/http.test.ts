@@ -540,7 +540,54 @@ describe("handleRequest", () => {
       ADMIN_PASSWORD: "admin-pass",
       APP_KV: createMemoryKV(),
     };
-    const fetchMock = vi.fn(async () => new Response("unavailable", { status: 503 }));
+    const rss = (items: Array<{ title: string; link: string; source: string }>) => new Response([
+      "<rss><channel>",
+      ...items.map((item) => [
+        "<item>",
+        `<title>${item.title}</title>`,
+        `<link>${item.link}</link>`,
+        `<source>${item.source}</source>`,
+        "<pubDate>Sun, 17 May 2026 08:00:00 GMT</pubDate>",
+        "</item>",
+      ].join("")),
+      "</channel></rss>",
+    ].join(""), { status: 200 });
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? (input instanceof Request ? input.method : "GET");
+
+      if (method === "HEAD" && url.startsWith("https://news.example.test/")) {
+        return new Response(null, { status: 200 });
+      }
+
+      if (url.startsWith("https://news.google.com/rss/search")) {
+        const query = new URL(url).searchParams.get("q") ?? "";
+        if (/site:weibo|site:douyin|知乎热榜|小红书|百度 热搜/i.test(query)) {
+          return rss([
+            { title: "全网热度第一：AI产品安全讨论热度破亿", link: "https://news.example.test/platform-top", source: "微博热搜" },
+            { title: "微博热搜：民生服务新规引发讨论", link: "https://news.example.test/platform-1", source: "微博热搜" },
+            { title: "抖音热榜：消费补贴政策受到关注", link: "https://news.example.test/platform-2", source: "抖音热榜" },
+            { title: "微博热议：科技创新议题进入热榜", link: "https://news.example.test/platform-3", source: "微博热搜" },
+          ]);
+        }
+        if (/中国|China policy|site:rthk|site:scmp/i.test(query)) {
+          return rss([
+            { title: "中国就业政策调整释放稳民生信号", link: "https://news.example.test/domestic-1", source: "SCMP" },
+            { title: "国内消费数据改善带动财经讨论", link: "https://news.example.test/domestic-2", source: "Reuters" },
+            { title: "多地公共服务改革聚焦医疗和教育", link: "https://news.example.test/domestic-3", source: "RTHK" },
+            { title: "中国资本市场改革议题继续升温", link: "https://news.example.test/domestic-4", source: "Bloomberg" },
+          ]);
+        }
+        return rss([
+          { title: "全球局势关注中东停火谈判进展", link: "https://news.example.test/global-1", source: "Reuters" },
+          { title: "国际经济讨论聚焦主要央行利率路径", link: "https://news.example.test/global-2", source: "AP News" },
+          { title: "全球重大公共事件推动公共卫生协作", link: "https://news.example.test/global-3", source: "BBC" },
+          { title: "AI供应链成为全球产业政策重点", link: "https://news.example.test/global-4", source: "Financial Times" },
+        ]);
+      }
+
+      return new Response("ok", { status: 200 });
+    });
     vi.stubGlobal("fetch", fetchMock);
 
     const response = await handleRequest(new Request("https://worker.example/api/admin/preview", {
@@ -581,7 +628,7 @@ describe("handleRequest", () => {
     const countItems = (section: string): number => section.match(/^\d+\. \*\*/gm)?.length ?? 0;
     const between = (start: string, end: string): string => previewBody.split(start)[1]?.split(end)[0] ?? "";
 
-    expect(body.preview.sourceStatus).toBe("fallback");
+    expect(body.preview.sourceStatus).toBe("live");
     expect(countItems(between("## 🌍 国际要闻", "## 🇨🇳 国内热点"))).toBe(4);
     expect(countItems(between("## 🇨🇳 国内热点", "## 🔥 全网热搜精选"))).toBe(4);
     const hotSearchSection = between("## 🔥 全网热搜精选", "## 📌 全网热度最高话题");
@@ -590,6 +637,50 @@ describe("handleRequest", () => {
     expect(countItems(topTopicSection)).toBe(1);
     expect(hotSearchSection).not.toContain("全网热度第一");
     expect(topTopicSection).toContain("全网热度第一");
+    expect(previewBody).not.toContain("Reuters");
+    expect(previewBody).not.toContain("微博热搜 —");
+    expect(previewBody).not.toContain("example.com");
+  });
+
+  it("keeps ordered email list numbers increasing when items have observation lines", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ messageId: "email-1" }), { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await handleRequest(new Request("https://worker.example/v1/messages", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-token",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        target: "email",
+        title: "Daily hot numbering",
+        body: [
+          "## 测试",
+          "1. **第一条** [🔗](https://news.example.test/1)",
+          "   观察点：第一条续行。",
+          "2. **第二条** [🔗](https://news.example.test/2)",
+          "   观察点：第二条续行。",
+          "3. **第三条** [🔗](https://news.example.test/3)",
+          "   观察点：第三条续行。",
+        ].join("\n"),
+      }),
+    }), {
+      ...env,
+      DEFAULT_TARGETS: "email",
+      BREVO_API_KEY: "brevo-key",
+      EMAIL_FROM: "GlobalPulse <noreply@example.test>",
+      EMAIL_TO: "reader@example.test",
+    });
+
+    expect(response.status).toBe(202);
+    const [, init] = getFetchCall(fetchMock, 0);
+    const payload = JSON.parse(String(init.body)) as { htmlContent: string };
+
+    expect(payload.htmlContent).toContain(">1.</span>");
+    expect(payload.htmlContent).toContain(">2.</span>");
+    expect(payload.htmlContent).toContain(">3.</span>");
+    expect(payload.htmlContent).toContain("观察点：第二条续行。");
   });
 
   it("runs admin test send without KV when schedule payload is provided", async () => {

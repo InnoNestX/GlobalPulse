@@ -42,9 +42,10 @@ export async function fetchTopicItems(
 }
 
 async function fetchDailyHotTopicItems(query: string, language: AppLanguage, newsApiKey?: string): Promise<{ sourceUrl: string; items: TopicItem[] }> {
-  const [googleResult, domesticResult, platformResult] = await Promise.allSettled([
+  const [googleResult, globalEnglishResult, domesticResult, platformResult] = await Promise.allSettled([
     fetchGoogleNewsItems(query, language, 8),
-    fetchChineseDomesticNewsItems(language, 8),
+    language === "zh" ? fetchGoogleNewsItems(buildGlobalEnglishDailyHotQuery(query), "en", 10) : Promise.resolve([]),
+    fetchChineseDomesticNewsItems(language, 10),
     fetchPlatformHotDiscussionItems(language, 6),
   ]);
   let newsApiItems: TopicItem[] = [];
@@ -53,14 +54,15 @@ async function fetchDailyHotTopicItems(query: string, language: AppLanguage, new
     newsApiItems = newsApiResult;
   }
   const googleItems = googleResult.status === "fulfilled" ? googleResult.value : [];
+  const globalEnglishItems = globalEnglishResult.status === "fulfilled" ? globalEnglishResult.value : [];
   const domesticItems = domesticResult.status === "fulfilled" ? domesticResult.value : [];
   const platformItems = platformResult.status === "fulfilled" ? platformResult.value : [];
-  const items = dedupeTopicItems([...platformItems, ...domesticItems, ...newsApiItems, ...googleItems]);
+  const items = await filterReachableTopicItems(dedupeTopicItems([...platformItems, ...domesticItems, ...newsApiItems, ...googleItems, ...globalEnglishItems]));
   const sourceUrl = [
     newsApiKey ? (newsApiItems.length ? `NewsAPI已启用(${newsApiItems.length}条)` : "NewsAPI已配置但本次无结果") : "NewsAPI未配置",
     `国内新闻(${domesticItems.length}条)`,
     `平台热搜讨论(${platformItems.length}条)`,
-    `Google News(${googleItems.length}条)`,
+    `Google News(${googleItems.length + globalEnglishItems.length}条)`,
   ].join("，");
   return { sourceUrl, items: sortTopicItems(items).slice(0, 28) };
 }
@@ -114,14 +116,18 @@ async function fetchChineseDomesticNewsItems(language: AppLanguage, limit = 10):
     ? [
         "中国 国内新闻 政策 民生 经济 产业 -site:cctv.com -site:xinhuanet.com -site:thepaper.cn",
         "site:rthk.hk OR site:scmp.com OR site:ifeng.com OR site:caixin.com OR site:mingpao.com OR site:Initium OR site:tvbs.com.hk 国内 政策 经济 民生",
+        "China policy economy society livelihood Reuters AP Bloomberg BBC Financial Times Nikkei Asia",
       ]
     : [
         "China domestic policy economy society technology industry -site:cctv.com -site:xinhuanet.com -site:thepaper.cn",
         "site:rthk.hk OR site:scmp.com OR site:ifeng.com OR site:caixin.com OR site:mingpao.com OR site:Initium OR site:tvbs.com.hk China policy economy society",
+        "China policy economy society livelihood Reuters AP Bloomberg BBC Financial Times Nikkei Asia",
       ];
-  const first = await fetchGoogleNewsItems(queries[0] ?? "", language, Math.ceil(limit / 2));
-  const second = await fetchGoogleNewsItems(queries[1] ?? "", language, Math.ceil(limit / 2));
-  return dedupeTopicItems([...first, ...second]).map((item) => ({
+  const results = await Promise.allSettled(queries.map((query, index) =>
+    fetchGoogleNewsItems(query, language === "zh" && index === 2 ? "en" : language, Math.ceil(limit / 2)),
+  ));
+  const items = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+  return dedupeTopicItems(items).map((item) => ({
     ...item,
     source: item.source ?? "国内新闻",
     section: "domestic" as const,
@@ -158,12 +164,14 @@ async function fetchPlatformHotDiscussionItems(language: AppLanguage, limit = 8)
 }
 
 async function fetchNewsApiDailyHotItems(query: string, language: AppLanguage, apiKey: string): Promise<TopicItem[]> {
-  const [everythingResult, headlinesResult] = await Promise.allSettled([
+  const [everythingResult, englishEverythingResult, headlinesResult] = await Promise.allSettled([
     fetchNewsApiEverythingItems(query, language, apiKey),
+    language === "zh" ? fetchNewsApiEverythingItems(buildGlobalEnglishDailyHotQuery(query), "en", apiKey) : Promise.resolve([]),
     fetchNewsApiTopHeadlineItems(language, apiKey),
   ]);
   return dedupeTopicItems([
     ...(everythingResult.status === "fulfilled" ? everythingResult.value : []),
+    ...(englishEverythingResult.status === "fulfilled" ? englishEverythingResult.value : []),
     ...(headlinesResult.status === "fulfilled" ? headlinesResult.value : []),
   ]).map((item) => ({ ...item, section: item.section ?? "global", score: (item.score ?? 0) + 1000 })).slice(0, 16);
 }
@@ -224,6 +232,12 @@ function buildNewsApiQuery(query: string, language: AppLanguage): string {
   return (base || defaultQuery).slice(0, 260);
 }
 
+function buildGlobalEnglishDailyHotQuery(query: string): string {
+  const base = query.trim();
+  const englishFocus = "global breaking news geopolitics international economy public event China policy society livelihood technology finance Reuters AP BBC Bloomberg";
+  return `${base ? `${base} ` : ""}${englishFocus}`.slice(0, 280);
+}
+
 function classifyNewsCategory(text: string): string {
   const lower = text.toLowerCase();
   if (/抖音|微博|百度热搜|热搜|爆火|走红|douyin|weibo|trending/.test(lower)) return "platform-hot";
@@ -260,6 +274,56 @@ function inferPlatformHotSummary(title: string): string {
   if (/破亿/.test(title)) return "平台高热话题，出现破亿级讨论信号，适合观察当天大众情绪与社会关注点。";
   if (/千万/.test(title)) return "平台高热话题，出现千万级热度信号，适合作为当天舆论风向参考。";
   return "平台热搜相关话题，适合快速了解过去数小时到24小时内大众关注点。";
+}
+
+async function filterReachableTopicItems(items: TopicItem[]): Promise<TopicItem[]> {
+  const sorted = sortTopicItems(items);
+  const checked = await Promise.all(sorted.slice(0, 36).map(async (item) => await isReachableTopicUrl(item.url) ? item : undefined));
+  const reachable = checked.filter((item): item is TopicItem => Boolean(item));
+  return reachable;
+}
+
+async function isReachableTopicUrl(value: string): Promise<boolean> {
+  const url = normalizeHttpUrl(value);
+  if (!url || isKnownPlaceholderUrl(url)) return false;
+  const headers = {
+    "User-Agent": "Mozilla/5.0 (compatible; GlobalPulse/0.1)",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  };
+
+  try {
+    const head = await fetch(url, { method: "HEAD", headers, redirect: "follow" });
+    if (head.ok) return true;
+    if (![403, 405, 429].includes(head.status)) return false;
+  } catch {
+    // Some publishers block HEAD but still serve regular browser requests.
+  }
+
+  try {
+    const get = await fetch(url, { method: "GET", headers: { ...headers, "Range": "bytes=0-2048" }, redirect: "follow" });
+    return get.ok || get.status === 206;
+  } catch {
+    return false;
+  }
+}
+
+function normalizeHttpUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed = new URL(value.trim());
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function isKnownPlaceholderUrl(value: string): boolean {
+  try {
+    const hostname = new URL(value).hostname.replace(/^www\./, "").toLowerCase();
+    return hostname === "example.com" || hostname.endsWith(".example.com");
+  } catch {
+    return true;
+  }
 }
 
 async function fetchSinaFinanceItems(): Promise<TopicItem[]> {
