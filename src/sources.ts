@@ -42,16 +42,19 @@ export async function fetchTopicItems(
 }
 
 async function fetchDailyHotTopicItems(query: string, language: AppLanguage, newsApiKey?: string): Promise<{ sourceUrl: string; items: TopicItem[] }> {
-  const [googleResult, domesticResult, platformResult, newsApiResult] = await Promise.allSettled([
-    fetchGoogleNewsItems(query, language, 10),
-    fetchChineseDomesticNewsItems(language, 10),
-    fetchPlatformHotDiscussionItems(language, 8),
-    newsApiKey ? fetchNewsApiDailyHotItems(query, language, newsApiKey) : Promise.resolve([]),
+  const [googleResult, domesticResult, platformResult] = await Promise.allSettled([
+    fetchGoogleNewsItems(query, language, 8),
+    fetchChineseDomesticNewsItems(language, 8),
+    fetchPlatformHotDiscussionItems(language, 6),
   ]);
+  let newsApiItems: TopicItem[] = [];
+  if (newsApiKey) {
+    const newsApiResult = await fetchNewsApiDailyHotItems(query, language, newsApiKey);
+    newsApiItems = newsApiResult;
+  }
   const googleItems = googleResult.status === "fulfilled" ? googleResult.value : [];
   const domesticItems = domesticResult.status === "fulfilled" ? domesticResult.value : [];
   const platformItems = platformResult.status === "fulfilled" ? platformResult.value : [];
-  const newsApiItems = newsApiResult.status === "fulfilled" ? newsApiResult.value : [];
   const items = dedupeTopicItems([...platformItems, ...domesticItems, ...newsApiItems, ...googleItems]);
   const sourceUrl = [
     newsApiKey ? (newsApiItems.length ? `NewsAPI已启用(${newsApiItems.length}条)` : "NewsAPI已配置但本次无结果") : "NewsAPI未配置",
@@ -59,7 +62,7 @@ async function fetchDailyHotTopicItems(query: string, language: AppLanguage, new
     `平台热搜讨论(${platformItems.length}条)`,
     `Google News(${googleItems.length}条)`,
   ].join("，");
-  return { sourceUrl, items: sortTopicItems(items).slice(0, 32) };
+  return { sourceUrl, items: sortTopicItems(items).slice(0, 28) };
 }
 
 async function fetchCompositeTopicItems(query: string, language: AppLanguage): Promise<{ sourceUrl: string; items: TopicItem[] }> {
@@ -116,21 +119,18 @@ async function fetchChineseDomesticNewsItems(language: AppLanguage, limit = 10):
         "China domestic policy economy society technology industry -site:cctv.com -site:xinhuanet.com -site:thepaper.cn",
         "site:rthk.hk OR site:scmp.com OR site:ifeng.com OR site:caixin.com OR site:mingpao.com OR site:Initium OR site:tvbs.com.hk China policy economy society",
       ];
-  const results = await Promise.allSettled(queries.map((item) => fetchGoogleNewsItems(item, language, Math.ceil(limit / 2))));
-  return dedupeTopicItems(results.flatMap((result) => result.status === "fulfilled" ? result.value : [])).map((item) => ({
+  const first = await fetchGoogleNewsItems(queries[0] ?? "", language, Math.ceil(limit / 2));
+  const second = await fetchGoogleNewsItems(queries[1] ?? "", language, Math.ceil(limit / 2));
+  return dedupeTopicItems([...first, ...second]).map((item) => ({
     ...item,
-    source: item.source ? `${item.source}` : "国内新闻",
+    source: item.source ?? "国内新闻",
     section: "domestic" as const,
     score: (item.score ?? 0) + 1200,
   })).filter((item) => {
     const src = item.source ?? "";
     if (/cctv|xinhuanet|央视|新华社/i.test(src)) return false;
     const text = `${item.title}\n${item.summary ?? ""}`.toLowerCase();
-    if (/ifeng|caixin|mingpao|initium|tvbs/i.test(src)) {
-      if (!/中国|国内|北京|上海|深圳|广州|杭州|成都|重庆|国家|国务院|央行|工信部|证监会|gov\.cn/i.test(text)) return false;
-    } else {
-      if (!/中国|国内|北京|上海|深圳|广州|杭州|成都|重庆|国家|国务院|央行|工信部|证监会|gov\.cn/i.test(text)) return false;
-    }
+    if (!/中国|国内|北京|上海|深圳|广州|杭州|成都|重庆|国家|国务院|央行|工信部|证监会|gov\.cn/i.test(text)) return false;
     return true;
   }).slice(0, limit);
 }
@@ -158,16 +158,14 @@ async function fetchPlatformHotDiscussionItems(language: AppLanguage, limit = 8)
 }
 
 async function fetchNewsApiDailyHotItems(query: string, language: AppLanguage, apiKey: string): Promise<TopicItem[]> {
-  const [everythingPrimary, topHeadlines, everythingEnglish] = await Promise.allSettled([
+  const [everythingResult, headlinesResult] = await Promise.allSettled([
     fetchNewsApiEverythingItems(query, language, apiKey),
     fetchNewsApiTopHeadlineItems(language, apiKey),
-    language === "zh" ? fetchNewsApiEverythingItems(query, "en", apiKey) : Promise.resolve([]),
   ]);
   return dedupeTopicItems([
-    ...(everythingPrimary.status === "fulfilled" ? everythingPrimary.value : []),
-    ...(topHeadlines.status === "fulfilled" ? topHeadlines.value : []),
-    ...(everythingEnglish.status === "fulfilled" ? everythingEnglish.value : []),
-  ]).map((item) => ({ ...item, section: item.section ?? "global", score: (item.score ?? 0) + 1000 })).slice(0, 24);
+    ...(everythingResult.status === "fulfilled" ? everythingResult.value : []),
+    ...(headlinesResult.status === "fulfilled" ? headlinesResult.value : []),
+  ]).map((item) => ({ ...item, section: item.section ?? "global", score: (item.score ?? 0) + 1000 })).slice(0, 16);
 }
 
 async function fetchNewsApiEverythingItems(query: string, language: AppLanguage, apiKey: string): Promise<TopicItem[]> {
@@ -181,15 +179,15 @@ async function fetchNewsApiEverythingItems(query: string, language: AppLanguage,
 }
 
 async function fetchNewsApiTopHeadlineItems(language: AppLanguage, apiKey: string): Promise<TopicItem[]> {
-  const countries = language === "zh" ? ["cn", "hk", "sg", "us"] : ["us", "gb", "ca", "au"];
-  const results = await Promise.allSettled(countries.map(async (country) => {
-    const url = new URL("https://newsapi.org/v2/top-headlines");
-    url.searchParams.set("country", country);
-    url.searchParams.set("pageSize", "8");
-    url.searchParams.set("apiKey", apiKey);
-    return fetchNewsApiUrl(url, `NewsAPI Top ${country.toUpperCase()}`);
-  }));
-  return dedupeTopicItems(results.flatMap((result) => result.status === "fulfilled" ? result.value : []));
+  const countries = language === "zh" ? ["cn", "hk", "us"] : ["us", "gb"];
+  const [first, second] = await Promise.allSettled([
+    fetchNewsApiUrl(new URL(`https://newsapi.org/v2/top-headlines?country=${countries[0]}&pageSize=8&apiKey=${apiKey}`), `NewsAPI Top ${countries[0]?.toUpperCase()}`),
+    fetchNewsApiUrl(new URL(`https://newsapi.org/v2/top-headlines?country=${countries[1]}&pageSize=8&apiKey=${apiKey}`), `NewsAPI Top ${countries[1]?.toUpperCase()}`),
+  ]);
+  return dedupeTopicItems([
+    ...(first.status === "fulfilled" ? first.value : []),
+    ...(second.status === "fulfilled" ? second.value : []),
+  ]);
 }
 
 async function fetchNewsApiUrl(url: URL, defaultSource: string): Promise<TopicItem[]> {
