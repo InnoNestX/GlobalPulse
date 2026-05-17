@@ -142,7 +142,11 @@ function selectDigestItems(schedule: PulseSchedule, items: TopicItem[], now: Dat
 
 function selectDailyHotItems(items: TopicItem[], now: Date): TopicItem[] {
   const nowMs = now.getTime();
-  const filtered = items.filter((item) => !isDeveloperOnlyItem(item) && !isSingleCompanyFinanceItem(item));
+  const filtered = items.filter((item) => !isDeveloperOnlyItem(item) && !isSingleCompanyFinanceItem(item) && (() => {
+    if (!item.publishedAt) return true;
+    const ageHours = (nowMs - Date.parse(item.publishedAt)) / (1000 * 60 * 60);
+    return ageHours <= 72;
+  })());
 
   const scored = filtered.map((item, index) => {
     const text = `${item.title}\n${item.summary ?? ""}`.toLowerCase();
