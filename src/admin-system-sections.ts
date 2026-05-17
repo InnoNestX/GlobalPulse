@@ -69,6 +69,7 @@ const newRenderResearchSettings = `    function renderResearchSettings() {
     function renderMarketDataSettings() {
       const values = state.providerSettings || {};
       const fields = [
+        ["newsApiKey", "NewsAPI API Key", "password"],
         ["alphaVantageApiKey", t("alphaVantageApiKey"), "password"],
         ["finnhubApiKey", "Finnhub API Key", "password"],
         ["twelveDataApiKey", "Twelve Data API Key", "password"],
@@ -79,7 +80,7 @@ const newRenderResearchSettings = `    function renderResearchSettings() {
       ];
       const form = $("marketDataSettingsForm");
       if (!form) return;
-      form.innerHTML = '<div class="provider-config"><h3><span>行情/宏观数据源</span><span class="badge">Market / Macro</span></h3>' +
-        '<p class="muted">配置行情与宏观数据源 API Key。环境变量优先，页面配置作为补充；数据完整度低于 85% 时会继续切换可用数据源补齐。</p>' +
+      form.innerHTML = '<div class="provider-config"><h3><span>行情/宏观/新闻数据源</span><span class="badge">News / Market / Macro</span></h3>' +
+        '<p class="muted">NewsAPI 用于每日热点新闻简报；其他 API Key 用于行情与宏观数据源。环境变量优先，页面配置作为补充。</p>' +
         fields.map(([key, label, type]) => renderMaskedProviderField(values, key, label, type)).join("") + '</div>';
     }`;
