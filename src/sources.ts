@@ -120,7 +120,7 @@ async function fetchChineseDomesticNewsItems(language: AppLanguage, limit = 10):
   return dedupeTopicItems(results.flatMap((result) => result.status === "fulfilled" ? result.value : [])).map((item) => ({
     ...item,
     source: item.source ? `国内新闻 / ${item.source}` : "国内新闻",
-    section: "domestic",
+    section: "domestic" as const,
     score: (item.score ?? 0) + 1200,
   })).slice(0, limit);
 }
@@ -276,7 +276,7 @@ async function fetchHackerNewsItems(): Promise<TopicItem[]> {
   return storyResponses.flatMap((entry) => {
     if (entry.status !== "fulfilled" || !entry.value?.title) return [];
     const item = entry.value;
-    const topic: TopicItem = { title: cleanText(item.title), url: item.url || `https://news.ycombinator.com/item?id=${item.id}`, source: "Hacker News", category: "international-tech", section: "global" };
+    const topic: TopicItem = { title: cleanText(item.title!), url: item.url || `https://news.ycombinator.com/item?id=${item.id}`, source: "Hacker News", category: "international-tech", section: "global" as const };
     if (typeof item.score === "number") topic.score = item.score;
     if (typeof item.time === "number") topic.publishedAt = new Date(item.time * 1000).toISOString();
     return [topic];
