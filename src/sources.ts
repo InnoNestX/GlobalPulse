@@ -24,7 +24,7 @@ export async function fetchTopicItems(
   sourceUrl: string;
   items: TopicItem[];
 }> {
-  if (!sourceUrl && options.mode === "daily_hot") {
+  if (options.mode === "daily_hot") {
     return fetchDailyHotTopicItems(query, language, options.newsApiKey);
   }
 
@@ -55,14 +55,21 @@ async function fetchDailyHotTopicItems(query: string, language: AppLanguage, new
   sourceUrl: string;
   items: TopicItem[];
 }> {
-  const sources = await Promise.allSettled([
-    newsApiKey ? fetchNewsApiItems(query, language, newsApiKey) : Promise.resolve([]),
-    fetchGoogleNewsItems(query, language, 14),
+  const [newsApiResult, googleResult] = await Promise.allSettled([
+    newsApiKey ? fetchNewsApiDailyHotItems(query, language, newsApiKey) : Promise.resolve([]),
+    fetchGoogleNewsItems(query, language, 18),
   ]);
-  const items = dedupeTopicItems(sources.flatMap((source) => source.status === "fulfilled" ? source.value : []));
+  const newsApiItems = newsApiResult.status === "fulfilled" ? newsApiResult.value : [];
+  const googleItems = googleResult.status === "fulfilled" ? googleResult.value : [];
+  const items = dedupeTopicItems([...newsApiItems, ...googleItems]);
+  const sourceUrl = newsApiKey
+    ? newsApiItems.length > 0
+      ? `NewsAPI(active:${newsApiItems.length}), Google News(${googleItems.length})`
+      : `NewsAPI(configured:no-results), Google News(${googleItems.length})`
+    : `NewsAPI(not-configured), Google News(${googleItems.length})`;
 
   return {
-    sourceUrl: newsApiKey ? "NewsAPI, Google News" : "Google News",
+    sourceUrl,
     items: sortTopicItems(items).slice(0, 24),
   };
 }
@@ -123,7 +130,21 @@ async function fetchGoogleNewsItems(query: string, language: AppLanguage, limit 
   })).slice(0, limit);
 }
 
-async function fetchNewsApiItems(query: string, language: AppLanguage, apiKey: string): Promise<TopicItem[]> {
+async function fetchNewsApiDailyHotItems(query: string, language: AppLanguage, apiKey: string): Promise<TopicItem[]> {
+  const [everythingPrimary, topHeadlines, everythingEnglish] = await Promise.allSettled([
+    fetchNewsApiEverythingItems(query, language, apiKey),
+    fetchNewsApiTopHeadlineItems(language, apiKey),
+    language === "zh" ? fetchNewsApiEverythingItems(query, "en", apiKey) : Promise.resolve([]),
+  ]);
+
+  return dedupeTopicItems([
+    ...(everythingPrimary.status === "fulfilled" ? everythingPrimary.value : []),
+    ...(topHeadlines.status === "fulfilled" ? topHeadlines.value : []),
+    ...(everythingEnglish.status === "fulfilled" ? everythingEnglish.value : []),
+  ]).map((item) => ({ ...item, score: (item.score ?? 0) + 1000 })).slice(0, 24);
+}
+
+async function fetchNewsApiEverythingItems(query: string, language: AppLanguage, apiKey: string): Promise<TopicItem[]> {
   const url = new URL("https://newsapi.org/v2/everything");
   url.searchParams.set("q", buildNewsApiQuery(query, language));
   url.searchParams.set("sortBy", "publishedAt");
@@ -131,6 +152,22 @@ async function fetchNewsApiItems(query: string, language: AppLanguage, apiKey: s
   url.searchParams.set("language", language === "zh" ? "zh" : "en");
   url.searchParams.set("apiKey", apiKey);
 
+  return fetchNewsApiUrl(url, "NewsAPI Everything");
+}
+
+async function fetchNewsApiTopHeadlineItems(language: AppLanguage, apiKey: string): Promise<TopicItem[]> {
+  const countries = language === "zh" ? ["us", "cn", "hk", "sg"] : ["us", "gb", "ca", "au"];
+  const results = await Promise.allSettled(countries.map(async (country) => {
+    const url = new URL("https://newsapi.org/v2/top-headlines");
+    url.searchParams.set("country", country);
+    url.searchParams.set("pageSize", "8");
+    url.searchParams.set("apiKey", apiKey);
+    return fetchNewsApiUrl(url, `NewsAPI Top ${country.toUpperCase()}`);
+  }));
+  return dedupeTopicItems(results.flatMap((result) => result.status === "fulfilled" ? result.value : []));
+}
+
+async function fetchNewsApiUrl(url: URL, defaultSource: string): Promise<TopicItem[]> {
   const response = await fetch(url.toString(), {
     headers: {
       "User-Agent": "globalpulse-worker/0.1",
@@ -157,7 +194,7 @@ async function fetchNewsApiItems(query: string, language: AppLanguage, apiKey: s
     const item: TopicItem = {
       title: cleanText(article.title),
       url: article.url,
-      source: article.source?.name || "NewsAPI",
+      source: article.source?.name ? `${defaultSource} / ${article.source.name}` : defaultSource,
       category: classifyNewsCategory(`${article.title}\n${article.description ?? ""}`),
       score: 100,
     };
@@ -416,10 +453,12 @@ function normalizeTopicKey(item: TopicItem): string {
 
 function sortTopicItems(items: TopicItem[]): TopicItem[] {
   return items.slice().sort((a, b) => {
+    const aScore = a.score ?? 0;
+    const bScore = b.score ?? 0;
+    if (bScore !== aScore) return bScore - aScore;
     const aTime = a.publishedAt ? Date.parse(a.publishedAt) : 0;
     const bTime = b.publishedAt ? Date.parse(b.publishedAt) : 0;
-    if (bTime !== aTime) return bTime - aTime;
-    return (b.score ?? 0) - (a.score ?? 0);
+    return bTime - aTime;
   });
 }
 
