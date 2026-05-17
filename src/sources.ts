@@ -109,12 +109,12 @@ async function fetchGoogleNewsItems(query: string, language: AppLanguage, limit 
 async function fetchChineseDomesticNewsItems(language: AppLanguage, limit = 10): Promise<TopicItem[]> {
   const queries = language === "zh"
     ? [
-        "中国 国内新闻 政策 民生 经济 科技 产业 -娱乐",
-        "site:news.cctv.com OR site:xinhuanet.com OR site:gov.cn 国内 政策 经济 民生 科技",
+        "中国 国内新闻 政策 民生 经济 科技 产业 -site:news.cctv.com -site:cctv.com",
+        "site:21caijing.cn OR site:yicai.com OR site:gov.cn OR site:thepaper.cn OR site:caixin.com 国内 政策 经济 民生",
       ]
     : [
-        "China domestic policy economy society technology industry",
-        "site:news.cctv.com OR site:xinhuanet.com OR site:gov.cn China policy economy society",
+        "China domestic policy economy society technology industry -site:cctv.com",
+        "site:21caijing.com OR site:yicai.com OR site:gov.cn OR site:thepaper.cn OR site:caixin.com China policy economy society",
       ];
   const results = await Promise.allSettled(queries.map((item) => fetchGoogleNewsItems(item, language, Math.ceil(limit / 2))));
   return dedupeTopicItems(results.flatMap((result) => result.status === "fulfilled" ? result.value : [])).map((item) => ({
@@ -122,7 +122,7 @@ async function fetchChineseDomesticNewsItems(language: AppLanguage, limit = 10):
     source: item.source ? `国内新闻 / ${item.source}` : "国内新闻",
     section: "domestic" as const,
     score: (item.score ?? 0) + 1200,
-  })).slice(0, limit);
+  })).filter((item) => !/cctv|xinhuanet/i.test(item.source ?? "")).slice(0, limit);
 }
 
 async function fetchPlatformHotDiscussionItems(language: AppLanguage, limit = 8): Promise<TopicItem[]> {
