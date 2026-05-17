@@ -6,6 +6,7 @@ export interface MarketDataProviderSettings {
   finnhubApiKey?: string;
   twelveDataApiKey?: string;
   coingeckoApiKey?: string;
+  newsApiKey?: string;
 }
 
 const MARKET_DATA_SETTINGS_KEY = "settings:market-data-providers:v1";
@@ -29,6 +30,7 @@ export async function mergeMarketDataProviderSettings(env: Env): Promise<Env> {
   assignIfMissing(runtimeEnv, "FINNHUB_API_KEY", settings.finnhubApiKey);
   assignIfMissing(runtimeEnv, "TWELVE_DATA_API_KEY", settings.twelveDataApiKey);
   assignIfMissing(runtimeEnv, "COINGECKO_API_KEY", settings.coingeckoApiKey);
+  assignIfMissing(runtimeEnv, "NEWSAPI_API_KEY", settings.newsApiKey);
 
   return runtimeEnv;
 }
@@ -40,6 +42,7 @@ function normalizeMarketDataProviderSettings(value: unknown): MarketDataProvider
     ...readOptionalSecret(value.finnhubApiKey, "finnhubApiKey"),
     ...readOptionalSecret(value.twelveDataApiKey, "twelveDataApiKey"),
     ...readOptionalSecret(value.coingeckoApiKey, "coingeckoApiKey"),
+    ...readOptionalSecret(value.newsApiKey, "newsApiKey"),
   };
 }
 
