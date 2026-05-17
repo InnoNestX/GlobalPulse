@@ -167,13 +167,13 @@ function renderMarkdownLikeBody(markdown: string): string {
     const ordered = /^(\d+)\.\s+(.+)$/.exec(line);
     if (ordered) {
       const items: { num: string; text: string }[] = [];
-      let currentNum = 1;
+      let num = 1;
       while (i < lines.length) {
         const current = (lines[i] ?? "").trim();
         const match = /^(\d+)\.\s+(.+)$/.exec(current);
         if (!match) break;
-        items.push({ num: String(currentNum), text: match[2] ?? "" });
-        currentNum += 1;
+        items.push({ num: String(num), text: match[2] ?? "" });
+        num += 1;
         i += 1;
       }
       blocks.push(`<ol style="margin:8px 0 10px 22px;padding:0;list-style:none;">${items.map((item) => `<li style="margin:6px 0;padding-left:0;"><span style="display:inline-block;width:18px;color:#94a3b8;text-align:right;margin-right:8px;vertical-align:top;">${item.num}.</span><span style="vertical-align:top;">${renderInline(item.text)}</span></li>`).join("")}</ol>`);
