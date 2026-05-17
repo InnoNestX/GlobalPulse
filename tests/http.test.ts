@@ -49,6 +49,31 @@ describe("handleRequest", () => {
     await expect(response.json()).resolves.toEqual({ ok: true });
   });
 
+  it("serves the original project logo as a png asset", async () => {
+    const response = await handleRequest(new Request("https://worker.example/assets/globalpulse-project-logo.png?v=test"), {});
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("image/png");
+    expect(response.headers.get("Cache-Control")).toContain("max-age=31536000");
+    expect(Array.from(new Uint8Array(await response.arrayBuffer()).slice(0, 8))).toEqual([
+      0x89,
+      0x50,
+      0x4e,
+      0x47,
+      0x0d,
+      0x0a,
+      0x1a,
+      0x0a,
+    ]);
+  });
+
+  it("keeps the legacy svg logo URL on the original png image", async () => {
+    const response = await handleRequest(new Request("https://worker.example/assets/globalpulse-project-logo.svg"), {});
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("image/png");
+  });
+
   it("rejects unauthenticated message requests", async () => {
     const response = await handleRequest(new Request("https://worker.example/v1/messages", {
       method: "POST",
