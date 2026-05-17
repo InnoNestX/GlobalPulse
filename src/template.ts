@@ -190,12 +190,12 @@ function renderDailyHotSectionItems(items: TopicItem[], schedule: PulseSchedule)
   }
   return items.map((item, index) => {
     const source = item.source ? ` — ${escapeMarkdown(item.source)}` : "";
-    const summary = item.summary ? ` ${escapeMarkdown(item.summary)}` : "";
-    const observation = inferDailyHotObservation(item, schedule);
-    const observationLine = observation ? ` ${observation}` : "";
     const url = normalizeHttpUrl(item.url);
     const link = url ? ` [🔗](${url})` : "";
-    return `${index + 1}. **${escapeMarkdown(item.title)}**${source}${summary}${observationLine}${link}`;
+    const summary = item.summary ? ` ${escapeMarkdown(item.summary)}` : "";
+    const observation = inferDailyHotObservation(item, schedule);
+    const observationLine = observation ? `\n   ${observation}` : "";
+    return `${index + 1}. **${escapeMarkdown(item.title)}**${source}${link}${summary}${observationLine}`;
   }).join("\n");
 }
 

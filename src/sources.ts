@@ -124,7 +124,12 @@ async function fetchChineseDomesticNewsItems(language: AppLanguage, limit = 10):
     score: (item.score ?? 0) + 1200,
   })).filter((item) => {
     const src = item.source ?? "";
-    return !/cctv|xinhuanet|央视|新华社/i.test(src);
+    if (/cctv|xinhuanet|央视|新华社/i.test(src)) return false;
+    if (/ifeng|caixin|mingpao|initium|tvbs/i.test(src)) {
+      const text = `${item.title}\n${item.summary ?? ""}`;
+      if (!/中国|国内|北京|上海|深圳|广州|杭州|成都|重庆|国家|国务院|央行|工信部|证监会|gov\.cn/i.test(text)) return false;
+    }
+    return true;
   }).slice(0, limit);
 }
 
@@ -366,7 +371,7 @@ function parseRssItems(xml: string): TopicItem[] {
     const item: TopicItem = { title: decodeXml(title), url: decodeXml(link) };
     const source = readTag(itemXml, "source");
     const publishedAt = readTag(itemXml, "pubDate");
-    if (source) item.source = decodeXml(source);
+    if (source) item.source = normalizeDisplaySource(decodeXml(source));
     if (publishedAt) item.publishedAt = decodeXml(publishedAt);
     items.push(item);
   }
@@ -396,6 +401,11 @@ function decodeXml(value: string): string {
     result += value[i]; i++;
   }
   return result;
+}
+
+function normalizeDisplaySource(source: string): string {
+  const cleaned = source.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/^h5\./, "");
+  return cleaned.split("/")[0]?.split(":")[0] ?? source;
 }
 
 function cleanText(value: string): string {
