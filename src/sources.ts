@@ -125,8 +125,10 @@ async function fetchChineseDomesticNewsItems(language: AppLanguage, limit = 10):
   })).filter((item) => {
     const src = item.source ?? "";
     if (/cctv|xinhuanet|央视|新华社/i.test(src)) return false;
+    const text = `${item.title}\n${item.summary ?? ""}`.toLowerCase();
     if (/ifeng|caixin|mingpao|initium|tvbs/i.test(src)) {
-      const text = `${item.title}\n${item.summary ?? ""}`;
+      if (!/中国|国内|北京|上海|深圳|广州|杭州|成都|重庆|国家|国务院|央行|工信部|证监会|gov\.cn/i.test(text)) return false;
+    } else {
       if (!/中国|国内|北京|上海|深圳|广州|杭州|成都|重庆|国家|国务院|央行|工信部|证监会|gov\.cn/i.test(text)) return false;
     }
     return true;
@@ -136,7 +138,8 @@ async function fetchChineseDomesticNewsItems(language: AppLanguage, limit = 10):
 async function fetchPlatformHotDiscussionItems(language: AppLanguage, limit = 8): Promise<TopicItem[]> {
   const queries = language === "zh"
     ? [
-        "微博热搜 OR 抖音热点 OR 百度热搜 OR 知乎热榜 OR 小红书热搜 OR 微博 知乎 百度",
+        "site:weibo.com OR site:douyin.com OR site:bilibili.com OR 微博热搜 OR 抖音热点 OR 百度热搜",
+        "知乎热榜 OR 小红书热搜 OR 微博 知乎 百度 热搜",
       ]
     : [
         "Weibo trending OR Douyin trending OR Baidu hot search OR Baidu hot topic",
@@ -144,7 +147,7 @@ async function fetchPlatformHotDiscussionItems(language: AppLanguage, limit = 8)
   const results = await Promise.allSettled(queries.map((q) => fetchGoogleNewsItems(q, language, limit * 2)));
   const allItems = results.flatMap((r) => r.status === "fulfilled" ? r.value : []);
   return allItems
-    .filter((item) => /微博|抖音|小红书|知乎|百度|热搜|破亿|千万|热议|热点话题/i.test(item.title))
+    .filter((item) => /微博|抖音|小红书|知乎|百度|热搜|破亿|千万|热议|热点话题|bilibili|weibo|douyin/i.test(item.title))
     .map((item) => ({
       ...item,
       source: item.source ?? "平台热搜",
