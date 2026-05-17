@@ -3,7 +3,7 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'GlobalPulse',
   description: 'Market Intelligence · Scheduled Finance & Global Hotspot Briefings',
-  cleanUrls: true,
+  cleanUrls: false,
   ignoreDeadLinks: true,
   head: [
     ['link', { rel: 'icon', href: '/logo.svg', type: 'image/svg+xml' }],
