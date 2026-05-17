@@ -1,428 +1,120 @@
 ---
 layout: home
 title: GlobalPulse
-
-hero:
-  name: GlobalPulse
-  text: 市场情报
-  tagline: 定时财经与全球热点简报
-  image:
-    src: /logo.svg
-    alt: GlobalPulse
-  actions:
-    - theme: brand
-      text: 快速开始 →
-      link: /GlobalPulse/zh/quick-start
-    - theme: alt
-      text: GitHub
-      link: https://github.com/InnoNestX/GlobalPulse
-
-features:
-  - icon: ⏰
-    title: 定时简报
-    details: 支持时区的 Cron 调度。每5分钟运行，按时送达。
-  - icon: 📊
-    title: 市场情报
-    details: 美股、A股、加密货币。实时数据来自 Yahoo Finance、Binance、CoinGecko 等。
-  - icon: 🤖
-    title: AI 驱动报告
-    details: LLM 生成的市场分析，带置信度评分和信号检测。
-  - icon: 📱
-    title: 多渠道推送
-    details: 飞书、微信、Telegram、Email。一个配置，全平台覆盖。
-  - icon: 🔒
-    title: 安全设计
-    details: 密码保护管理后台，KV 配置存储，API Token 认证。
-  - icon: ☁️
-    title: 边缘计算
-    details: 基于 Cloudflare Workers 构建。快速、弹性、全球分发。
 ---
 
-<div class="hero-bg">
-  <div class="gradientOrb orb1"></div>
-  <div class="gradientOrb orb2"></div>
-  <div class="gradientOrb orb3"></div>
-  <div class="grid-overlay"></div>
+<div class="gp-shell">
+  <header class="gp-grid gp-nav">
+    <a class="gp-cell gp-logo" href="/GlobalPulse/zh/">
+      <span class="gp-mark">GP</span>
+      <span>
+        <span class="gp-brand">GlobalPulse</span>
+        <span class="gp-subbrand">Market signal relay</span>
+      </span>
+    </a>
+    <a class="gp-cell" href="/GlobalPulse/zh/quick-start.html">文档<span class="gp-blink"></span></a>
+    <a class="gp-cell" href="/GlobalPulse/zh/api.html">API<span class="gp-blink"></span></a>
+    <a class="gp-cell" href="/GlobalPulse/en/">English<span class="gp-blink"></span></a>
+    <div class="gp-cell gp-nav-meta"><span>状态</span><span>Edge online</span></div>
+  </header>
+
+  <section class="gp-grid gp-hero" aria-label="GlobalPulse overview">
+    <div class="gp-cell gp-span-7 gp-hero-copy">
+      <p class="gp-kicker">Open Source / MIT License / Cloudflare Workers</p>
+      <h1 class="gp-headline">按时抵达的 <span>市场情报系统。</span></h1>
+      <p class="gp-copy">GlobalPulse 是一个自托管的财经与全球热点简报引擎。它汇聚市场数据、新闻、宏观背景和自定义订阅源，再把 AI 辅助生成的简洁报告推送到团队正在使用的渠道里。</p>
+      <div class="gp-actions">
+        <a class="gp-action gp-action-primary" href="/GlobalPulse/zh/quick-start.html">启动协议</a>
+        <a class="gp-action" href="/GlobalPulse/zh/config/admin.html">管理后台</a>
+        <a class="gp-action" href="https://github.com/InnoNestX/GlobalPulse">GitHub 源码</a>
+      </div>
+    </div>
+    <div class="gp-cell gp-span-5 gp-command-stack">
+      <div class="gp-command">
+        <div class="gp-command-head"><span>1. 克隆</span><span class="gp-copy-token">Copy</span></div>
+        <code class="gp-code">git clone https://github.com/InnoNestX/GlobalPulse.git</code>
+      </div>
+      <div class="gp-command">
+        <div class="gp-command-head"><span>2. 配置</span><span class="gp-copy-token">Copy</span></div>
+        <code class="gp-code">cp wrangler.example.jsonc wrangler.jsonc</code>
+      </div>
+      <div class="gp-command">
+        <div class="gp-command-head"><span>3. 部署</span><span class="gp-copy-token">Copy</span></div>
+        <code class="gp-code">npm run deploy</code>
+      </div>
+    </div>
+  </section>
+
+  <section class="gp-grid" aria-label="Signal map">
+    <div class="gp-cell gp-span-12">
+      <h2 class="gp-section-title"><span>实时信号拓扑</span><span>美股 / A股 / 加密 / 热点</span></h2>
+    </div>
+    <div class="gp-cell gp-span-5 gp-radar">
+      <div class="gp-radar-sweep"></div>
+      <div class="gp-node gp-node-a">Yahoo</div>
+      <div class="gp-node gp-node-b">Binance</div>
+      <div class="gp-node gp-node-c">News</div>
+      <div class="gp-node gp-node-d">LLM</div>
+    </div>
+    <div class="gp-cell gp-span-7 gp-terminal">
+      <div class="gp-terminal-bar">
+        <div class="gp-leds"><span></span><span></span><span></span></div>
+        <span class="gp-terminal-title">GlobalPulse relay</span>
+      </div>
+      <div class="gp-terminal-body">
+        <span class="gp-terminal-line">&gt; schedule window opened: Asia/Hong_Kong 09:00</span>
+        <span class="gp-terminal-line">&gt; loading watchlist: AAPL, NVDA, 300750.SZ, BTCUSDT</span>
+        <span class="gp-terminal-line">&gt; scoring catalysts: earnings, macro, sentiment, liquidity</span>
+        <span class="gp-terminal-line">&gt; generating bilingual market briefing with confidence notes</span>
+        <span class="gp-terminal-line">&gt; dispatching to Feishu, WeChat, Telegram, Email</span>
+        <span class="gp-terminal-line">&gt; archive complete: D1 evidence packet sealed <span class="gp-blink"></span></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="gp-grid" aria-label="Operational stats">
+    <div class="gp-cell gp-span-12">
+      <div class="gp-stat-grid">
+        <div class="gp-stat"><span class="gp-stat-label">调度间隔</span><span class="gp-stat-value">5 min</span></div>
+        <div class="gp-stat"><span class="gp-stat-label">任务上限</span><span class="gp-stat-value">20</span></div>
+        <div class="gp-stat"><span class="gp-stat-label">关注标的</span><span class="gp-stat-value">80</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="gp-grid" aria-label="Features">
+    <div class="gp-cell gp-span-12">
+      <h2 class="gp-section-title"><span>核心模块</span><span>Briefing engine v0.1</span></h2>
+    </div>
+    <div class="gp-cell gp-span-12">
+      <div class="gp-feature-grid">
+        <a class="gp-link-cell" href="/GlobalPulse/zh/config/schedules.html"><strong>定时简报</strong><span>基于 Cron 的边缘任务，按每个任务的时区准点执行。</span><em>打开</em></a>
+        <a class="gp-link-cell" href="/GlobalPulse/zh/features.html"><strong>市场研究</strong><span>美股、A股、加密货币和全球热点信息流汇入同一报告流程。</span><em>打开</em></a>
+        <a class="gp-link-cell" href="/GlobalPulse/zh/reference/variables.html"><strong>模板变量</strong><span>面向 Markdown、纯文本、JSON、邮件和聊天渠道的复用字段。</span><em>打开</em></a>
+        <a class="gp-link-cell" href="/GlobalPulse/zh/config/providers.html"><strong>推送渠道</strong><span>飞书、微信、Telegram 和 Email 在同一个管理后台完成配置。</span><em>打开</em></a>
+        <a class="gp-link-cell" href="/GlobalPulse/zh/config/admin.html"><strong>管理后台</strong><span>密码保护的界面，覆盖任务、渠道、预览和推送日志。</span><em>打开</em></a>
+        <a class="gp-link-cell" href="/GlobalPulse/zh/api.html"><strong>HTTP 控制面</strong><span>预览、发送、健康检查、管理与渠道接口，适合自动化接入。</span><em>打开</em></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="gp-grid" aria-label="Documentation paths">
+    <div class="gp-cell gp-span-12">
+      <h2 class="gp-section-title"><span>文档入口</span><span>选择你的起点</span></h2>
+    </div>
+    <div class="gp-cell gp-span-12">
+      <div class="gp-doc-grid">
+        <a class="gp-link-cell" href="/GlobalPulse/zh/quick-start.html"><strong>快速开始</strong><span>安装依赖、配置 Cloudflare，并在本地运行 Worker。</span><em>阅读</em></a>
+        <a class="gp-link-cell" href="/GlobalPulse/zh/deploy/cloudflare.html"><strong>Cloudflare 部署</strong><span>绑定 KV、D1、Cron Triggers、Workers AI 和生产密钥。</span><em>阅读</em></a>
+        <a class="gp-link-cell" href="/GlobalPulse/zh/deploy/env.html"><strong>环境变量</strong><span>必需变量、渠道凭证、管理密码和 API Token 的完整说明。</span><em>阅读</em></a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="gp-grid">
+    <div class="gp-cell gp-span-12 gp-footer">
+      <span>GlobalPulse docs / GitHub Pages</span>
+      <span>MIT License / 2026</span>
+    </div>
+  </footer>
 </div>
-
-<div class="scroll-indicator">
-  <div class="mouse">
-    <div class="wheel"></div>
-  </div>
-  <span>向下滚动探索</span>
-</div>
-
-<style>
-:root {
-  --vp-c-brand-1: #00d4ff;
-  --vp-c-brand-2: #0099cc;
-  --hero-gradient-start: rgba(0, 212, 255, 0.15);
-  --hero-gradient-mid: rgba(0, 180, 216, 0.08);
-}
-
-.hero-bg {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  overflow: hidden;
-  z-index: -1;
-  background: #0a0e14;
-}
-
-.gradientOrb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.6;
-  animation: float 20s ease-in-out infinite;
-}
-
-.orb1 {
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(0, 212, 255, 0.4) 0%, transparent 70%);
-  top: -200px;
-  left: -100px;
-  animation-delay: 0s;
-}
-
-.orb2 {
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(0, 153, 204, 0.3) 0%, transparent 70%);
-  top: 50%;
-  right: -150px;
-  animation-delay: -7s;
-  animation-duration: 25s;
-}
-
-.orb3 {
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, rgba(0, 212, 255, 0.25) 0%, transparent 70%);
-  bottom: -100px;
-  left: 30%;
-  animation-delay: -14s;
-  animation-duration: 22s;
-}
-
-@keyframes float {
-  0%, 100% {
-    transform: translate(0, 0) scale(1);
-  }
-  25% {
-    transform: translate(50px, -30px) scale(1.05);
-  }
-  50% {
-    transform: translate(-20px, 50px) scale(0.95);
-  }
-  75% {
-    transform: translate(-50px, -20px) scale(1.02);
-  }
-}
-
-.grid-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image: 
-    linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
-  background-size: 60px 60px;
-  animation: gridMove 30s linear infinite;
-}
-
-@keyframes gridMove {
-  0% {
-    transform: translateY(0);
-  }
-  100% {
-    transform: translateY(60px);
-  }
-}
-
-.scroll-indicator {
-  position: absolute;
-  bottom: 40px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  opacity: 0.6;
-  animation: fadeInUp 1s ease-out 1.5s both, pulse 2s ease-in-out infinite 2.5s;
-}
-
-.scroll-indicator .mouse {
-  width: 24px;
-  height: 40px;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  border-radius: 12px;
-  display: flex;
-  justify-content: center;
-  padding-top: 8px;
-}
-
-.scroll-indicator .wheel {
-  width: 4px;
-  height: 8px;
-  background: #00d4ff;
-  border-radius: 2px;
-  animation: scrollWheel 1.5s ease-in-out infinite;
-}
-
-@keyframes scrollWheel {
-  0% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-}
-
-.scroll-indicator span {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
-  letter-spacing: 2px;
-  text-transform: uppercase;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(20px);
-  }
-  to {
-    opacity: 0.6;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 0.6;
-  }
-  50% {
-    opacity: 0.3;
-  }
-}
-
-.VPHero {
-  padding-top: 100px !important;
-  position: relative;
-}
-
-.VPHero .container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 24px;
-}
-
-.VPHero .name {
-  font-size: 72px !important;
-  font-weight: 800 !important;
-  background: linear-gradient(135deg, #00d4ff 0%, #00ffaa 50%, #00d4ff 100%) !important;
-  background-size: 200% 200% !important;
-  -webkit-background-clip: text !important;
-  background-clip: text !important;
-  -webkit-text-fill-color: transparent !important;
-  animation: gradientShift 4s ease-in-out infinite !important;
-  text-shadow: 0 0 60px rgba(0, 212, 255, 0.5) !important;
-}
-
-@keyframes gradientShift {
-  0%, 100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-
-.VPHero .tagline {
-  font-size: 20px !important;
-  color: rgba(255, 255, 255, 0.7) !important;
-  margin-top: 16px !important;
-  letter-spacing: 2px !important;
-}
-
-.VPButton {
-  padding: 12px 28px !important;
-  border-radius: 8px !important;
-  font-weight: 600 !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  position: relative !important;
-  overflow: hidden !important;
-}
-
-.VPButton::before {
-  content: '' !important;
-  position: absolute !important;
-  top: 0 !important;
-  left: -100% !important;
-  width: 100% !important;
-  height: 100% !important;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent) !important;
-  transition: left 0.5s !important;
-}
-
-.VPButton:hover::before {
-  left: 100% !important;
-}
-
-.VPButton.brand {
-  background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%) !important;
-  border: none !important;
-  box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3) !important;
-}
-
-.VPButton.brand:hover {
-  transform: translateY(-3px) scale(1.02) !important;
-  box-shadow: 0 12px 40px rgba(0, 212, 255, 0.5) !important;
-}
-
-.VPButton.alt {
-  background: rgba(255, 255, 255, 0.05) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  color: #fff !important;
-}
-
-.VPButton.alt:hover {
-  background: rgba(255, 255, 255, 0.1) !important;
-  border-color: rgba(0, 212, 255, 0.5) !important;
-  transform: translateY(-3px) !important;
-}
-
-.VPFeatures {
-  padding: 100px 24px !important;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.VPFeature {
-  background: rgba(255, 255, 255, 0.02) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-radius: 16px !important;
-  padding: 28px !important;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  position: relative !important;
-  overflow: hidden !important;
-}
-
-.VPFeature::before {
-  content: '' !important;
-  position: absolute !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  height: 1px !important;
-  background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.5), transparent) !important;
-  opacity: 0 !important;
-  transition: opacity 0.3s !important;
-}
-
-.VPFeature:hover::before {
-  opacity: 1 !important;
-}
-
-.VPFeature:hover {
-  background: rgba(0, 212, 255, 0.05) !important;
-  border-color: rgba(0, 212, 255, 0.3) !important;
-  transform: translateY(-8px) scale(1.02) !important;
-  box-shadow: 0 20px 60px rgba(0, 212, 255, 0.15) !important;
-}
-
-.VPFeature .icon {
-  font-size: 48px !important;
-  margin-bottom: 16px !important;
-  display: block !important;
-  animation: bounceIn 0.6s ease-out !important;
-}
-
-.VPFeature .title {
-  font-size: 20px !important;
-  font-weight: 700 !important;
-  color: #fff !important;
-  margin-bottom: 8px !important;
-}
-
-.VPFeature .details {
-  font-size: 15px !important;
-  color: rgba(255, 255, 255, 0.6) !important;
-  line-height: 1.6 !important;
-}
-
-@keyframes bounceIn {
-  0% {
-    opacity: 0;
-    transform: scale(0.5);
-  }
-  60% {
-    transform: scale(1.1);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.VPFooter {
-  background: rgba(0, 0, 0, 0.3) !important;
-  backdrop-filter: blur(10px) !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
-}
-
-.VPFooter .message,
-.VPFooter .copyright {
-  color: rgba(255, 255, 255, 0.5) !important;
-  font-size: 14px !important;
-}
-
-.VPNav {
-  background: rgba(10, 14, 20, 0.8) !important;
-  backdrop-filter: blur(20px) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
-}
-
-.VPNavBarTitle .title {
-  font-weight: 700 !important;
-  color: #fff !important;
-}
-
-.VPNavBarMenuLink {
-  color: rgba(255, 255, 255, 0.7) !important;
-  transition: color 0.3s !important;
-}
-
-.VPNavBarMenuLink:hover {
-  color: #00d4ff !important;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .VPHero .name {
-    font-size: 48px !important;
-  }
-  
-  .scroll-indicator {
-    display: none !important;
-  }
-  
-  .orb1 {
-    width: 300px;
-    height: 300px;
-  }
-  
-  .orb2, .orb3 {
-    width: 200px;
-    height: 200px;
-  }
-}
-</style>

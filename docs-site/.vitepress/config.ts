@@ -1,95 +1,105 @@
 import { defineConfig } from 'vitepress'
 
+const base = '/GlobalPulse/'
+
 export default defineConfig({
   title: 'GlobalPulse',
   description: 'Market Intelligence · Scheduled Finance & Global Hotspot Briefings',
-  base: '/GlobalPulse/',
+  base,
+  srcDir: 'docs',
+  outDir: '_site',
+  cacheDir: '.vitepress/cache',
   cleanUrls: false,
   ignoreDeadLinks: true,
   head: [
-    ['link', { rel: 'icon', href: '/logo.svg', type: 'image/svg+xml' }],
-    ['meta', { name: 'theme-color', content: '#00d4ff' }],
+    ['link', { rel: 'icon', href: `${base}logo.svg`, type: 'image/svg+xml' }],
+    ['meta', { name: 'theme-color', content: '#061310' }],
     ['meta', { name: 'og:type', content: 'website' }],
+    ['meta', { name: 'og:title', content: 'GlobalPulse Documentation' }],
+    ['meta', { name: 'og:description', content: 'Sci-fi documentation for scheduled market intelligence on Cloudflare Workers.' }],
   ],
   themeConfig: {
-    logo: '/logo.svg',
+    logo: {
+      src: '/logo.svg',
+      alt: 'GlobalPulse'
+    },
     siteTitle: 'GlobalPulse',
     nav: [
-      { text: 'Docs', link: '/GlobalPulse/en/' },
-      { text: 'API', link: '/GlobalPulse/en/api' },
+      { text: 'Docs', link: '/en/' },
+      { text: 'API', link: '/en/api' },
       { text: 'GitHub', link: 'https://github.com/InnoNestX/GlobalPulse' },
     ],
     sidebar: {
-      '/GlobalPulse/en/': [
+      '/en/': [
         {
           text: 'Introduction',
           items: [
-            { text: 'What is GlobalPulse', link: '/GlobalPulse/en/' },
-            { text: 'Quick Start', link: '/GlobalPulse/en/quick-start' },
-            { text: 'Features', link: '/GlobalPulse/en/features' },
+            { text: 'What is GlobalPulse', link: '/en/' },
+            { text: 'Quick Start', link: '/en/quick-start' },
+            { text: 'Features', link: '/en/features' },
           ]
         },
         {
           text: 'Deployment',
           items: [
-            { text: 'Cloudflare Setup', link: '/GlobalPulse/en/deploy/cloudflare' },
-            { text: 'Environment Variables', link: '/GlobalPulse/en/deploy/env' },
+            { text: 'Cloudflare Setup', link: '/en/deploy/cloudflare' },
+            { text: 'Environment Variables', link: '/en/deploy/env' },
           ]
         },
         {
           text: 'Configuration',
           items: [
-            { text: 'Admin UI', link: '/GlobalPulse/en/config/admin' },
-            { text: 'Schedules', link: '/GlobalPulse/en/config/schedules' },
-            { text: 'Providers', link: '/GlobalPulse/en/config/providers' },
-            { text: 'Templates', link: '/GlobalPulse/en/config/templates' },
+            { text: 'Admin UI', link: '/en/config/admin' },
+            { text: 'Schedules', link: '/en/config/schedules' },
+            { text: 'Providers', link: '/en/config/providers' },
+            { text: 'Templates', link: '/en/config/templates' },
           ]
         },
         {
           text: 'Reference',
           items: [
-            { text: 'API Endpoints', link: '/GlobalPulse/en/api' },
-            { text: 'Template Variables', link: '/GlobalPulse/en/reference/variables' },
+            { text: 'API Endpoints', link: '/en/api' },
+            { text: 'Template Variables', link: '/en/reference/variables' },
           ]
         }
       ],
-      '/GlobalPulse/zh/': [
+      '/zh/': [
         {
           text: '简介',
           items: [
-            { text: '什么是 GlobalPulse', link: '/GlobalPulse/zh/' },
-            { text: '快速开始', link: '/GlobalPulse/zh/quick-start' },
-            { text: '功能特性', link: '/GlobalPulse/zh/features' },
+            { text: '什么是 GlobalPulse', link: '/zh/' },
+            { text: '快速开始', link: '/zh/quick-start' },
+            { text: '功能特性', link: '/zh/features' },
           ]
         },
         {
           text: '部署',
           items: [
-            { text: 'Cloudflare 部署', link: '/GlobalPulse/zh/deploy/cloudflare' },
-            { text: '环境变量', link: '/GlobalPulse/zh/deploy/env' },
+            { text: 'Cloudflare 部署', link: '/zh/deploy/cloudflare' },
+            { text: '环境变量', link: '/zh/deploy/env' },
           ]
         },
         {
           text: '配置',
           items: [
-            { text: '管理后台', link: '/GlobalPulse/zh/config/admin' },
-            { text: '定时任务', link: '/GlobalPulse/zh/config/schedules' },
-            { text: '推送渠道', link: '/GlobalPulse/zh/config/providers' },
-            { text: '消息模板', link: '/GlobalPulse/zh/config/templates' },
+            { text: '管理后台', link: '/zh/config/admin' },
+            { text: '定时任务', link: '/zh/config/schedules' },
+            { text: '推送渠道', link: '/zh/config/providers' },
+            { text: '消息模板', link: '/zh/config/templates' },
           ]
         },
         {
           text: '参考',
           items: [
-            { text: 'API 接口', link: '/GlobalPulse/zh/api' },
-            { text: '模板变量', link: '/GlobalPulse/zh/reference/variables' },
+            { text: 'API 接口', link: '/zh/api' },
+            { text: '模板变量', link: '/zh/reference/variables' },
           ]
         }
       ]
     },
     footer: {
-      message: 'Open Source · MIT License',
-      copyright: '© 2026 InnoNestX · Made with ❤️ for the community'
+      message: 'Open Source / MIT License',
+      copyright: 'Copyright (c) 2026 InnoNestX'
     },
     editLink: {
       pattern: 'https://github.com/InnoNestX/GlobalPulse/edit/main/docs-site/docs/:path',
@@ -107,12 +117,12 @@ export default defineConfig({
     en: {
       label: 'English',
       lang: 'en-US',
-      link: '/GlobalPulse/en/',
+      link: '/en/',
     },
     zh: {
       label: '中文',
       lang: 'zh-CN',
-      link: '/GlobalPulse/zh/',
+      link: '/zh/',
     }
   },
   markdown: {
