@@ -3,8 +3,6 @@ name: Deploy Documentation
 on:
   push:
     branches: [main]
-    paths:
-      - 'docs-site/**'
   workflow_dispatch:
 
 permissions:
@@ -17,70 +15,45 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-deploy:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: docs-site
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run docs:build
-
-      - name: Flatten docs structure
+      - name: Install and Build
         run: |
-          rm -rf _site
+          cd docs-site
+          npm ci
+          npm run docs:build
           mkdir -p _site
           cp -r .vitepress/dist/docs/* _site/
-          cp .vitepress/dist/assets _site/ -r
+          cp -r .vitepress/dist/assets _site/
           cp .vitepress/dist/*.css _site/ 2>/dev/null || true
           cp .vitepress/dist/*.json _site/ 2>/dev/null || true
           cp .vitepress/dist/logo.svg _site/ 2>/dev/null || true
-          cat > _site/index.html << 'EOF'
+          cat > _site/index.html << 'HTMLEOF'
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="refresh" content="0;url=/en/">
   <title>GlobalPulse Documentation</title>
-  <script>
-    var lang = navigator.language.toLowerCase();
-    if (lang.startsWith('zh')) {
-      window.location.href = '/zh/';
-    } else {
-      window.location.href = '/en/';
-    }
-  </script>
 </head>
 <body>
   <p>Redirecting to documentation...</p>
   <p><a href="/en/">English</a> | <a href="/zh/">中文</a></p>
 </body>
 </html>
-EOF
+HTMLEOF
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs-site/_site
 
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
+      - name: Deploy
         uses: actions/deploy-pages@v4
