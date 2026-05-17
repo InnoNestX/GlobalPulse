@@ -15,7 +15,7 @@ export function renderDigest(schedule: PulseSchedule, context: DigestContext): {
   title: string;
   body: string;
 } {
-  const displayItems = context.items.slice(0, schedule.reportType === "daily_hot" ? 10 : 6);
+  const displayItems = context.items.slice(0, schedule.reportType === "daily_hot" ? 12 : 6);
   const title = schedule.language === "zh"
     ? `GlobalPulse：${schedule.name}`
     : `GlobalPulse: ${schedule.name}`;

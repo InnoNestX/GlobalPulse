@@ -171,7 +171,7 @@ function selectDailyHotItems(items: TopicItem[], now: Date): TopicItem[] {
     return { item, index, score, publishedAtMs: Number.isFinite(publishedAtMs) ? publishedAtMs : 0 };
   });
 
-  const urlSet = new Set<string>();
+  const usedKeys = new Set<string>();
   const result: TopicItem[] = [];
 
   const bySection = { global: [] as typeof scored, domestic: [] as typeof scored, platform: [] as typeof scored };
@@ -182,14 +182,30 @@ function selectDailyHotItems(items: TopicItem[], now: Date): TopicItem[] {
     else bySection.global.push(entry);
   }
 
+  const sortEntries = (candidates: typeof scored): typeof scored =>
+    [...candidates].sort((a, b) => b.score - a.score || b.publishedAtMs - a.publishedAtMs || a.index - b.index);
+  const itemKeys = (item: TopicItem): string[] => {
+    const keys = [normalizeUrlKey(item.url)];
+    const titleKey = normalizeTitleKey(item.title);
+    if (titleKey) keys.push(`title:${titleKey}`);
+    return keys;
+  };
+  const hasUsedItem = (item: TopicItem): boolean => itemKeys(item).some((key) => usedKeys.has(key));
+  const markItem = (item: TopicItem): void => {
+    for (const key of itemKeys(item)) usedKeys.add(key);
+  };
+
+  const topPlatformItem = sortEntries(bySection.platform)[0]?.item;
+  if (topPlatformItem) {
+    markItem(topPlatformItem);
+  }
+
   const pickFrom = (candidates: typeof scored, max: number): TopicItem[] => {
     const selected: TopicItem[] = [];
-    const sorted = [...candidates].sort((a, b) => b.score - a.score || b.publishedAtMs - a.publishedAtMs || a.index - b.index);
-    for (const entry of sorted) {
+    for (const entry of sortEntries(candidates)) {
       if (selected.length >= max) break;
-      const key = normalizeUrlKey(entry.item.url);
-      if (urlSet.has(key)) continue;
-      urlSet.add(key);
+      if (hasUsedItem(entry.item)) continue;
+      markItem(entry.item);
       selected.push(entry.item);
     }
     return selected;
@@ -198,16 +214,8 @@ function selectDailyHotItems(items: TopicItem[], now: Date): TopicItem[] {
   result.push(...pickFrom(bySection.global, 4));
   result.push(...pickFrom(bySection.domestic, 4));
   result.push(...pickFrom(bySection.platform, 3));
-  if (bySection.platform.length > 3) {
-    const platformSorted = [...bySection.platform].sort((a, b) => b.score - a.score || b.publishedAtMs - a.publishedAtMs || a.index - b.index);
-    for (const entry of platformSorted) {
-      if (result.length >= 12) break;
-      const key = normalizeUrlKey(entry.item.url);
-      if (urlSet.has(key)) continue;
-      urlSet.add(key);
-      result.push(entry.item);
-      break;
-    }
+  if (topPlatformItem) {
+    result.push(topPlatformItem);
   }
 
   return result.length > 0 ? result : items.slice(0, 12);
@@ -227,6 +235,10 @@ function normalizeUrlKey(url: string): string {
   } catch {
     return url.toLowerCase();
   }
+}
+
+function normalizeTitleKey(title: string): string {
+  return title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
 function selectRelevantItems(schedule: PulseSchedule, items: TopicItem[], now: Date): TopicItem[] {
@@ -437,13 +449,33 @@ function getSampleItems(language: PulseSchedule["language"], reportType: PulseSc
   if (reportType === "daily_hot") {
     if (language === "en") {
       return [
-        { title: "Global policy debate focuses on inflation, tariffs, and supply-chain resilience", url: "https://example.com/global-policy-brief", source: "GlobalPulse Sample", category: "policy", summary: "Governments are balancing price stability, industrial policy, and cross-border trade tensions." },
-        { title: "Geopolitical risk keeps energy and shipping routes in focus", url: "https://example.com/geopolitics-energy", source: "GlobalPulse Sample", category: "geopolitics", summary: "Security headlines continue to affect energy prices, logistics expectations, and international relations." },
+        { title: "Global policy debate focuses on inflation, tariffs, and supply-chain resilience", url: "https://example.com/global-policy-brief", source: "GlobalPulse Sample", category: "policy", section: "global", score: 930, summary: "Governments are balancing price stability, industrial policy, and cross-border trade tensions." },
+        { title: "Geopolitical risk keeps energy and shipping routes in focus", url: "https://example.com/geopolitics-energy", source: "GlobalPulse Sample", category: "geopolitics", section: "global", score: 920, summary: "Security headlines continue to affect energy prices, logistics expectations, and international relations." },
+        { title: "International agencies track a major public-health and climate response agenda", url: "https://example.com/global-public-event", source: "GlobalPulse Sample", category: "global-news", section: "global", score: 890, summary: "Large public events are shaping coordination on health systems, climate adaptation, and emergency preparedness." },
+        { title: "AI, energy, and chip supply chains remain central to global industry competition", url: "https://example.com/global-industry-supply-chain", source: "GlobalPulse Sample", category: "industry", section: "global", score: 870, summary: "Technology investment and energy security continue to influence corporate and policy priorities." },
+        { title: "National policy agenda emphasizes employment, consumption, and industrial upgrading", url: "https://example.com/china-policy-agenda", source: "GlobalPulse Sample", category: "policy", section: "domestic", score: 940, summary: "Policy signals point to stronger support for jobs, household demand, and strategic manufacturing." },
+        { title: "Livelihood measures focus on housing, healthcare access, and education services", url: "https://example.com/china-livelihood-measures", source: "GlobalPulse Sample", category: "domestic-news", section: "domestic", score: 910, summary: "Local governments are adjusting public services and affordability programs." },
+        { title: "Domestic finance headlines watch liquidity, credit demand, and capital-market reform", url: "https://example.com/china-finance-liquidity", source: "GlobalPulse Sample", category: "macro", section: "domestic", score: 900, summary: "Markets are monitoring central-bank operations, credit growth, and investor confidence." },
+        { title: "Social news highlights public safety, consumer rights, and local governance", url: "https://example.com/china-social-news", source: "GlobalPulse Sample", category: "domestic-news", section: "domestic", score: 880, summary: "Public discussion is centered on services, regulation, and day-to-day community concerns." },
+        { title: "Weibo hot search: public discussion grows around a livelihood policy update", url: "https://example.com/weibo-livelihood-policy", source: "Weibo Hot Search Sample", category: "platform-hot", section: "platform", score: 1680, summary: "A social and livelihood topic is drawing rapid cross-platform attention." },
+        { title: "Douyin hot list: technology product launch becomes a mainstream discussion topic", url: "https://example.com/douyin-tech-launch", source: "Douyin Hot List Sample", category: "platform-hot", section: "platform", score: 1620, summary: "Technology and consumer interest are pushing the topic across short-video feeds." },
+        { title: "Weibo trending: finance and employment expectations enter the hot-search list", url: "https://example.com/weibo-finance-jobs", source: "Weibo Hot Search Sample", category: "platform-hot", section: "platform", score: 1580, summary: "The discussion links household income expectations with market sentiment." },
+        { title: "Whole-network #1: a public-safety incident becomes the day's most discussed topic", url: "https://example.com/top-network-public-safety", source: "Whole-network Heat Sample", category: "platform-hot", section: "platform", score: 2400, summary: "The topic ranks first by discussion heat and should be tracked separately from the selected hot-search list." },
       ];
     }
     return [
-      { title: "全球政策讨论聚焦通胀、关税与供应链韧性", url: "https://example.com/global-policy-brief", source: "GlobalPulse Sample", category: "policy", summary: "主要经济体在物价稳定、产业政策和跨境贸易摩擦之间寻找平衡。" },
-      { title: "地缘风险使能源价格与航运通道持续受到关注", url: "https://example.com/geopolitics-energy", source: "GlobalPulse Sample", category: "geopolitics", summary: "安全事件继续影响能源价格、物流预期和国际关系走向。" },
+      { title: "全球政策讨论聚焦通胀、关税与供应链韧性", url: "https://example.com/global-policy-brief", source: "GlobalPulse Sample", category: "policy", section: "global", score: 930, summary: "主要经济体在物价稳定、产业政策和跨境贸易摩擦之间寻找平衡。" },
+      { title: "地缘风险使能源价格与航运通道持续受到关注", url: "https://example.com/geopolitics-energy", source: "GlobalPulse Sample", category: "geopolitics", section: "global", score: 920, summary: "安全事件继续影响能源价格、物流预期和国际关系走向。" },
+      { title: "国际公共事件聚焦公共卫生、气候与应急协作", url: "https://example.com/global-public-event", source: "GlobalPulse Sample", category: "global-news", section: "global", score: 890, summary: "跨国机构继续围绕公共卫生、气候适应和突发事件响应进行协调。" },
+      { title: "AI、能源与芯片供应链成为全球产业竞争重点", url: "https://example.com/global-industry-supply-chain", source: "GlobalPulse Sample", category: "industry", section: "global", score: 870, summary: "技术投资、能源安全和供应链布局持续影响企业与政策选择。" },
+      { title: "全国政策议程强调就业、消费与产业升级", url: "https://example.com/china-policy-agenda", source: "GlobalPulse Sample", category: "policy", section: "domestic", score: 940, summary: "政策信号继续指向稳就业、扩内需和战略性制造业支持。" },
+      { title: "民生措施聚焦住房、医疗可及性与教育服务", url: "https://example.com/china-livelihood-measures", source: "GlobalPulse Sample", category: "domestic-news", section: "domestic", score: 910, summary: "多地围绕公共服务和生活成本推出调整安排。" },
+      { title: "国内财经关注流动性、信贷需求与资本市场改革", url: "https://example.com/china-finance-liquidity", source: "GlobalPulse Sample", category: "macro", section: "domestic", score: 900, summary: "市场继续跟踪央行操作、信用扩张和投资者信心变化。" },
+      { title: "社会要闻围绕公共安全、消费权益与基层治理展开", url: "https://example.com/china-social-news", source: "GlobalPulse Sample", category: "domestic-news", section: "domestic", score: 880, summary: "公众讨论集中在日常服务、监管执行和社区治理问题。" },
+      { title: "微博热搜：民生政策调整引发集中讨论", url: "https://example.com/weibo-livelihood-policy", source: "微博热搜示例", category: "platform-hot", section: "platform", score: 1680, summary: "社会与民生议题在多个平台快速升温。" },
+      { title: "抖音热榜：科技新品发布进入大众讨论", url: "https://example.com/douyin-tech-launch", source: "抖音热榜示例", category: "platform-hot", section: "platform", score: 1620, summary: "科技与消费兴趣推动短视频平台传播。" },
+      { title: "微博热议：财经与就业预期进入热搜", url: "https://example.com/weibo-finance-jobs", source: "微博热搜示例", category: "platform-hot", section: "platform", score: 1580, summary: "讨论把收入预期、就业感受和市场情绪联系在一起。" },
+      { title: "全网热度第一：公共安全事件成为当日讨论量最高话题", url: "https://example.com/top-network-public-safety", source: "全网热度示例", category: "platform-hot", section: "platform", score: 2400, summary: "该话题按讨论热度排名第一，应与热搜精选分开展示并持续跟踪。" },
     ];
   }
 
