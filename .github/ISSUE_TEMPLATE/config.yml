@@ -1,5 +1,11 @@
 blank_issues_enabled: false
 contact_links:
-  - name: InnoNestX organization
+  - name: GlobalPulse Documentation
+    url: https://github.com/InnoNestX/GlobalPulse/tree/main/docs
+    about: Read the docs for setup and configuration guides.
+  - name: Discussions
+    url: https://github.com/InnoNestX/GlobalPulse/discussions
+    about: Ask questions and share ideas with the community.
+  - name: InnoNestX Organization
     url: https://github.com/InnoNestX
     about: Explore other InnoNestX projects.
