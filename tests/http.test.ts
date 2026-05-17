@@ -534,6 +534,64 @@ describe("handleRequest", () => {
     expect(telegramPreview?.content).toContain("🔗");
   });
 
+  it("renders daily hot preview as 4 international, 4 domestic, 3 hot-search, and 1 top topic", async () => {
+    const appEnv: Env = {
+      ...env,
+      ADMIN_PASSWORD: "admin-pass",
+      APP_KV: createMemoryKV(),
+    };
+    const fetchMock = vi.fn(async () => new Response("unavailable", { status: 503 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await handleRequest(new Request("https://worker.example/api/admin/preview", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer admin-pass",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        schedule: {
+          id: "daily-hot-preview",
+          name: "每日热点",
+          enabled: true,
+          time: "09:00",
+          days: [0, 1, 2, 3, 4, 5, 6],
+          timezone: "Asia/Hong_Kong",
+          language: "zh",
+          outputFormat: "markdown",
+          reportType: "daily_hot",
+          targets: ["feishu"],
+          marketCalendar: "everyday",
+          tradingDaySource: "weekday",
+          marketHolidayDates: [],
+          topicQuery: "全球热点 国际新闻 国内新闻 微博热搜 抖音热榜",
+          template: "# Demo\n\n{{itemsMarkdown}}",
+        },
+      }),
+    }), appEnv);
+
+    expect(response.status).toBe(200);
+    const body = await response.json() as {
+      preview: {
+        body: string;
+        sourceStatus: string;
+      };
+    };
+    const previewBody = body.preview.body;
+    const countItems = (section: string): number => section.match(/^\d+\. \*\*/gm)?.length ?? 0;
+    const between = (start: string, end: string): string => previewBody.split(start)[1]?.split(end)[0] ?? "";
+
+    expect(body.preview.sourceStatus).toBe("fallback");
+    expect(countItems(between("## 🌍 国际要闻", "## 🇨🇳 国内热点"))).toBe(4);
+    expect(countItems(between("## 🇨🇳 国内热点", "## 🔥 全网热搜精选"))).toBe(4);
+    const hotSearchSection = between("## 🔥 全网热搜精选", "## 📌 全网热度最高话题");
+    const topTopicSection = between("## 📌 全网热度最高话题", "## 🧭 后续观察方向");
+    expect(countItems(hotSearchSection)).toBe(3);
+    expect(countItems(topTopicSection)).toBe(1);
+    expect(hotSearchSection).not.toContain("全网热度第一");
+    expect(topTopicSection).toContain("全网热度第一");
+  });
+
   it("runs admin test send without KV when schedule payload is provided", async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
