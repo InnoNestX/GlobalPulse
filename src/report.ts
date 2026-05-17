@@ -70,8 +70,10 @@ async function fetchItemsWithFallback(env: Env, schedule: PulseSchedule): Promis
   items: TopicItem[];
 }> {
   const effectiveQuery = buildEffectiveQuery(schedule);
+  const isDailyHot = schedule.reportType === "daily_hot";
+  const newsApiEnabled = Boolean(env.NEWSAPI_API_KEY);
   try {
-    const topicData = await fetchTopicItems(effectiveQuery, schedule.language, schedule.sourceUrl, {
+    const topicData = await fetchTopicItems(effectiveQuery, schedule.language, isDailyHot ? undefined : schedule.sourceUrl, {
       mode: schedule.reportType,
       newsApiKey: env.NEWSAPI_API_KEY,
     });
@@ -80,15 +82,22 @@ async function fetchItemsWithFallback(env: Env, schedule: PulseSchedule): Promis
       throw new Error("all live sources returned empty items");
     }
 
+    const dailyHotSourceHint = isDailyHot
+      ? newsApiEnabled
+        ? `每日热点已启用 NewsAPI；实际来源：${topicData.sourceUrl}`
+        : `每日热点未配置 NewsAPI，使用 Google News 兜底；实际来源：${topicData.sourceUrl}`
+      : topicData.sourceUrl;
+
     return {
       status: "live",
-      message: schedule.language === "zh" ? "实时抓取成功" : "Live fetch succeeded",
+      message: schedule.language === "zh" ? `实时抓取成功。${dailyHotSourceHint}` : `Live fetch succeeded. ${dailyHotSourceHint}`,
       sourceUrl: topicData.sourceUrl,
       items: topicData.items,
     };
   } catch (error) {
-    const fallbackSource = schedule.sourceUrl
-      || (schedule.reportType === "daily_hot" ? "NewsAPI, Google News" : "Google News, Sina Finance, Hacker News, GitHub Search, alternative.me");
+    const fallbackSource = isDailyHot
+      ? newsApiEnabled ? "NewsAPI(configured), Google News fallback" : "Google News fallback"
+      : schedule.sourceUrl || "Google News, Sina Finance, Hacker News, GitHub Search, alternative.me";
     const fallbackItems = getSampleItems(schedule.language, schedule.reportType);
 
     return {
@@ -136,14 +145,14 @@ function selectDailyHotItems(items: TopicItem[], now: Date): TopicItem[] {
   const filtered = items.filter((item) => !isDeveloperOnlyItem(item) && !isSingleCompanyFinanceItem(item));
   const scored = filtered.map((item, index) => {
     const text = `${item.title}\n${item.summary ?? ""}`.toLowerCase();
-    let score = 0;
+    let score = item.score ?? 0;
     if (/war|military|nato|russia|ukraine|israel|gaza|geopolitic|国防|军事|战争|俄乌|中东|地缘/.test(text)) score += 12;
     if (/policy|government|regulation|tariff|election|央行|政策|监管|关税|选举|财政/.test(text)) score += 11;
     if (/inflation|rate|fed|central bank|cpi|gdp|通胀|利率|美联储|宏观|经济/.test(text)) score += 10;
     if (/industry|supply chain|ai|energy|chip|产业|供应链|能源|芯片|科技/.test(text)) score += 8;
     if (item.category === "geopolitics" || item.category === "policy" || item.category === "macro") score += 8;
     if (item.category === "industry" || item.category === "global-news") score += 4;
-    if (item.source && /reuters|ap news|bbc|bloomberg|financial times|associated press|路透|新华社|央视|联合早报/i.test(item.source)) score += 4;
+    if (item.source && /newsapi|reuters|ap news|bbc|bloomberg|financial times|associated press|路透|新华社|央视|联合早报/i.test(item.source)) score += 4;
     const publishedAtMs = item.publishedAt ? Date.parse(item.publishedAt) : NaN;
     if (Number.isFinite(publishedAtMs)) {
       const ageHours = (nowMs - publishedAtMs) / (1000 * 60 * 60);
