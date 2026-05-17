@@ -42,16 +42,16 @@ export async function fetchTopicItems(
 }
 
 async function fetchDailyHotTopicItems(query: string, language: AppLanguage, newsApiKey?: string): Promise<{ sourceUrl: string; items: TopicItem[] }> {
-  const [newsApiResult, googleResult, domesticResult, platformResult] = await Promise.allSettled([
-    newsApiKey ? fetchNewsApiDailyHotItems(query, language, newsApiKey) : Promise.resolve([]),
+  const [googleResult, domesticResult, platformResult, newsApiResult] = await Promise.allSettled([
     fetchGoogleNewsItems(query, language, 10),
     fetchChineseDomesticNewsItems(language, 10),
     fetchPlatformHotDiscussionItems(language, 8),
+    newsApiKey ? fetchNewsApiDailyHotItems(query, language, newsApiKey) : Promise.resolve([]),
   ]);
-  const newsApiItems = newsApiResult.status === "fulfilled" ? newsApiResult.value : [];
   const googleItems = googleResult.status === "fulfilled" ? googleResult.value : [];
   const domesticItems = domesticResult.status === "fulfilled" ? domesticResult.value : [];
   const platformItems = platformResult.status === "fulfilled" ? platformResult.value : [];
+  const newsApiItems = newsApiResult.status === "fulfilled" ? newsApiResult.value : [];
   const items = dedupeTopicItems([...platformItems, ...domesticItems, ...newsApiItems, ...googleItems]);
   const sourceUrl = [
     newsApiKey ? (newsApiItems.length ? `NewsAPI已启用(${newsApiItems.length}条)` : "NewsAPI已配置但本次无结果") : "NewsAPI未配置",
