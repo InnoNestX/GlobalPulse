@@ -209,6 +209,7 @@ async function saveMarketDataSettingsFromAdminPayload(env: Env, body: unknown): 
   const existing = await getMarketDataProviderSettings(env);
   await saveMarketDataProviderSettings(env, {
     ...existing,
+    newsApiKey: readOptionalAdminSetting(body.providerSettings.newsApiKey, existing.newsApiKey),
     alphaVantageApiKey: readOptionalAdminSetting(body.providerSettings.alphaVantageApiKey, existing.alphaVantageApiKey),
     finnhubApiKey: readOptionalAdminSetting(body.providerSettings.finnhubApiKey, existing.finnhubApiKey),
     twelveDataApiKey: readOptionalAdminSetting(body.providerSettings.twelveDataApiKey, existing.twelveDataApiKey),
