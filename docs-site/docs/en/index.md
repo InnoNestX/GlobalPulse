@@ -1,428 +1,120 @@
 ---
 layout: home
 title: GlobalPulse
-
-hero:
-  name: GlobalPulse
-  text: Market Intelligence
-  tagline: Scheduled Finance & Global Hotspot Briefings
-  image:
-    src: /logo.svg
-    alt: GlobalPulse
-  actions:
-    - theme: brand
-      text: Get Started →
-      link: /GlobalPulse/en/quick-start
-    - theme: alt
-      text: View on GitHub
-      link: https://github.com/InnoNestX/GlobalPulse
-
-features:
-  - icon: ⏰
-    title: Scheduled Briefings
-    details: Cron-based scheduling with timezone support. Runs every 5 minutes, delivers when you need it.
-  - icon: 📊
-    title: Market Intelligence
-    details: US stocks, A-shares, crypto. Real-time data from Yahoo Finance, Binance, CoinGecko, and more.
-  - icon: 🤖
-    title: AI-Powered Reports
-    details: LLM-generated market analysis with confidence scoring and signal detection.
-  - icon: 📱
-    title: Multi-Provider Push
-    details: Feishu, WeChat, Telegram, Email. One config, all platforms.
-  - icon: 🔒
-    title: Secure by Design
-    details: Password-protected admin UI, KV-backed config, API token auth.
-  - icon: ☁️
-    title: Edge Computing
-    details: Built on Cloudflare Workers. Fast, resilient, globally distributed.
 ---
 
-<div class="hero-bg">
-  <div class="gradientOrb orb1"></div>
-  <div class="gradientOrb orb2"></div>
-  <div class="gradientOrb orb3"></div>
-  <div class="grid-overlay"></div>
+<div class="gp-shell">
+  <header class="gp-grid gp-nav">
+    <a class="gp-cell gp-logo" href="/GlobalPulse/en/">
+      <span class="gp-mark">GP</span>
+      <span>
+        <span class="gp-brand">GlobalPulse</span>
+        <span class="gp-subbrand">Market signal relay</span>
+      </span>
+    </a>
+    <a class="gp-cell" href="/GlobalPulse/en/quick-start.html">Docs<span class="gp-blink"></span></a>
+    <a class="gp-cell" href="/GlobalPulse/en/api.html">API<span class="gp-blink"></span></a>
+    <a class="gp-cell" href="/GlobalPulse/zh/">中文<span class="gp-blink"></span></a>
+    <div class="gp-cell gp-nav-meta"><span>Status</span><span>Edge online</span></div>
+  </header>
+
+  <section class="gp-grid gp-hero" aria-label="GlobalPulse overview">
+    <div class="gp-cell gp-span-7 gp-hero-copy">
+      <p class="gp-kicker">Open Source / MIT License / Cloudflare Workers</p>
+      <h1 class="gp-headline">Market intelligence that <span>arrives on schedule.</span></h1>
+      <p class="gp-copy">GlobalPulse is a self-hosted briefing engine for finance desks, builders, and operators. It watches market data, news, macro context, and custom feeds, then pushes concise AI-assisted reports to the channels where your team already works.</p>
+      <div class="gp-actions">
+        <a class="gp-action gp-action-primary" href="/GlobalPulse/en/quick-start.html">Start protocol</a>
+        <a class="gp-action" href="/GlobalPulse/en/config/admin.html">Admin cockpit</a>
+        <a class="gp-action" href="https://github.com/InnoNestX/GlobalPulse">GitHub source</a>
+      </div>
+    </div>
+    <div class="gp-cell gp-span-5 gp-command-stack">
+      <div class="gp-command">
+        <div class="gp-command-head"><span>1. Clone</span><span class="gp-copy-token">Copy</span></div>
+        <code class="gp-code">git clone https://github.com/InnoNestX/GlobalPulse.git</code>
+      </div>
+      <div class="gp-command">
+        <div class="gp-command-head"><span>2. Configure</span><span class="gp-copy-token">Copy</span></div>
+        <code class="gp-code">cp wrangler.example.jsonc wrangler.jsonc</code>
+      </div>
+      <div class="gp-command">
+        <div class="gp-command-head"><span>3. Deploy</span><span class="gp-copy-token">Copy</span></div>
+        <code class="gp-code">npm run deploy</code>
+      </div>
+    </div>
+  </section>
+
+  <section class="gp-grid" aria-label="Signal map">
+    <div class="gp-cell gp-span-12">
+      <h2 class="gp-section-title"><span>Live Signal Topology</span><span>US / A-share / Crypto / Hotspot</span></h2>
+    </div>
+    <div class="gp-cell gp-span-5 gp-radar">
+      <div class="gp-radar-sweep"></div>
+      <div class="gp-node gp-node-a">Yahoo</div>
+      <div class="gp-node gp-node-b">Binance</div>
+      <div class="gp-node gp-node-c">News</div>
+      <div class="gp-node gp-node-d">LLM</div>
+    </div>
+    <div class="gp-cell gp-span-7 gp-terminal">
+      <div class="gp-terminal-bar">
+        <div class="gp-leds"><span></span><span></span><span></span></div>
+        <span class="gp-terminal-title">GlobalPulse relay</span>
+      </div>
+      <div class="gp-terminal-body">
+        <span class="gp-terminal-line">&gt; schedule window opened: Asia/Hong_Kong 09:00</span>
+        <span class="gp-terminal-line">&gt; loading watchlist: AAPL, NVDA, 300750.SZ, BTCUSDT</span>
+        <span class="gp-terminal-line">&gt; scoring catalysts: earnings, macro, sentiment, liquidity</span>
+        <span class="gp-terminal-line">&gt; generating bilingual market briefing with confidence notes</span>
+        <span class="gp-terminal-line">&gt; dispatching to Feishu, WeChat, Telegram, Email</span>
+        <span class="gp-terminal-line">&gt; archive complete: D1 evidence packet sealed <span class="gp-blink"></span></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="gp-grid" aria-label="Operational stats">
+    <div class="gp-cell gp-span-12">
+      <div class="gp-stat-grid">
+        <div class="gp-stat"><span class="gp-stat-label">Scheduler</span><span class="gp-stat-value">5 min</span></div>
+        <div class="gp-stat"><span class="gp-stat-label">Task slots</span><span class="gp-stat-value">20</span></div>
+        <div class="gp-stat"><span class="gp-stat-label">Watchlist cap</span><span class="gp-stat-value">80</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="gp-grid" aria-label="Features">
+    <div class="gp-cell gp-span-12">
+      <h2 class="gp-section-title"><span>Core Modules</span><span>Briefing engine v0.1</span></h2>
+    </div>
+    <div class="gp-cell gp-span-12">
+      <div class="gp-feature-grid">
+        <a class="gp-link-cell" href="/GlobalPulse/en/config/schedules.html"><strong>Scheduled briefings</strong><span>Cron-aware jobs run at the edge and respect each task timezone.</span><em>Open</em></a>
+        <a class="gp-link-cell" href="/GlobalPulse/en/features.html"><strong>Market research</strong><span>US stocks, A-shares, crypto, and global hotspot feeds in one report flow.</span><em>Open</em></a>
+        <a class="gp-link-cell" href="/GlobalPulse/en/reference/variables.html"><strong>Template variables</strong><span>Reusable message fields for Markdown, text, JSON, email, and chat outputs.</span><em>Open</em></a>
+        <a class="gp-link-cell" href="/GlobalPulse/en/config/providers.html"><strong>Push providers</strong><span>Feishu, WeChat, Telegram, and Email delivery from one admin cockpit.</span><em>Open</em></a>
+        <a class="gp-link-cell" href="/GlobalPulse/en/config/admin.html"><strong>Admin cockpit</strong><span>Password-protected UI for schedules, channels, previews, and logs.</span><em>Open</em></a>
+        <a class="gp-link-cell" href="/GlobalPulse/en/api.html"><strong>HTTP control plane</strong><span>Preview, send, health, admin, and provider endpoints for automation.</span><em>Open</em></a>
+      </div>
+    </div>
+  </section>
+
+  <section class="gp-grid" aria-label="Documentation paths">
+    <div class="gp-cell gp-span-12">
+      <h2 class="gp-section-title"><span>Documentation routes</span><span>Choose your entry point</span></h2>
+    </div>
+    <div class="gp-cell gp-span-12">
+      <div class="gp-doc-grid">
+        <a class="gp-link-cell" href="/GlobalPulse/en/quick-start.html"><strong>Quick start</strong><span>Install dependencies, configure Cloudflare, and run the Worker locally.</span><em>Read</em></a>
+        <a class="gp-link-cell" href="/GlobalPulse/en/deploy/cloudflare.html"><strong>Cloudflare deploy</strong><span>Bind KV, D1, cron triggers, Workers AI, and secrets for production.</span><em>Read</em></a>
+        <a class="gp-link-cell" href="/GlobalPulse/en/deploy/env.html"><strong>Environment</strong><span>Required variables, provider credentials, admin password, and API tokens.</span><em>Read</em></a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="gp-grid">
+    <div class="gp-cell gp-span-12 gp-footer">
+      <span>GlobalPulse docs / GitHub Pages</span>
+      <span>MIT License / 2026</span>
+    </div>
+  </footer>
 </div>
-
-<div class="scroll-indicator">
-  <div class="mouse">
-    <div class="wheel"></div>
-  </div>
-  <span>Scroll to explore</span>
-</div>
-
-<style>
-:root {
-  --vp-c-brand-1: #00d4ff;
-  --vp-c-brand-2: #0099cc;
-  --hero-gradient-start: rgba(0, 212, 255, 0.15);
-  --hero-gradient-mid: rgba(0, 180, 216, 0.08);
-}
-
-.hero-bg {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  overflow: hidden;
-  z-index: -1;
-  background: #0a0e14;
-}
-
-.gradientOrb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.6;
-  animation: float 20s ease-in-out infinite;
-}
-
-.orb1 {
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(0, 212, 255, 0.4) 0%, transparent 70%);
-  top: -200px;
-  left: -100px;
-  animation-delay: 0s;
-}
-
-.orb2 {
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(0, 153, 204, 0.3) 0%, transparent 70%);
-  top: 50%;
-  right: -150px;
-  animation-delay: -7s;
-  animation-duration: 25s;
-}
-
-.orb3 {
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, rgba(0, 212, 255, 0.25) 0%, transparent 70%);
-  bottom: -100px;
-  left: 30%;
-  animation-delay: -14s;
-  animation-duration: 22s;
-}
-
-@keyframes float {
-  0%, 100% {
-    transform: translate(0, 0) scale(1);
-  }
-  25% {
-    transform: translate(50px, -30px) scale(1.05);
-  }
-  50% {
-    transform: translate(-20px, 50px) scale(0.95);
-  }
-  75% {
-    transform: translate(-50px, -20px) scale(1.02);
-  }
-}
-
-.grid-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image: 
-    linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px);
-  background-size: 60px 60px;
-  animation: gridMove 30s linear infinite;
-}
-
-@keyframes gridMove {
-  0% {
-    transform: translateY(0);
-  }
-  100% {
-    transform: translateY(60px);
-  }
-}
-
-.scroll-indicator {
-  position: absolute;
-  bottom: 40px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  opacity: 0.6;
-  animation: fadeInUp 1s ease-out 1.5s both, pulse 2s ease-in-out infinite 2.5s;
-}
-
-.scroll-indicator .mouse {
-  width: 24px;
-  height: 40px;
-  border: 2px solid rgba(255, 255, 255, 0.4);
-  border-radius: 12px;
-  display: flex;
-  justify-content: center;
-  padding-top: 8px;
-}
-
-.scroll-indicator .wheel {
-  width: 4px;
-  height: 8px;
-  background: #00d4ff;
-  border-radius: 2px;
-  animation: scrollWheel 1.5s ease-in-out infinite;
-}
-
-@keyframes scrollWheel {
-  0% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  100% {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-}
-
-.scroll-indicator span {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
-  letter-spacing: 2px;
-  text-transform: uppercase;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(20px);
-  }
-  to {
-    opacity: 0.6;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 0.6;
-  }
-  50% {
-    opacity: 0.3;
-  }
-}
-
-.VPHero {
-  padding-top: 100px !important;
-  position: relative;
-}
-
-.VPHero .container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 24px;
-}
-
-.VPHero .name {
-  font-size: 72px !important;
-  font-weight: 800 !important;
-  background: linear-gradient(135deg, #00d4ff 0%, #00ffaa 50%, #00d4ff 100%) !important;
-  background-size: 200% 200% !important;
-  -webkit-background-clip: text !important;
-  background-clip: text !important;
-  -webkit-text-fill-color: transparent !important;
-  animation: gradientShift 4s ease-in-out infinite !important;
-  text-shadow: 0 0 60px rgba(0, 212, 255, 0.5) !important;
-}
-
-@keyframes gradientShift {
-  0%, 100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-}
-
-.VPHero .tagline {
-  font-size: 20px !important;
-  color: rgba(255, 255, 255, 0.7) !important;
-  margin-top: 16px !important;
-  letter-spacing: 2px !important;
-}
-
-.VPButton {
-  padding: 12px 28px !important;
-  border-radius: 8px !important;
-  font-weight: 600 !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  position: relative !important;
-  overflow: hidden !important;
-}
-
-.VPButton::before {
-  content: '' !important;
-  position: absolute !important;
-  top: 0 !important;
-  left: -100% !important;
-  width: 100% !important;
-  height: 100% !important;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent) !important;
-  transition: left 0.5s !important;
-}
-
-.VPButton:hover::before {
-  left: 100% !important;
-}
-
-.VPButton.brand {
-  background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%) !important;
-  border: none !important;
-  box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3) !important;
-}
-
-.VPButton.brand:hover {
-  transform: translateY(-3px) scale(1.02) !important;
-  box-shadow: 0 12px 40px rgba(0, 212, 255, 0.5) !important;
-}
-
-.VPButton.alt {
-  background: rgba(255, 255, 255, 0.05) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  color: #fff !important;
-}
-
-.VPButton.alt:hover {
-  background: rgba(255, 255, 255, 0.1) !important;
-  border-color: rgba(0, 212, 255, 0.5) !important;
-  transform: translateY(-3px) !important;
-}
-
-.VPFeatures {
-  padding: 100px 24px !important;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.VPFeature {
-  background: rgba(255, 255, 255, 0.02) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  border-radius: 16px !important;
-  padding: 28px !important;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  position: relative !important;
-  overflow: hidden !important;
-}
-
-.VPFeature::before {
-  content: '' !important;
-  position: absolute !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  height: 1px !important;
-  background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.5), transparent) !important;
-  opacity: 0 !important;
-  transition: opacity 0.3s !important;
-}
-
-.VPFeature:hover::before {
-  opacity: 1 !important;
-}
-
-.VPFeature:hover {
-  background: rgba(0, 212, 255, 0.05) !important;
-  border-color: rgba(0, 212, 255, 0.3) !important;
-  transform: translateY(-8px) scale(1.02) !important;
-  box-shadow: 0 20px 60px rgba(0, 212, 255, 0.15) !important;
-}
-
-.VPFeature .icon {
-  font-size: 48px !important;
-  margin-bottom: 16px !important;
-  display: block !important;
-  animation: bounceIn 0.6s ease-out !important;
-}
-
-.VPFeature .title {
-  font-size: 20px !important;
-  font-weight: 700 !important;
-  color: #fff !important;
-  margin-bottom: 8px !important;
-}
-
-.VPFeature .details {
-  font-size: 15px !important;
-  color: rgba(255, 255, 255, 0.6) !important;
-  line-height: 1.6 !important;
-}
-
-@keyframes bounceIn {
-  0% {
-    opacity: 0;
-    transform: scale(0.5);
-  }
-  60% {
-    transform: scale(1.1);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.VPFooter {
-  background: rgba(0, 0, 0, 0.3) !important;
-  backdrop-filter: blur(10px) !important;
-  border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
-}
-
-.VPFooter .message,
-.VPFooter .copyright {
-  color: rgba(255, 255, 255, 0.5) !important;
-  font-size: 14px !important;
-}
-
-.VPNav {
-  background: rgba(10, 14, 20, 0.8) !important;
-  backdrop-filter: blur(20px) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
-}
-
-.VPNavBarTitle .title {
-  font-weight: 700 !important;
-  color: #fff !important;
-}
-
-.VPNavBarMenuLink {
-  color: rgba(255, 255, 255, 0.7) !important;
-  transition: color 0.3s !important;
-}
-
-.VPNavBarMenuLink:hover {
-  color: #00d4ff !important;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .VPHero .name {
-    font-size: 48px !important;
-  }
-  
-  .scroll-indicator {
-    display: none !important;
-  }
-  
-  .orb1 {
-    width: 300px;
-    height: 300px;
-  }
-  
-  .orb2, .orb3 {
-    width: 200px;
-    height: 200px;
-  }
-}
-</style>
