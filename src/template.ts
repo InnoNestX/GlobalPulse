@@ -15,10 +15,18 @@ export function renderDigest(schedule: PulseSchedule, context: DigestContext): {
   title: string;
   body: string;
 } {
-  const displayItems = context.items.slice(0, 6);
+  const displayItems = context.items.slice(0, schedule.reportType === "daily_hot" ? 10 : 6);
   const title = schedule.language === "zh"
     ? `GlobalPulse：${schedule.name}`
     : `GlobalPulse: ${schedule.name}`;
+
+  if (schedule.reportType === "daily_hot") {
+    return {
+      title,
+      body: renderDailyHotBody(schedule, context, displayItems),
+    };
+  }
+
   const variables: Record<string, string> = {
     generatedAt: context.generatedAt,
     timezone: context.timezone,
@@ -31,10 +39,109 @@ export function renderDigest(schedule: PulseSchedule, context: DigestContext): {
   };
   const body = renderByFormat(schedule.template, variables, context.format);
 
-  return {
-    title,
-    body,
-  };
+  return { title, body };
+}
+
+function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, items: TopicItem[]): string {
+  if (context.format === "json") {
+    return JSON.stringify({
+      type: "daily_hot",
+      generatedAt: context.generatedAt,
+      timezone: context.timezone,
+      topicQuery: context.topicQuery,
+      sourceUrl: context.sourceUrl,
+      items,
+    }, null, 2);
+  }
+
+  const zh = schedule.language === "zh";
+  const heading = zh ? "# GlobalPulse 每日热点简报" : "# GlobalPulse Daily Hot Brief";
+  const meta = zh
+    ? [
+        `- 时间：${context.generatedAt}`,
+        `- 时区：${context.timezone}`,
+        `- 关注方向：${context.topicQuery}`,
+      ]
+    : [
+        `- Time: ${context.generatedAt}`,
+        `- Timezone: ${context.timezone}`,
+        `- Focus: ${context.topicQuery}`,
+      ];
+
+  const sections = zh
+    ? [
+        heading,
+        "",
+        ...meta,
+        "",
+        "## 🌐 全球热点速览",
+        "",
+        renderDailyHotItemsMarkdown(items, schedule),
+        "",
+        "## 🧭 后续观察方向",
+        "- **政策变化**：关注主要经济体监管、财政、货币与产业政策的边际变化。",
+        "- **地缘政治**：关注冲突、制裁、联盟关系和供应链安全对全球风险偏好的影响。",
+        "- **宏观经济**：关注通胀、利率、就业、汇率和能源价格对市场预期的影响。",
+        "- **产业趋势**：关注 AI、能源、芯片、汽车、医药和消费等方向的结构性变化。",
+        "",
+        `> 数据来源：${context.sourceUrl}`,
+      ]
+    : [
+        heading,
+        "",
+        ...meta,
+        "",
+        "## 🌐 Global Hot Topics",
+        "",
+        renderDailyHotItemsMarkdown(items, schedule),
+        "",
+        "## 🧭 What to Watch Next",
+        "- **Policy**: regulation, fiscal policy, monetary policy, and industrial policy changes.",
+        "- **Geopolitics**: conflicts, sanctions, alliances, and supply-chain security.",
+        "- **Macro**: inflation, rates, labor data, FX, and energy prices.",
+        "- **Industries**: AI, energy, semiconductors, autos, healthcare, and consumption trends.",
+        "",
+        `> Source: ${context.sourceUrl}`,
+      ];
+
+  const markdown = sections.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (context.format === "text") {
+    return markdown
+      .replace(/^#+\s*/gm, "")
+      .replace(/\*\*/g, "")
+      .replace(/`/g, "")
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 - $2");
+  }
+  return markdown;
+}
+
+function renderDailyHotItemsMarkdown(items: TopicItem[], schedule: PulseSchedule): string {
+  const language = schedule.language;
+  if (items.length === 0) {
+    return language === "zh" ? "_暂无可用热点新闻。_" : "_No hot news items were found._";
+  }
+
+  return items.map((item, index) => {
+    const source = item.source ? ` — ${escapeMarkdown(item.source)}` : "";
+    const summary = item.summary ? `\n   ${escapeMarkdown(item.summary)}` : "";
+    const observation = inferDailyHotObservation(item, schedule);
+    const observationLine = observation ? `\n   ${observation}` : "";
+    const url = normalizeHttpUrl(item.url);
+    const link = url ? `\n   [🔗](${url})` : "";
+    return `${index + 1}. **${escapeMarkdown(item.title)}**${source}${summary}${observationLine}${link}`;
+  }).join("\n");
+}
+
+function inferDailyHotObservation(item: TopicItem, schedule: PulseSchedule): string | undefined {
+  if (schedule.language !== "zh") {
+    return undefined;
+  }
+  const category = item.category ?? "global-news";
+  if (category === "geopolitics") return "观察点：可能影响地区安全、能源价格、供应链稳定和国际关系走向。";
+  if (category === "policy") return "观察点：可能改变监管预期、财政支出方向、产业扶持力度或跨境关系。";
+  if (category === "macro") return "观察点：可能影响通胀、利率、汇率、就业和全球资产定价预期。";
+  if (category === "industry") return "观察点：可能影响产业链竞争格局、企业投资方向和中长期增长预期。";
+  return "观察点：属于当前公共讨论热点，后续关注是否演变成政策、市场或国际关系变量。";
 }
 
 function renderByFormat(template: string, variables: Record<string, string>, format: OutputFormat): string {
@@ -74,9 +181,8 @@ function renderItemsMarkdown(items: TopicItem[], schedule: PulseSchedule): strin
     const summary = item.summary ? `\n   ${item.summary}` : "";
     const impact = inferCatalystImpactLine(item, schedule);
     const impactLine = impact ? `\n   ${impact}` : "";
-    const linkLabel = "🔗";
     const url = normalizeHttpUrl(item.url);
-    const link = url ? `\n   [${linkLabel}](${url})` : "";
+    const link = url ? `\n   [🔗](${url})` : "";
 
     return `${index + 1}. ${escapeMarkdown(item.title)}${source}${category}${score}${summary}${impactLine}${link}`;
   }).join("\n");
@@ -94,7 +200,7 @@ function renderItemsText(items: TopicItem[], schedule: PulseSchedule): string {
     const summary = item.summary ? ` - ${item.summary}` : "";
     const impact = inferCatalystImpactLine(item, schedule);
     const impactText = impact ? ` - ${impact}` : "";
-    const linkHint = normalizeHttpUrl(item.url) ? (language === "zh" ? " - 🔗" : " - 🔗") : "";
+    const linkHint = normalizeHttpUrl(item.url) ? " - 🔗" : "";
 
     return `${index + 1}. ${item.title}${source}${score}${summary}${impactText}${linkHint}`;
   }).join("\n");
@@ -119,7 +225,7 @@ function normalizeHttpUrl(value: string): string | undefined {
 }
 
 function inferCatalystImpactLine(item: TopicItem, schedule: PulseSchedule): string | undefined {
-  if (schedule.language !== "zh") {
+  if (schedule.language !== "zh" || schedule.reportType === "daily_hot") {
     return undefined;
   }
 
@@ -127,17 +233,11 @@ function inferCatalystImpactLine(item: TopicItem, schedule: PulseSchedule): stri
   const score = sentimentScore(text);
   const tone = score > 0 ? "偏利多" : score < 0 ? "偏利空" : "中性";
   const focus = schedule.focusSymbols.slice(0, 3).join("、");
-  const focusSuffix = focus
-    ? `；并关注 ${focus} 的联动反应`
-    : "";
+  const focusSuffix = focus ? `；并关注 ${focus} 的联动反应` : "";
 
   if (schedule.reportType === "a_share") {
-    if (score > 0) {
-      return `盘面影响：${tone}，可能解释当前A股相关板块的相对抗跌或回升${focusSuffix}。`;
-    }
-    if (score < 0) {
-      return `盘面影响：${tone}，可能解释当前A股风险偏好走弱与指数回落${focusSuffix}。`;
-    }
+    if (score > 0) return `盘面影响：${tone}，可能解释当前A股相关板块的相对抗跌或回升${focusSuffix}。`;
+    if (score < 0) return `盘面影响：${tone}，可能解释当前A股风险偏好走弱与指数回落${focusSuffix}。`;
     return `盘面影响：${tone}，短线更多体现为情绪扰动，需结合量能确认方向${focusSuffix}。`;
   }
 
@@ -153,7 +253,7 @@ function inferCatalystImpactLine(item: TopicItem, schedule: PulseSchedule): stri
     return `盘面影响：${tone}，波动可能放大但方向仍需后续催化确认${focusSuffix}。`;
   }
 
-  return `盘面影响：${tone}，需结合实时价格与成交量验证传导强度${focusSuffix}。`;
+  return undefined;
 }
 
 function sentimentScore(text: string): number {
