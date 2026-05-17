@@ -2,7 +2,7 @@ import type { Env } from "./env";
 import { getLogs, getSettings, mergeProviderSettings, normalizeSettings, saveSettings, type AppSettings } from "./config";
 import { renderAdminUiWithLogEnhancements } from "./admin-logs-enhance";
 import { getMarketDataProviderSettings, saveMarketDataProviderSettings } from "./market-data-settings";
-import { DEFAULT_GLOBALPULSE_LOGO_SRC, GLOBALPULSE_LOGO_SVG } from "./providers/email-logo";
+import { DEFAULT_GLOBALPULSE_LOGO_SRC } from "./providers/email-logo";
 import { createDeliveryEnv, sendIncomingMessage } from "./delivery";
 import { normalizeCloudflareEvent, normalizeGitHubActionsEvent } from "./events";
 import { getProviderStatus } from "./providers";
@@ -27,12 +27,8 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
       return Response.redirect(`${url.origin}/admin`, 302);
     }
 
-    if (request.method === "GET" && url.pathname === "/assets/globalpulse-project-logo.svg") {
-      return serveGlobalPulseSvgLogo();
-    }
-
     if (request.method === "GET" && isGlobalPulseLogoPath(url.pathname)) {
-      return serveGlobalPulseLogo(url.pathname.includes("v6") ? 31536000 : 3600);
+      return serveGlobalPulseLogo(url.searchParams.has("v") ? 31536000 : 3600);
     }
 
     if (request.method === "GET" && url.pathname === "/admin") {
@@ -239,19 +235,12 @@ async function deliverMessage(incomingMessage: IncomingMessageBody, env: Env): P
 }
 
 function isGlobalPulseLogoPath(pathname: string): boolean {
-  return pathname === "/assets/globalpulse-logo.jpg"
+  return pathname === "/assets/globalpulse-project-logo.png"
+    || pathname === "/assets/globalpulse-project-logo.svg"
+    || pathname === "/assets/globalpulse-logo.jpg"
     || pathname === "/assets/globalpulse-project-logo.jpg"
     || pathname === "/assets/globalpulse-symbol-v5.jpg"
     || pathname === "/assets/globalpulse-symbol-v6.svg";
-}
-
-function serveGlobalPulseSvgLogo(): Response {
-  return new Response(GLOBALPULSE_LOGO_SVG, {
-    headers: {
-      "Content-Type": "image/svg+xml; charset=utf-8",
-      "Cache-Control": "public, max-age=31536000, immutable",
-    },
-  });
 }
 
 function serveGlobalPulseLogo(maxAgeSeconds: number): Response {
@@ -266,7 +255,7 @@ function serveGlobalPulseLogo(maxAgeSeconds: number): Response {
 
 function decodeLogoAsset(src: string): { contentType: string; body: string | Uint8Array } {
   const match = /^data:([^;,]+)(?:;charset=[^;,]+)?(;base64)?,(.*)$/s.exec(src);
-  if (!match) return { contentType: "image/svg+xml; charset=utf-8", body: "" };
+  if (!match) return { contentType: "image/png", body: "" };
   const contentType = match[1] ?? "application/octet-stream";
   const isBase64 = Boolean(match[2]);
   const payload = match[3] ?? "";

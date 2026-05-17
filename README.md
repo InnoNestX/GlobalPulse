@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/globalpulse-project-logo.svg" alt="GlobalPulse project logo" width="180" height="180" />
+  <img src="docs/assets/globalpulse-project-logo.png" alt="GlobalPulse project logo" width="180" height="180" />
 </p>
 
 <h1 align="center">GlobalPulse</h1>
