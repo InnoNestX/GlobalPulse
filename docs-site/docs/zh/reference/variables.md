@@ -4,7 +4,7 @@
 
 | 变量 | 描述 | 示例 |
 |------|------|------|
-| `{{generatedAt}}` | UTC 时间戳 | `2024-01-15 10:30:00 UTC` |
+| `{{generatedAt}}` | UTC 时间戳 | `2026-01-15 10:30:00 UTC` |
 | `{{timezone}}` | 任务时区 | `Asia/Hong_Kong` |
 | `{{appName}}` | 配置的应用名 | `GlobalPulse` |
 | `{{scheduleName}}` | 任务标识符 | `美股早报` |
@@ -56,7 +56,7 @@ JSON 数组：
     "summary": "营收: $119.6B...",
     "url": "https://example.com/article",
     "source": "NewsAPI",
-    "publishedAt": "2024-01-15T10:00:00Z"
+    "publishedAt": "2026-01-15T10:00:00Z"
   }
 ]
 ```
@@ -80,7 +80,7 @@ AI 生成的研究报告，包含：
 示例结构：
 
 ```markdown
-# 美股简报 - 2024-01-15
+# 美股简报 - 2026-01-15
 
 ## 市场概要
 标普500 +1.2% | 纳斯达克 +1.5% | 道指 +0.8%

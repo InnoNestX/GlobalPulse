@@ -5,8 +5,7 @@ title: GlobalPulse
 
 <script>
   if (typeof window !== 'undefined') {
-    const gpLanguage = navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en'
-    window.location.replace(`/GlobalPulse/${gpLanguage}/`)
+    window.location.replace('/GlobalPulse/en/')
   }
 </script>
 

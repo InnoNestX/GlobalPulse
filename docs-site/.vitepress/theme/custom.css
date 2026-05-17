@@ -235,11 +235,14 @@ body::after {
   height: 42px;
   place-items: center;
   border: 1px solid rgba(101, 255, 209, 0.62);
-  color: var(--gp-green);
-  font-family: var(--vp-font-family-mono);
-  font-size: 0.75rem;
-  font-weight: 800;
   box-shadow: inset 0 0 18px rgba(101, 255, 209, 0.08), 0 0 18px rgba(101, 255, 209, 0.12);
+}
+
+.gp-mark img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 10px rgba(101, 255, 209, 0.35));
 }
 
 .gp-mark::before,
