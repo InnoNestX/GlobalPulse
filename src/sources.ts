@@ -12,6 +12,8 @@ export interface TopicItem {
 }
 
 const DAILY_HOT_REACHABILITY_CHECKS = 0;
+const SOURCE_FETCH_TIMEOUT_MS = 8_000;
+const GDELT_FETCH_TIMEOUT_MS = 4_000;
 
 export interface TopicFetchOptions {
   mode?: ReportType;
@@ -32,7 +34,7 @@ export async function fetchTopicItems(
     return fetchCompositeTopicItems(query, language);
   }
 
-  const response = await fetch(sourceUrl, {
+  const response = await fetchWithTimeout(sourceUrl, {
     headers: {
       "User-Agent": "globalpulse-worker/0.1",
       "Accept": "application/rss+xml, application/xml, text/xml",
@@ -44,11 +46,24 @@ export async function fetchTopicItems(
 }
 
 async function fetchDailyHotTopicItems(query: string, language: AppLanguage, newsApiKey?: string): Promise<{ sourceUrl: string; items: TopicItem[] }> {
-  const [googleResult, globalEnglishResult, domesticResult, platformResult] = await Promise.allSettled([
+  const [
+    googleResult,
+    worldHeadlineResult,
+    globalEnglishResult,
+    domesticResult,
+    domesticHeadlineResult,
+    platformResult,
+    gdeltGlobalResult,
+    gdeltChinaResult,
+  ] = await Promise.allSettled([
     fetchGoogleNewsItems(query, language, 8),
+    fetchGoogleNewsTopicItems("WORLD", language, 8, "global"),
     language === "zh" ? fetchGoogleNewsItems(buildGlobalEnglishDailyHotQuery(query), "en", 10) : Promise.resolve([]),
     fetchChineseDomesticNewsItems(language, 10),
+    fetchGoogleNewsTopicItems("NATION", language, 6, "domestic"),
     fetchPlatformHotDiscussionItems(language, 6),
+    fetchGdeltDailyHotItems("global", language, 8),
+    fetchGdeltDailyHotItems("china", language, 6),
   ]);
   let newsApiItems: TopicItem[] = [];
   if (newsApiKey) {
@@ -56,18 +71,32 @@ async function fetchDailyHotTopicItems(query: string, language: AppLanguage, new
     newsApiItems = newsApiResult;
   }
   const googleItems = googleResult.status === "fulfilled" ? googleResult.value : [];
+  const worldHeadlineItems = worldHeadlineResult.status === "fulfilled" ? markGlobalDailyHotItems(worldHeadlineResult.value, 850) : [];
   const globalEnglishItems = globalEnglishResult.status === "fulfilled" ? markGlobalDailyHotItems(globalEnglishResult.value) : [];
   const domesticItems = domesticResult.status === "fulfilled" ? domesticResult.value : [];
+  const domesticHeadlineItems = domesticHeadlineResult.status === "fulfilled" ? markDomesticDailyHotItems(domesticHeadlineResult.value, 900) : [];
   const platformItems = platformResult.status === "fulfilled" ? platformResult.value : [];
+  const gdeltGlobalItems = gdeltGlobalResult.status === "fulfilled" ? gdeltGlobalResult.value : [];
+  const gdeltChinaItems = gdeltChinaResult.status === "fulfilled" ? gdeltChinaResult.value : [];
   const items = await filterReachableTopicItems(
-    dedupeTopicItems([...platformItems, ...domesticItems, ...newsApiItems, ...googleItems, ...globalEnglishItems]),
+    dedupeTopicItems([
+      ...platformItems,
+      ...domesticItems,
+      ...domesticHeadlineItems,
+      ...newsApiItems,
+      ...worldHeadlineItems,
+      ...googleItems,
+      ...globalEnglishItems,
+      ...gdeltGlobalItems,
+      ...gdeltChinaItems,
+    ]),
     DAILY_HOT_REACHABILITY_CHECKS,
   );
   const sourceUrl = [
     newsApiKey ? (newsApiItems.length ? `NewsAPI已启用(${newsApiItems.length}条)` : "NewsAPI已配置但本次无结果") : "NewsAPI未配置",
-    `国内新闻(${domesticItems.length}条)`,
+    `国内新闻(${domesticItems.length + domesticHeadlineItems.length + gdeltChinaItems.length}条)`,
     `平台热搜讨论(${platformItems.length}条)`,
-    `Google News(${googleItems.length + globalEnglishItems.length}条)`,
+    `国际新闻(${worldHeadlineItems.length + googleItems.length + globalEnglishItems.length + gdeltGlobalItems.length}条)`,
   ].join("，");
   return { sourceUrl, items: sortTopicItems(items).slice(0, 28) };
 }
@@ -99,9 +128,23 @@ export function buildGoogleNewsRssUrl(query: string, language: AppLanguage): str
   return url.toString();
 }
 
+function buildGoogleNewsTopicRssUrl(topic: "WORLD" | "NATION", language: AppLanguage): string {
+  const url = new URL(`https://news.google.com/rss/headlines/section/topic/${topic}`);
+  if (language === "zh") {
+    url.searchParams.set("hl", "zh-CN");
+    url.searchParams.set("gl", "CN");
+    url.searchParams.set("ceid", "CN:zh-Hans");
+  } else {
+    url.searchParams.set("hl", "en-US");
+    url.searchParams.set("gl", "US");
+    url.searchParams.set("ceid", "US:en");
+  }
+  return url.toString();
+}
+
 async function fetchGoogleNewsItems(query: string, language: AppLanguage, limit = 8): Promise<TopicItem[]> {
   const sourceUrl = buildGoogleNewsRssUrl(query, language);
-  const response = await fetch(sourceUrl, {
+  const response = await fetchWithTimeout(sourceUrl, {
     headers: {
       "User-Agent": "globalpulse-worker/0.1",
       "Accept": "application/rss+xml, application/xml, text/xml",
@@ -113,6 +156,28 @@ async function fetchGoogleNewsItems(query: string, language: AppLanguage, limit 
     source: item.source ?? "Google News",
     category: classifyNewsCategory(`${item.title}\n${item.summary ?? ""}`),
     section: inferSection(item),
+  })).slice(0, limit);
+}
+
+async function fetchGoogleNewsTopicItems(
+  topic: "WORLD" | "NATION",
+  language: AppLanguage,
+  limit: number,
+  section: "global" | "domestic",
+): Promise<TopicItem[]> {
+  const sourceUrl = buildGoogleNewsTopicRssUrl(topic, language);
+  const response = await fetchWithTimeout(sourceUrl, {
+    headers: {
+      "User-Agent": "globalpulse-worker/0.1",
+      "Accept": "application/rss+xml, application/xml, text/xml",
+    },
+  });
+  if (!response.ok) return [];
+  return parseRssItems(await response.text()).map((item) => ({
+    ...item,
+    source: item.source ?? `Google News ${topic}`,
+    category: classifyNewsCategory(`${item.title}\n${item.summary ?? ""}`),
+    section,
   })).slice(0, limit);
 }
 
@@ -128,15 +193,10 @@ async function fetchChineseDomesticNewsItems(language: AppLanguage, limit = 10):
         "site:rthk.hk OR site:scmp.com OR site:ifeng.com OR site:caixin.com OR site:mingpao.com OR site:Initium OR site:tvbs.com.hk China policy economy society",
         "China policy economy society livelihood Reuters AP Bloomberg BBC Financial Times Nikkei Asia",
       ];
-  const results: TopicItem[] = [];
-  for (const [index, query] of queries.entries()) {
-    try {
-      results.push(...await fetchGoogleNewsItems(query, language === "zh" && index === 2 ? "en" : language, Math.ceil(limit / 2)));
-    } catch {
-      // Keep the daily hot run resilient when one Google News query fails.
-    }
-  }
-  const items = results;
+  const results = await Promise.allSettled(queries.map((entry, index) =>
+    fetchGoogleNewsItems(entry, language === "zh" && index === 2 ? "en" : language, Math.ceil(limit / 2)),
+  ));
+  const items = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
   return dedupeTopicItems(items).map((item) => ({
     ...item,
     source: item.source ?? "国内新闻",
@@ -161,7 +221,7 @@ async function fetchPlatformHotDiscussionItems(language: AppLanguage, limit = 8)
         "Weibo trending OR Douyin trending OR Baidu hot search OR Baidu hot topic",
       ];
   const results = await Promise.allSettled(queries.map((q) => fetchGoogleNewsItems(q, language, limit * 2)));
-  const allItems = results.flatMap((r) => r.status === "fulfilled" ? r.value : []);
+  const allItems = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
   return allItems
     .filter((item) => /微博|抖音|小红书|知乎|百度|热搜|破亿|千万|热议|热点话题|bilibili|weibo|douyin/i.test(item.title))
     .filter(isMeaningfulPlatformHotItem)
@@ -210,7 +270,7 @@ async function fetchNewsApiTopHeadlineItems(language: AppLanguage, apiKey: strin
 }
 
 async function fetchNewsApiUrl(url: URL, defaultSource: string): Promise<TopicItem[]> {
-  const response = await fetch(url.toString(), {
+  const response = await fetchWithTimeout(url.toString(), {
     headers: { "User-Agent": "globalpulse-worker/0.1", "Accept": "application/json" },
   });
   if (!response.ok) return [];
@@ -235,6 +295,54 @@ async function fetchNewsApiUrl(url: URL, defaultSource: string): Promise<TopicIt
   });
 }
 
+async function fetchGdeltDailyHotItems(scope: "global" | "china", language: AppLanguage, limit: number): Promise<TopicItem[]> {
+  const url = new URL("https://api.gdeltproject.org/api/v2/doc/doc");
+  const query = scope === "china"
+    ? "(China OR Chinese) (policy OR economy OR society OR technology OR market OR regulation)"
+    : "(geopolitics OR economy OR inflation OR election OR tariff OR conflict OR energy OR \"supply chain\" OR regulation)";
+  url.searchParams.set("query", query);
+  url.searchParams.set("mode", "artlist");
+  url.searchParams.set("format", "json");
+  url.searchParams.set("maxrecords", String(Math.max(1, Math.min(limit, 20))));
+  url.searchParams.set("sort", "hybridrel");
+
+  try {
+    const response = await fetchWithTimeout(url.toString(), {
+      headers: { "User-Agent": "globalpulse-worker/0.1", "Accept": "application/json" },
+    }, GDELT_FETCH_TIMEOUT_MS);
+    if (!response.ok) return [];
+    const payload = await response.json() as {
+      articles?: Array<{
+        title?: string;
+        url?: string;
+        seendate?: string;
+        sourceCommonName?: string;
+        domain?: string;
+        language?: string;
+        sourceCountry?: string;
+      }>;
+    };
+    return (payload.articles ?? []).flatMap((article): TopicItem[] => {
+      if (!article.title || !article.url) return [];
+      const title = cleanText(article.title);
+      const source = article.sourceCommonName || article.domain || "GDELT";
+      const item: TopicItem = {
+        title,
+        url: article.url,
+        source: `GDELT / ${source}`,
+        category: classifyNewsCategory(title),
+        section: scope === "china" ? "domestic" : "global",
+        score: scope === "china" ? 760 : 720,
+      };
+      const publishedAt = normalizeGdeltDate(article.seendate);
+      if (publishedAt) item.publishedAt = publishedAt;
+      return [item];
+    }).slice(0, limit);
+  } catch {
+    return [];
+  }
+}
+
 function buildNewsApiQuery(query: string, language: AppLanguage): string {
   const base = query.trim();
   const defaultQuery = language === "zh"
@@ -250,11 +358,19 @@ function buildGlobalEnglishDailyHotQuery(query: string): string {
   return `${englishBase ? `${englishBase} ` : ""}${englishFocus}`.slice(0, 280);
 }
 
-function markGlobalDailyHotItems(items: TopicItem[]): TopicItem[] {
+function markGlobalDailyHotItems(items: TopicItem[], scoreBoost = 700): TopicItem[] {
   return items.map((item) => ({
     ...item,
     section: item.section === "platform" ? "platform" : "global",
-    score: (item.score ?? 0) + 700,
+    score: (item.score ?? 0) + scoreBoost,
+  }));
+}
+
+function markDomesticDailyHotItems(items: TopicItem[], scoreBoost = 700): TopicItem[] {
+  return items.map((item) => ({
+    ...item,
+    section: "domestic" as const,
+    score: (item.score ?? 0) + scoreBoost,
   }));
 }
 
@@ -301,6 +417,7 @@ function isMeaningfulPlatformHotItem(item: TopicItem): boolean {
   const text = `${title}\n${item.summary ?? ""}`;
   if (/^(微博正文|微博|抖音|小红书|知乎|百度|登录|首页)$/i.test(title)) return false;
   if (/微博正文|登录后可见|请先登录|客户端下载|无障碍|首页导航/i.test(text) && text.length < 40) return false;
+  if (/年度回忆|热点记忆|抖音热点记忆|年度盘点|年终盘点|往年回顾|历史回顾|合集/i.test(text)) return false;
   return /热搜|热榜|热议|热点|破亿|千万|爆|关注|讨论|回应|发布|宣布|政策|事件|事故|天气|地震|赛事|电影|消费|民生|医疗|教育|weibo|douyin|trending/i.test(text);
 }
 
@@ -339,6 +456,16 @@ async function isReachableTopicUrl(value: string): Promise<boolean> {
   }
 }
 
+async function fetchWithTimeout(input: Parameters<typeof fetch>[0], init: RequestInit = {}, timeoutMs = SOURCE_FETCH_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: init.signal ?? controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function normalizeHttpUrl(value: string | undefined): string | undefined {
   if (!value) return undefined;
   try {
@@ -364,7 +491,7 @@ function isValidTopicUrl(value: string): boolean {
 }
 
 async function fetchSinaFinanceItems(): Promise<TopicItem[]> {
-  const response = await fetch("https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2516&num=10&page=1", {
+  const response = await fetchWithTimeout("https://feed.mix.sina.com.cn/api/roll/get?pageid=153&lid=2516&num=10&page=1", {
     headers: { "User-Agent": "Mozilla/5.0 (compatible; GlobalPulse/0.1)", "Referer": "https://finance.sina.com.cn", "Accept": "application/json" },
   });
   if (!response.ok) return [];
@@ -381,11 +508,11 @@ async function fetchSinaFinanceItems(): Promise<TopicItem[]> {
 }
 
 async function fetchHackerNewsItems(): Promise<TopicItem[]> {
-  const idsResponse = await fetch("https://hacker-news.firebaseio.com/v0/topstories.json", { headers: { "User-Agent": "globalpulse-worker/0.1", "Accept": "application/json" } });
+  const idsResponse = await fetchWithTimeout("https://hacker-news.firebaseio.com/v0/topstories.json", { headers: { "User-Agent": "globalpulse-worker/0.1", "Accept": "application/json" } });
   if (!idsResponse.ok) return [];
   const ids = await idsResponse.json() as number[];
   const storyResponses = await Promise.allSettled(ids.slice(0, 8).map(async (id) => {
-    const response = await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`, { headers: { "User-Agent": "globalpulse-worker/0.1", "Accept": "application/json" } });
+    const response = await fetchWithTimeout(`https://hacker-news.firebaseio.com/v0/item/${id}.json`, { headers: { "User-Agent": "globalpulse-worker/0.1", "Accept": "application/json" } });
     if (!response.ok) return undefined;
     return response.json() as Promise<{ id: number; title?: string; url?: string; score?: number; time?: number }>;
   }));
@@ -406,7 +533,7 @@ async function fetchGithubTrendingItems(): Promise<TopicItem[]> {
   url.searchParams.set("sort", "stars");
   url.searchParams.set("order", "desc");
   url.searchParams.set("per_page", "5");
-  const response = await fetch(url.toString(), { headers: { "User-Agent": "globalpulse-worker/0.1", "Accept": "application/vnd.github.v3+json" } });
+  const response = await fetchWithTimeout(url.toString(), { headers: { "User-Agent": "globalpulse-worker/0.1", "Accept": "application/vnd.github.v3+json" } });
   if (!response.ok) return [];
   const payload = await response.json() as { items?: Array<{ full_name?: string; html_url?: string; description?: string; language?: string; stargazers_count?: number }> };
   return (payload.items ?? []).flatMap((item) => {
@@ -419,7 +546,7 @@ async function fetchGithubTrendingItems(): Promise<TopicItem[]> {
 }
 
 async function fetchFearGreedItem(): Promise<TopicItem[]> {
-  const response = await fetch("https://api.alternative.me/fng/", { headers: { "User-Agent": "globalpulse-worker/0.1", "Accept": "application/json" } });
+  const response = await fetchWithTimeout("https://api.alternative.me/fng/", { headers: { "User-Agent": "globalpulse-worker/0.1", "Accept": "application/json" } });
   if (!response.ok) return [];
   const payload = await response.json() as { data?: Array<{ value?: string; value_classification?: string; timestamp?: string }> };
   const item = payload.data?.[0];
@@ -558,4 +685,15 @@ function normalizeUnixTime(value: string | number): string | undefined {
   const timestamp = Number(value);
   if (!Number.isFinite(timestamp)) return undefined;
   return new Date(timestamp * 1000).toISOString();
+}
+
+function normalizeGdeltDate(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const parsed = Date.parse(value);
+  if (Number.isFinite(parsed)) return new Date(parsed).toISOString();
+  const match = /^(\d{4})(\d{2})(\d{2})T?(\d{2})(\d{2})(\d{2})Z?$/i.exec(value.trim());
+  if (!match) return undefined;
+  const [, year, month, day, hour, minute, second] = match;
+  if (!year || !month || !day || !hour || !minute || !second) return undefined;
+  return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second))).toISOString();
 }

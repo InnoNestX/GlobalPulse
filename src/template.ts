@@ -73,6 +73,12 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
   const domesticItems = bySection.domestic.slice(0, 4);
   const topPlatformItem = selectTopPlatformItem(bySection.platform);
   const platformItems = bySection.platform.filter((item) => !isSameTopicItem(item, topPlatformItem)).slice(0, 3);
+  const extraItems = selectExtraDailyHotItems(items, [
+    ...internationalItems,
+    ...domesticItems,
+    ...platformItems,
+    ...(topPlatformItem ? [topPlatformItem] : []),
+  ], 12);
 
   if (zh) {
     const sections = [
@@ -89,6 +95,7 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
     if (topPlatformItem) {
       appendDailyHotSection(sections, "## 📌 全网热度最高话题", [topPlatformItem], schedule);
     }
+    appendDailyHotSection(sections, "## 🗞️ 更多重点", extraItems, schedule);
 
     sections.push(
       "## 🧭 后续观察方向",
@@ -125,6 +132,7 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
   if (topPlatformItem) {
     appendDailyHotSection(enSections, "## 📌 #1 Trending Topic", [topPlatformItem], schedule);
   }
+  appendDailyHotSection(enSections, "## 🗞️ More Key Items", extraItems, schedule);
 
   enSections.push(
     "## 🧭 What to Watch Next",
@@ -168,11 +176,18 @@ function selectTopPlatformItem(items: TopicItem[]): TopicItem | null {
   return items.slice().sort((a, b) => (b.score ?? 0) - (a.score ?? 0))[0] ?? null;
 }
 
+function selectExtraDailyHotItems(items: TopicItem[], displayed: TopicItem[], totalLimit: number): TopicItem[] {
+  const remaining = Math.max(0, totalLimit - displayed.length);
+  if (remaining === 0) return [];
+  return items.filter((item) => !displayed.some((shown) => isSameTopicItem(item, shown))).slice(0, remaining);
+}
+
 function isSameTopicItem(item: TopicItem, other: TopicItem | null): boolean {
   if (!other) return false;
   const itemUrl = normalizeHttpUrl(item.url);
   const otherUrl = normalizeHttpUrl(other.url);
-  if (itemUrl && otherUrl && itemUrl === otherUrl) return true;
+  if (itemUrl && otherUrl) return itemUrl === otherUrl;
+  if (itemUrl || otherUrl) return false;
   return item.title.trim().toLowerCase() === other.title.trim().toLowerCase();
 }
 
