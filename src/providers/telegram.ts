@@ -1,5 +1,5 @@
 import type { Provider } from "./types";
-import { escapeHtml, isLockedResearchReportBody } from "./format";
+import { formatPlainText } from "./format";
 import { jsonApiResponseToResult, providerNotConfigured } from "./shared";
 
 export const telegramProvider: Provider = {
@@ -12,7 +12,7 @@ export const telegramProvider: Provider = {
       return providerNotConfigured("telegram");
     }
     const actions = normalizeActions(message.actions);
-    const body = formatTelegramHtml(message.title, message.body);
+    const body = formatTelegramText(message.title, message.body);
 
     const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: "POST",
@@ -22,7 +22,6 @@ export const telegramProvider: Provider = {
       body: JSON.stringify({
         chat_id: env.TELEGRAM_CHAT_ID,
         text: body.slice(0, 4096),
-        parse_mode: "HTML",
         disable_web_page_preview: true,
         ...(actions.length > 0
           ? {
@@ -53,48 +52,20 @@ function toInlineKeyboard(actions: Array<{ label: string; url: string }>): Array
   return rows;
 }
 
-function formatTelegramHtml(title: string, body: string): string {
-  if (isLockedResearchReportBody(body)) {
-    return convertMarkdownLinksToHtml(body);
-  }
+function formatTelegramText(title: string, body: string): string {
+  const text = formatPlainText({
+    title,
+    body,
+    level: "info",
+    tags: [],
+    actions: [],
+  });
 
-  const escapedTitle = escapeHtml(title);
-  const convertedBody = convertMarkdownLinksToHtml(body);
-
-  return `<b>${escapedTitle}</b>\n${convertedBody}`;
-}
-
-function convertMarkdownLinksToHtml(value: string): string {
-  const linkPattern = /\[([^\]]+)\]\(([^)]+)\)/g;
-  let result = "";
-  let lastIndex = 0;
-
-  for (const match of value.matchAll(linkPattern)) {
-    const [fullMatch, linkTextRaw, urlRaw] = match;
-    const matchIndex = match.index ?? 0;
-    result += escapeHtml(value.slice(lastIndex, matchIndex));
-    lastIndex = matchIndex + fullMatch.length;
-
-    const normalizedUrl = typeof urlRaw === "string" ? normalizeHttpUrl(urlRaw) : undefined;
-    if (!normalizedUrl) {
-      continue;
-    }
-
-    const linkText = (linkTextRaw || "").trim();
-    const anchorText = /^查看原文\d*$/u.test(linkText) || /^source\s*\d*$/iu.test(linkText)
-      ? "🔗"
-      : linkText;
-    result += `<a href="${escapeHtml(normalizedUrl)}">${escapeHtml(anchorText || "🔗")}</a>`;
-  }
-
-  result += escapeHtml(value.slice(lastIndex));
-  return renderTelegramInlineMarkdown(result);
-}
-
-function renderTelegramInlineMarkdown(value: string): string {
-  return value
-    .replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>")
-    .replace(/^###\s+/gm, "");
+  return text
+    .replace(/Sources:\s*.*$/gim, "")
+    .replace(/Tags:\s*.*$/gim, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function normalizeActions(actions: Array<{ label: string; url: string }>): Array<{ label: string; url: string }> {
