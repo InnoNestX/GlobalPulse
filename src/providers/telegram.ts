@@ -63,11 +63,30 @@ function formatTelegramText(title: string, body: string): string {
     metadata: {},
   });
 
-  return escapeTelegramHtml(text
+  return formatTelegramHtml(text
     .replace(/Sources:\s*.*$/gim, "")
     .replace(/Tags:\s*.*$/gim, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim());
+}
+
+function formatTelegramHtml(value: string): string {
+  const withoutHeadingMarkers = value.replace(/^#{1,6}\s+/gm, "");
+  const withLinks = replaceMarkdownLinks(withoutHeadingMarkers);
+  return withLinks
+    .split(/(<a href="https?:\/\/[^"]+">[\s\S]*?<\/a>)/g)
+    .map((part) => part.startsWith("<a href=") ? part : escapeTelegramHtml(part).replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>").replace(/`([^`\n]+)`/g, "$1"))
+    .join("");
+}
+
+function replaceMarkdownLinks(value: string): string {
+  return value.replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g, (_match, label: string, rawUrl: string) => {
+    const url = normalizeHttpUrl(rawUrl);
+    if (!url) {
+      return escapeTelegramHtml(label);
+    }
+    return `<a href="${escapeTelegramAttribute(url)}">${escapeTelegramHtml(label)}</a>`;
+  });
 }
 
 function escapeTelegramHtml(value: string): string {
@@ -75,6 +94,10 @@ function escapeTelegramHtml(value: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+function escapeTelegramAttribute(value: string): string {
+  return escapeTelegramHtml(value).replace(/"/g, "&quot;");
 }
 
 function normalizeActions(actions: Array<{ label: string; url: string }>): Array<{ label: string; url: string }> {
