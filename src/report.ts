@@ -96,7 +96,6 @@ async function fetchItemsWithFallback(env: Env, schedule: PulseSchedule): Promis
 }> {
   const effectiveQuery = buildEffectiveQuery(schedule);
   const isDailyHot = schedule.reportType === "daily_hot";
-  const newsApiEnabled = Boolean(env.NEWSAPI_API_KEY);
   try {
     const topicData = await fetchTopicItems(effectiveQuery, schedule.language, isDailyHot ? undefined : schedule.sourceUrl, {
       mode: schedule.reportType,
@@ -108,9 +107,7 @@ async function fetchItemsWithFallback(env: Env, schedule: PulseSchedule): Promis
     }
 
     const dailyHotSourceHint = isDailyHot
-      ? newsApiEnabled
-        ? `每日热点已启用 NewsAPI；实际来源：${topicData.sourceUrl}`
-        : `每日热点未配置 NewsAPI，使用 Google News 兜底；实际来源：${topicData.sourceUrl}`
+      ? `每日热点实际来源：${topicData.sourceUrl}`
       : topicData.sourceUrl;
 
     return {
@@ -129,7 +126,7 @@ async function fetchItemsWithFallback(env: Env, schedule: PulseSchedule): Promis
     const fallbackSource = isDailyHot
       ? emergencyDailyHotItems.length > 0
         ? "备用综合来源"
-        : newsApiEnabled ? "NewsAPI(configured), Google News fallback" : "Google News fallback"
+        : schedule.language === "zh" ? "备用示例数据" : "Sample fallback"
       : schedule.sourceUrl || "Google News, Sina Finance, Hacker News, GitHub Search, alternative.me";
     const errorMessage = error instanceof Error ? error.message : "unknown error";
 
@@ -199,7 +196,7 @@ function selectDigestItems(schedule: PulseSchedule, items: TopicItem[], now: Dat
 
 function selectDailyHotItems(items: TopicItem[], now: Date): TopicItem[] {
   const nowMs = now.getTime();
-  const filtered = items.filter((item) => !isDeveloperOnlyItem(item) && !isSingleCompanyFinanceItem(item) && !isLowInformationDailyHotItem(item, now) && (() => {
+  const filtered = items.filter((item) => !isDeveloperOnlyItem(item) && !isSingleCompanyFinanceItem(item) && !isLowInformationDailyHotItem(item, now) && !isLowSignalInvestmentBriefItem(item) && (() => {
     if (!item.publishedAt) return true;
     const pubMs = Date.parse(item.publishedAt);
     if (!Number.isFinite(pubMs)) return true;
@@ -214,7 +211,8 @@ function selectDailyHotItems(items: TopicItem[], now: Date): TopicItem[] {
     if (/policy|government|regulation|tariff|election|央行|政策|监管|关税|选举|财政/.test(text)) score += 11;
     if (/inflation|rate|fed|central bank|cpi|gdp|通胀|利率|美联储|宏观|经济/.test(text)) score += 10;
     if (/industry|supply chain|ai|energy|chip|产业|供应链|能源|芯片|科技/.test(text)) score += 8;
-    if (item.category === "geopolitics" || item.category === "policy" || item.category === "macro") score += 8;
+    if (/earthquake|flood|wildfire|disaster|outbreak|地震|洪水|山火|灾害|疫情|事故|公共卫生/.test(text)) score += 8;
+    if (item.category === "geopolitics" || item.category === "policy" || item.category === "macro" || item.category === "risk-event") score += 8;
     if (item.category === "industry" || item.category === "global-news") score += 4;
     if (item.source && /newsapi|reuters|ap news|bbc|bloomberg|financial times|associated press|路透|新华社|央视|联合早报/i.test(item.source)) score += 4;
     const publishedAtMs = item.publishedAt ? Date.parse(item.publishedAt) : NaN;
@@ -278,7 +276,7 @@ function selectDailyHotItems(items: TopicItem[], now: Date): TopicItem[] {
 
   return result.length > 0
     ? result
-    : items.filter((item) => !isLowInformationDailyHotItem(item, now) && !isDeveloperOnlyItem(item) && !isSingleCompanyFinanceItem(item)).slice(0, DAILY_HOT_DISPLAY_LIMIT);
+    : items.filter((item) => !isLowInformationDailyHotItem(item, now) && !isLowSignalInvestmentBriefItem(item) && !isDeveloperOnlyItem(item) && !isSingleCompanyFinanceItem(item)).slice(0, DAILY_HOT_DISPLAY_LIMIT);
 }
 
 function inferSectionFromText(text: string, source?: string | null): "domestic" | "platform" | "global" {
@@ -366,6 +364,19 @@ function isLowInformationDailyHotItem(item: TopicItem, now: Date): boolean {
   if (isPlatform && hasStaleYearMarker(text, currentYear)) return true;
   if (isPlatform && !/热搜|热榜|热议|热点|破亿|千万|爆|关注|讨论|回应|发布|宣布|政策|事件|事故|天气|地震|赛事|电影|消费|民生|医疗|教育|trending/i.test(text)) return true;
   return title.length < 6 && !item.summary;
+}
+
+function isLowSignalInvestmentBriefItem(item: TopicItem): boolean {
+  const text = `${item.title}\n${item.summary ?? ""}\n${item.source ?? ""}`;
+  const normalized = text.replace(/\s+/g, " ");
+
+  if (hasInvestmentBriefSignal(normalized)) return false;
+
+  return /文艺演出|助残日|博物馆|文博|文创|市集|打卡|旅游|景区|老字号|哲学社会科学|自主知识体系|党校|高校|大学|中学|小学|校园|书画|诗歌|阅读|朗诵|演出|艺术团|文化活动|志愿|公益|文明实践|非遗|展览|展会|运动会|开幕式|闭幕式|嘉年华|夜游|音乐节|短剧|综艺|电视剧|电影节|明星|粉丝|网红|美食节|天气好|养生|健康科普|萌娃|宠物|八卦|广告|推广|优惠券|促销|招商|报名|门票|获奖名单/i.test(normalized);
+}
+
+function hasInvestmentBriefSignal(text: string): boolean {
+  return /宏观|经济|政策|监管|财政|央行|货币|通胀|利率|就业|消费|出口|进口|关税|贸易|产业|供应链|能源|油价|天然气|电力|芯片|半导体|AI|人工智能|算力|数据中心|金融|资本市场|A股|股市|债券|汇率|人民币|美元|房地产|地产|制裁|地缘|外交|冲突|战争|军事|中东|俄乌|俄罗斯|乌克兰|美国|欧盟|伊朗|以色列|红海|南海|航运|港口|公共卫生|疫情|地震|洪水|灾害|安全|事故|IPO|并购|投资|融资|价格|市场|银行|保险|证券|基金|大宗|黄金|铜|粮食|农产品|汽车|新能源|药品|医疗|教育|民生|补贴|税|法案|法院|裁定|反垄断|数据|中俄|台海|南海|高考|住房|租赁/i.test(text);
 }
 
 function hasStaleYearMarker(text: string, currentYear: number): boolean {
