@@ -38,10 +38,10 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
   const grouped = groupItemsBySection(items);
   const globalItems = grouped.global.slice(0, 4);
   const domesticItems = grouped.domestic.slice(0, 4);
-  const platformItems = grouped.platform.slice(0, 4);
-  const [topPlatformItem, ...platformRest] = platformItems;
-  const platformDisplayItems = platformRest.slice(0, 3);
-  const used = [...globalItems, ...domesticItems, ...platformItems];
+  const sortedPlatformItems = [...grouped.platform].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  const topPlatformItem = sortedPlatformItems[0] ?? null;
+  const platformDisplayItems = sortedPlatformItems.slice(1, 4);
+  const used = [...globalItems, ...domesticItems, ...platformDisplayItems, ...(topPlatformItem ? [topPlatformItem] : [])];
   const watchItems = items.filter((item) => !used.some((shown) => isSameTopicItem(item, shown))).slice(0, 3);
   const moreItems = items.filter((item) => !used.some((shown) => isSameTopicItem(item, shown)) && !watchItems.some((shown) => isSameTopicItem(item, shown))).slice(0, Math.max(0, 28 - used.length - watchItems.length));
 
