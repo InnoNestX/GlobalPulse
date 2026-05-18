@@ -35,16 +35,16 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
   }
 
   const zh = schedule.language === "zh";
-  const domesticItems = sortByHeat(items.filter((item) => inferDigestSection(item) === "domestic")).slice(0, 4);
+  const domesticItems = takeUniqueByHeat(items.filter((item) => inferDigestSection(item) === "domestic"), 4);
   const domesticSeed = new Set(domesticItems.map((item) => getItemKey(item)));
   const globalCandidates = items.filter((item) => inferDigestSection(item) === "global" || (!domesticSeed.has(getItemKey(item)) && inferDigestSection(item) === "domestic"));
-  const globalItems = sortByHeat(globalCandidates).filter((item, index, array) => array.findIndex((other) => isSameTopicItem(item, other)) === index).slice(0, 4);
-  const platformItems = sortByHeat(items.filter((item) => inferDigestSection(item) === "platform"));
+  const globalItems = takeUniqueByHeat(globalCandidates, 4);
+  const platformItems = takeUniqueByHeat(items.filter((item) => inferDigestSection(item) === "platform"), 4);
   const topPlatformItem = platformItems[0] ?? null;
   const platformDisplayItems = platformItems.slice(1, 4);
   const used = [...globalItems, ...domesticItems, ...platformDisplayItems, ...(topPlatformItem ? [topPlatformItem] : [])];
-  const watchItems = sortByHeat(items.filter((item) => !used.some((shown) => isSameTopicItem(item, shown)))).slice(0, 3);
-  const fallbackItems = sortByHeat(items.filter((item) => !used.some((shown) => isSameTopicItem(item, shown)) && !watchItems.some((shown) => isSameTopicItem(item, shown)))).slice(0, 8);
+  const watchItems = takeUniqueByHeat(items.filter((item) => !used.some((shown) => isSameTopicItem(item, shown))), 3);
+  const fallbackItems = takeUniqueByHeat(items.filter((item) => !used.some((shown) => isSameTopicItem(item, shown)) && !watchItems.some((shown) => isSameTopicItem(item, shown))), 8);
 
   const lines = [
     zh ? "# GlobalPulse 热点简报" : "# GlobalPulse Hot Brief",
@@ -58,7 +58,7 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
   appendSection(lines, zh ? "## 🌍 国际要闻" : "## 🌍 International Headlines", globalItems, schedule, "global");
   appendSection(lines, zh ? "## 🇨🇳 国内热点" : "## 🇨🇳 Domestic Highlights", domesticItems, schedule, "domestic");
   appendSection(lines, zh ? "## 🔥 全网热搜精选" : "## 🔥 Social Trends", platformDisplayItems, schedule, "social");
-  appendSection(lines, zh ? "## 📌 全网热度最高话题" : "## 📌 Top Social Topic", topPlatformItem ? [topPlatformItem] : [], schedule, "social");
+  appendSection(lines, zh ? "## 📌 全网热论" : "## 📌 Top Discussion", topPlatformItem ? [topPlatformItem] : [], schedule, "social");
   appendSection(lines, zh ? "## 🧭 后续观察方向" : "## 🧭 What to Watch", [...watchItems, ...fallbackItems].slice(0, 8), schedule, "watch");
 
   const sourceSummary = formatSourceSummary(context.sourceUrl);
@@ -110,6 +110,15 @@ function isChinaRelatedTopic(text: string): boolean {
 
 function sortByHeat(items: TopicItem[]): TopicItem[] {
   return [...items].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+}
+
+function takeUniqueByHeat(items: TopicItem[], limit: number): TopicItem[] {
+  const selected: TopicItem[] = [];
+  for (const item of sortByHeat(items)) {
+    if (!selected.some((shown) => isSameTopicItem(item, shown))) selected.push(item);
+    if (selected.length >= limit) break;
+  }
+  return selected;
 }
 
 function getItemKey(item: TopicItem): string {
