@@ -36,14 +36,14 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
 
   const zh = schedule.language === "zh";
   const grouped = groupItemsBySection(items);
-  const globalItems = grouped.global.slice(0, 6);
-  const domesticItems = grouped.domestic.slice(0, 6);
-  const socialItems = grouped.platform.slice(0, 10);
-  const marketItems = pickByCategory(items, ["macro", "finance", "market", "crypto-sentiment"], 6);
-  const techItems = pickByCategory(items, ["industry", "technology", "tech", "international-tech"], 6);
-  const watchItems = [...items].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 4);
-  const used = [...globalItems, ...domesticItems, ...socialItems, ...marketItems, ...techItems, ...watchItems];
-  const moreItems = items.filter((item) => !used.some((shown) => isSameTopicItem(item, shown))).slice(0, Math.max(0, 28 - used.length));
+  const globalItems = grouped.global.slice(0, 4);
+  const domesticItems = grouped.domestic.slice(0, 4);
+  const platformItems = grouped.platform.slice(0, 4);
+  const [topPlatformItem, ...platformRest] = platformItems;
+  const platformDisplayItems = platformRest.slice(0, 3);
+  const used = [...globalItems, ...domesticItems, ...platformItems];
+  const watchItems = items.filter((item) => !used.some((shown) => isSameTopicItem(item, shown))).slice(0, 3);
+  const moreItems = items.filter((item) => !used.some((shown) => isSameTopicItem(item, shown)) && !watchItems.some((shown) => isSameTopicItem(item, shown))).slice(0, Math.max(0, 28 - used.length - watchItems.length));
 
   const lines = [
     zh ? "# GlobalPulse 热点简报" : "# GlobalPulse Hot Brief",
@@ -52,18 +52,13 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
     zh ? `- 时区：${context.timezone}` : `- Timezone: ${context.timezone}`,
     zh ? `- 关注方向：${context.topicQuery}` : `- Focus: ${context.topicQuery}`,
     "",
-    zh ? "## 🧭 今日总览" : "## 🧭 Executive Summary",
-    "",
-    ...renderOverview(items, schedule),
-    "",
   ];
 
-  appendSection(lines, zh ? "## 🌍 全球热点" : "## 🌍 Global Headlines", globalItems, schedule, "global");
-  appendSection(lines, zh ? "## 🇨🇳 中国热点" : "## 🇨🇳 China Highlights", domesticItems, schedule, "domestic");
-  appendSection(lines, zh ? "## 💹 财经与市场" : "## 💹 Markets & Macro", marketItems, schedule, "market");
-  appendSection(lines, zh ? "## 🤖 科技与产业" : "## 🤖 Tech & Industry", techItems, schedule, "tech");
-  appendSection(lines, zh ? "## 🔥 社交平台热搜" : "## 🔥 Social Trends", socialItems, schedule, "social");
-  appendSection(lines, zh ? "## 📌 重点观察" : "## 📌 What to Watch", watchItems, schedule, "watch");
+  appendSection(lines, zh ? "## 🌍 国际要闻" : "## 🌍 International Headlines", globalItems, schedule, "global");
+  appendSection(lines, zh ? "## 🇨🇳 国内热点" : "## 🇨🇳 Domestic Highlights", domesticItems, schedule, "domestic");
+  appendSection(lines, zh ? "## 🔥 全网热搜精选" : "## 🔥 Social Trends", platformDisplayItems, schedule, "social");
+  appendSection(lines, zh ? "## 📌 全网热度最高话题" : "## 📌 Top Social Topic", topPlatformItem ? [topPlatformItem] : [], schedule, "social");
+  appendSection(lines, zh ? "## 🧭 后续观察方向" : "## 🧭 What to Watch", watchItems, schedule, "watch");
   appendSection(lines, zh ? "## 🗞️ 更多重点" : "## 🗞️ More Key Items", moreItems, schedule, "more");
 
   lines.push("", zh ? `> 数据来源：${context.sourceUrl}` : `> Sources: ${context.sourceUrl}`);
@@ -73,24 +68,6 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
   return context.format === "text" ? markdownToText(markdown) : markdown;
 }
 
-function renderOverview(items: TopicItem[], schedule: PulseSchedule): string[] {
-  const zh = schedule.language === "zh";
-  if (!items.length) return [zh ? "- 暂无足够热点数据，请检查新闻源、热榜源或 API 配置。" : "- Not enough live items were collected. Please check source settings."];
-  const top = items.slice(0, 3).map((item) => item.title).join("；");
-  const keywords = extractKeywords(items).join("、") || (zh ? "全球热点、政策、市场、科技、社会讨论" : "global, policy, markets, technology, society");
-  return zh ? [
-    `- 本次共聚合 ${items.length} 条候选热点，覆盖全球新闻、中国热点、市场宏观、科技产业和社交热搜。`,
-    `- 当前最值得先看的事件包括：${top}。`,
-    `- 关键词：${keywords}。`,
-    "- 阅读建议：先看“重点观察”和“财经与市场”，再按兴趣点击每条新闻的“查看原文”继续阅读。",
-  ] : [
-    `- ${items.length} candidate items were collected across global news, China, markets, technology, and social trends.`,
-    `- Top items: ${top}.`,
-    `- Keywords: ${keywords}.`,
-    "- Start with “What to Watch” and “Markets & Macro”, then open source links for deeper reading.",
-  ];
-}
-
 function appendSection(lines: string[], heading: string, items: TopicItem[], schedule: PulseSchedule, type: string): void {
   if (!items.length) return;
   lines.push(heading, "", renderDailyHotItems(items, schedule, type), "");
@@ -98,13 +75,12 @@ function appendSection(lines: string[], heading: string, items: TopicItem[], sch
 
 function renderDailyHotItems(items: TopicItem[], schedule: PulseSchedule, type: string): string {
   return items.map((item, index) => {
-    const source = item.source ? ` · 来源：${escapeMarkdown(item.source)}` : "";
     const heat = typeof item.score === "number" ? ` · 热度 ${Math.round(item.score)}` : "";
-    const summary = item.summary ? `\n   摘要：${escapeMarkdown(item.summary)}` : "";
+    const summary = item.summary ? `\n摘要：${escapeMarkdown(item.summary)}` : "";
     const note = inferDailyHotNote(item, schedule, type);
-    const noteLine = note ? `\n   ${note}` : "";
-    const link = normalizeHttpUrl(item.url) ? `\n   [查看原文](${normalizeHttpUrl(item.url)})` : "";
-    return `${index + 1}. **${escapeMarkdown(item.title)}**${source}${heat}${summary}${noteLine}${link}`;
+    const noteLine = note ? `\n${note}` : "";
+    const link = normalizeHttpUrl(item.url) ? `\n[查看原文](${normalizeHttpUrl(item.url)})` : "";
+    return `${index + 1}. **${escapeMarkdown(item.title)}**${heat}${summary}${noteLine}${link}`;
   }).join("\n");
 }
 
@@ -128,11 +104,6 @@ function groupItemsBySection(items: TopicItem[]): { global: TopicItem[]; domesti
     else acc.global.push(item);
     return acc;
   }, { global: [] as TopicItem[], domestic: [] as TopicItem[], platform: [] as TopicItem[] });
-}
-
-function pickByCategory(items: TopicItem[], categories: string[], limit: number): TopicItem[] {
-  const set = new Set(categories.map((item) => item.toLowerCase()));
-  return items.filter((item) => item.category && set.has(item.category.toLowerCase())).slice(0, limit);
 }
 
 function isSameTopicItem(a: TopicItem, b: TopicItem | null): boolean {
@@ -192,12 +163,6 @@ function sentimentScore(text: string): number {
   const negative = ["利空", "下滑", "下跌", "亏损", "事故", "调查", "制裁", "关税", "收紧", "通胀上行", "风险", "MISS", "DROP", "CRASH", "PROBE", "TARIFF", "TIGHTENING"];
   const hit = (words: string[]) => words.reduce((n, word) => n + (text.includes(word.toUpperCase()) ? 1 : 0), 0);
   return hit(positive) - hit(negative);
-}
-
-function extractKeywords(items: TopicItem[]): string[] {
-  const dict = ["AI", "芯片", "美股", "A股", "港股", "黄金", "原油", "美元", "人民币", "比特币", "美联储", "利率", "通胀", "地缘政治", "监管", "政策", "消费", "汽车", "医药", "能源", "供应链", "社会热点", "热搜"];
-  const text = items.map((item) => `${item.title} ${item.summary ?? ""} ${item.category ?? ""}`).join("\n").toLowerCase();
-  return dict.filter((keyword) => text.includes(keyword.toLowerCase()));
 }
 
 function markdownToText(markdown: string): string {
