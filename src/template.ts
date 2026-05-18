@@ -56,7 +56,6 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
   appendSection(lines, zh ? "## 🇨🇳 国内热点" : "## 🇨🇳 Domestic Highlights", domesticItems, schedule, "domestic");
   appendSection(lines, zh ? "## 🔥 全网热搜精选" : "## 🔥 Social Trends", platformDisplayItems, schedule, "social");
   appendSection(lines, zh ? "## 📌 全网热度最高话题" : "## 📌 Top Discussion", topPlatformItem ? [topPlatformItem] : [], schedule, "social");
-  lines.push("", zh ? "## 🧭 后续观察方向" : "## 🧭 What to Watch");
 
   const sourceSummary = formatSourceSummary(context.sourceUrl);
   if (sourceSummary) lines.push("", zh ? `> 数据来源：${sourceSummary}` : `> Sources: ${sourceSummary}`);
