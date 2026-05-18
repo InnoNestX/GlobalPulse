@@ -36,14 +36,14 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
 
   const zh = schedule.language === "zh";
   const grouped = groupItemsBySection(items);
-  const globalItems = grouped.global.slice(0, 4);
-  const domesticItems = grouped.domestic.slice(0, 4);
-  const sortedPlatformItems = [...grouped.platform].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  const globalItems = sortByHeat(grouped.global).slice(0, 4);
+  const domesticItems = sortByHeat(grouped.domestic).slice(0, 4);
+  const sortedPlatformItems = sortByHeat(grouped.platform);
   const topPlatformItem = sortedPlatformItems[0] ?? null;
   const platformDisplayItems = sortedPlatformItems.slice(1, 4);
   const used = [...globalItems, ...domesticItems, ...platformDisplayItems, ...(topPlatformItem ? [topPlatformItem] : [])];
-  const watchItems = items.filter((item) => !used.some((shown) => isSameTopicItem(item, shown))).slice(0, 3);
-  const moreItems = items.filter((item) => !used.some((shown) => isSameTopicItem(item, shown)) && !watchItems.some((shown) => isSameTopicItem(item, shown))).slice(0, Math.max(0, 28 - used.length - watchItems.length));
+  const watchItems = sortByHeat(items.filter((item) => !used.some((shown) => isSameTopicItem(item, shown)))).slice(0, 3);
+  const moreItems = sortByHeat(items.filter((item) => !used.some((shown) => isSameTopicItem(item, shown)) && !watchItems.some((shown) => isSameTopicItem(item, shown)))).slice(0, Math.max(0, 28 - used.length - watchItems.length));
   const sourceSummary = formatSourceSummary(context.sourceUrl);
 
   const lines = [
@@ -82,7 +82,7 @@ function renderDailyHotItems(items: TopicItem[], schedule: PulseSchedule, type: 
     const noteLine = note ? `\n   ${note}` : "";
     const link = normalizeHttpUrl(item.url) ? `\n   [查看原文](${normalizeHttpUrl(item.url)})` : "";
     return `${index + 1}. **${escapeMarkdown(compactTitle(item.title))}**${heat}${summary}${noteLine}${link}`;
-  }).join("\n\n");
+  }).join("\n");
 }
 
 function inferDailyHotNote(item: TopicItem, schedule: PulseSchedule, type: string): string | undefined {
@@ -92,8 +92,8 @@ function inferDailyHotNote(item: TopicItem, schedule: PulseSchedule, type: strin
   if (type === "watch") return "后续看点：关注官方表态、事件进展和市场反应。";
   if (type === "market" || category === "macro" || category === "finance") return "可能影响：关注利率、汇率、风险偏好和权益市场联动。";
   if (type === "tech" || category === "industry") return "为什么值得关注：可能影响产业链、企业投资方向和增长预期。";
-  if (category === "geopolitics") return "观察点：关注地区安全、能源价格和供应链稳定。";
-  if (category === "policy") return "观察点：关注监管预期、财政方向和产业政策变化。";
+  if (type === "global" || category === "geopolitics") return "观察点：关注地缘风险、能源价格、利率预期和跨市场传导。";
+  if (type === "domestic" || category === "policy") return "观察点：关注政策口径、实施节奏和相关行业影响。";
   return "观察点：关注后续是否演变成政策、市场或社会情绪变量。";
 }
 
@@ -186,12 +186,29 @@ function formatSourceSummary(value: string): string {
 
 function groupItemsBySection(items: TopicItem[]): { global: TopicItem[]; domestic: TopicItem[]; platform: TopicItem[] } {
   return items.reduce((acc, item) => {
-    const section = item.section ?? "global";
+    const section = inferDigestSection(item);
     if (section === "domestic") acc.domestic.push(item);
     else if (section === "platform") acc.platform.push(item);
     else acc.global.push(item);
     return acc;
   }, { global: [] as TopicItem[], domestic: [] as TopicItem[], platform: [] as TopicItem[] });
+}
+
+function inferDigestSection(item: TopicItem): "domestic" | "platform" | "global" {
+  const text = `${item.title}\n${item.summary ?? ""}\n${item.source ?? ""}`;
+  if (item.section === "platform" || /微博|抖音|小红书|知乎|百度|热搜|热榜|热议|douyin|weibo|trending/i.test(text)) return "platform";
+  if (isInternationalTopic(text)) return "global";
+  if (item.section === "domestic") return "domestic";
+  if (/中国|国内|北京|上海|深圳|广州|杭州|成都|重庆|国务院|央行|工信部|证监会|A股|人民币|中概股/i.test(text)) return "domestic";
+  return "global";
+}
+
+function isInternationalTopic(text: string): boolean {
+  return /全球|国际|海外|欧洲|欧盟|欧元区|美国|美联储|美元|美债|英债|德债|英国|德国|法国|日本|韩国|印度|俄罗斯|乌克兰|俄乌|中东|伊朗|以色列|加沙|红海|北约|关税|贸易战|南海|菲律宾|东南亚|摩根大通|高盛|Reuters|Bloomberg|Financial Times|BBC|AP News|CNBC|global|international|Europe|US|United States|Fed|Russia|Ukraine|Middle East|Israel|Iran|Gaza|NATO|tariff/i.test(text);
+}
+
+function sortByHeat(items: TopicItem[]): TopicItem[] {
+  return [...items].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 }
 
 function isSameTopicItem(a: TopicItem, b: TopicItem | null): boolean {
