@@ -80,27 +80,14 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
       "",
       ...meta,
       "",
-      "## 🌍 国际要闻",
-      "",
-      renderDailyHotSectionItems(internationalItems, schedule),
-      "",
-      "## 🇨🇳 国内热点",
-      "",
-      renderDailyHotSectionItems(domesticItems, schedule),
-      "",
-      "## 🔥 全网热搜精选",
-      "",
-      renderDailyHotSectionItems(platformItems, schedule),
-      "",
     ];
 
+    appendDailyHotSection(sections, "## 🌍 国际要闻", internationalItems, schedule);
+    appendDailyHotSection(sections, "## 🇨🇳 国内热点", domesticItems, schedule);
+    appendDailyHotSection(sections, "## 🔥 全网热搜精选", platformItems, schedule);
+
     if (topPlatformItem) {
-      sections.push(
-        "## 📌 全网热度最高话题",
-        "",
-        renderDailyHotSectionItems([topPlatformItem], schedule),
-        "",
-      );
+      appendDailyHotSection(sections, "## 📌 全网热度最高话题", [topPlatformItem], schedule);
     }
 
     sections.push(
@@ -129,27 +116,14 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
     "",
     ...meta,
     "",
-    "## 🌍 International Headlines",
-    "",
-    renderDailyHotSectionItems(internationalItems, schedule),
-    "",
-    "## 🇨🇳 Domestic Highlights",
-    "",
-    renderDailyHotSectionItems(domesticItems, schedule),
-    "",
-    "## 🔥 Trending on Social Media",
-    "",
-    renderDailyHotSectionItems(platformItems, schedule),
-    "",
   ];
 
+  appendDailyHotSection(enSections, "## 🌍 International Headlines", internationalItems, schedule);
+  appendDailyHotSection(enSections, "## 🇨🇳 Domestic Highlights", domesticItems, schedule);
+  appendDailyHotSection(enSections, "## 🔥 Trending on Social Media", platformItems, schedule);
+
   if (topPlatformItem) {
-    enSections.push(
-      "## 📌 #1 Trending Topic",
-      "",
-      renderDailyHotSectionItems([topPlatformItem], schedule),
-      "",
-    );
+    appendDailyHotSection(enSections, "## 📌 #1 Trending Topic", [topPlatformItem], schedule);
   }
 
   enSections.push(
@@ -171,6 +145,11 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
       .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 - $2");
   }
   return markdown;
+}
+
+function appendDailyHotSection(sections: string[], heading: string, items: TopicItem[], schedule: PulseSchedule): void {
+  if (items.length === 0) return;
+  sections.push(heading, "", renderDailyHotSectionItems(items, schedule), "");
 }
 
 function groupItemsBySection(items: TopicItem[]): { global: TopicItem[]; domestic: TopicItem[]; platform: TopicItem[] } {
@@ -199,7 +178,7 @@ function isSameTopicItem(item: TopicItem, other: TopicItem | null): boolean {
 
 function renderDailyHotSectionItems(items: TopicItem[], schedule: PulseSchedule): string {
   if (items.length === 0) {
-    return schedule.language === "zh" ? "_暂无相关内容。_" : "_No items available._";
+    return "";
   }
   return items.map((item, index) => {
     const url = normalizeHttpUrl(item.url);

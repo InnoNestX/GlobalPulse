@@ -11,7 +11,7 @@ export interface TopicItem {
   section?: "domestic" | "platform" | "global" | undefined;
 }
 
-const DAILY_HOT_REACHABILITY_CHECKS = 6;
+const DAILY_HOT_REACHABILITY_CHECKS = 0;
 
 export interface TopicFetchOptions {
   mode?: ReportType;
@@ -56,7 +56,7 @@ async function fetchDailyHotTopicItems(query: string, language: AppLanguage, new
     newsApiItems = newsApiResult;
   }
   const googleItems = googleResult.status === "fulfilled" ? googleResult.value : [];
-  const globalEnglishItems = globalEnglishResult.status === "fulfilled" ? globalEnglishResult.value : [];
+  const globalEnglishItems = globalEnglishResult.status === "fulfilled" ? markGlobalDailyHotItems(globalEnglishResult.value) : [];
   const domesticItems = domesticResult.status === "fulfilled" ? domesticResult.value : [];
   const platformItems = platformResult.status === "fulfilled" ? platformResult.value : [];
   const items = await filterReachableTopicItems(
@@ -128,10 +128,15 @@ async function fetchChineseDomesticNewsItems(language: AppLanguage, limit = 10):
         "site:rthk.hk OR site:scmp.com OR site:ifeng.com OR site:caixin.com OR site:mingpao.com OR site:Initium OR site:tvbs.com.hk China policy economy society",
         "China policy economy society livelihood Reuters AP Bloomberg BBC Financial Times Nikkei Asia",
       ];
-  const results = await Promise.allSettled(queries.map((query, index) =>
-    fetchGoogleNewsItems(query, language === "zh" && index === 2 ? "en" : language, Math.ceil(limit / 2)),
-  ));
-  const items = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+  const results: TopicItem[] = [];
+  for (const [index, query] of queries.entries()) {
+    try {
+      results.push(...await fetchGoogleNewsItems(query, language === "zh" && index === 2 ? "en" : language, Math.ceil(limit / 2)));
+    } catch {
+      // Keep the daily hot run resilient when one Google News query fails.
+    }
+  }
+  const items = results;
   return dedupeTopicItems(items).map((item) => ({
     ...item,
     source: item.source ?? "国内新闻",
@@ -159,6 +164,7 @@ async function fetchPlatformHotDiscussionItems(language: AppLanguage, limit = 8)
   const allItems = results.flatMap((r) => r.status === "fulfilled" ? r.value : []);
   return allItems
     .filter((item) => /微博|抖音|小红书|知乎|百度|热搜|破亿|千万|热议|热点话题|bilibili|weibo|douyin/i.test(item.title))
+    .filter(isMeaningfulPlatformHotItem)
     .map((item) => ({
       ...item,
       source: item.source ?? "平台热搜",
@@ -239,8 +245,17 @@ function buildNewsApiQuery(query: string, language: AppLanguage): string {
 
 function buildGlobalEnglishDailyHotQuery(query: string): string {
   const base = query.trim();
+  const englishBase = base.replace(/[^\x00-\x7F]+/g, " ").replace(/\s+/g, " ").trim();
   const englishFocus = "global breaking news geopolitics international economy public event China policy society livelihood technology finance Reuters AP BBC Bloomberg";
-  return `${base ? `${base} ` : ""}${englishFocus}`.slice(0, 280);
+  return `${englishBase ? `${englishBase} ` : ""}${englishFocus}`.slice(0, 280);
+}
+
+function markGlobalDailyHotItems(items: TopicItem[]): TopicItem[] {
+  return items.map((item) => ({
+    ...item,
+    section: item.section === "platform" ? "platform" : "global",
+    score: (item.score ?? 0) + 700,
+  }));
 }
 
 function classifyNewsCategory(text: string): string {
@@ -279,6 +294,14 @@ function inferPlatformHotSummary(title: string): string {
   if (/破亿/.test(title)) return "平台高热话题，出现破亿级讨论信号，适合观察当天大众情绪与社会关注点。";
   if (/千万/.test(title)) return "平台高热话题，出现千万级热度信号，适合作为当天舆论风向参考。";
   return "平台热搜相关话题，适合快速了解过去数小时到24小时内大众关注点。";
+}
+
+function isMeaningfulPlatformHotItem(item: TopicItem): boolean {
+  const title = item.title.replace(/\s+-\s+微博\s*$/i, "").trim();
+  const text = `${title}\n${item.summary ?? ""}`;
+  if (/^(微博正文|微博|抖音|小红书|知乎|百度|登录|首页)$/i.test(title)) return false;
+  if (/微博正文|登录后可见|请先登录|客户端下载|无障碍|首页导航/i.test(text) && text.length < 40) return false;
+  return /热搜|热榜|热议|热点|破亿|千万|爆|关注|讨论|回应|发布|宣布|政策|事件|事故|天气|地震|赛事|电影|消费|民生|医疗|教育|weibo|douyin|trending/i.test(text);
 }
 
 async function filterReachableTopicItems(items: TopicItem[], maxChecks = 36): Promise<TopicItem[]> {
@@ -450,8 +473,13 @@ function parseRssItems(xml: string): TopicItem[] {
     const item: TopicItem = { title: decodeXml(title), url: decodeXml(link) };
     const source = readTag(itemXml, "source");
     const publishedAt = readTag(itemXml, "pubDate");
+    const description = readTag(itemXml, "description");
     if (source) item.source = normalizeDisplaySource(decodeXml(source));
     if (publishedAt) item.publishedAt = decodeXml(publishedAt);
+    if (description) {
+      const summary = cleanText(decodeXml(description)).replace(/\s+/g, " ").trim().slice(0, 240);
+      if (summary && summary !== item.title) item.summary = summary;
+    }
     items.push(item);
   }
   return items;
