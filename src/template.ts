@@ -204,7 +204,7 @@ function inferDigestSection(item: TopicItem): "domestic" | "platform" | "global"
 }
 
 function isInternationalTopic(text: string): boolean {
-  return /全球|国际|海外|欧洲|欧盟|欧元区|美国|美联储|美元|美债|英债|德债|英国|德国|法国|日本|韩国|印度|俄罗斯|乌克兰|俄乌|中东|伊朗|以色列|加沙|红海|北约|关税|贸易战|南海|菲律宾|东南亚|摩根大通|高盛|Reuters|Bloomberg|Financial Times|BBC|AP News|CNBC|global|international|Europe|US|United States|Fed|Russia|Ukraine|Middle East|Israel|Iran|Gaza|NATO|tariff/i.test(text);
+  return /全球|国际|海外|欧洲|欧盟|欧元区|美国|美联储|美元|美债|英债|德债|英国|德国|法国|日本|韩国|印度|俄罗斯|乌克兰|俄乌|中东|伊朗|以色列|加沙|红海|北约|关税|贸易战|南海|菲律宾|东南亚|摩根大通|高盛|global|international|Europe|US|United States|Fed|Russia|Ukraine|Middle East|Israel|Iran|Gaza|NATO|tariff/i.test(text);
 }
 
 function sortByHeat(items: TopicItem[]): TopicItem[] {
