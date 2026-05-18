@@ -203,7 +203,7 @@ function inferDigestSection(item: TopicItem): "domestic" | "platform" | "global"
 }
 
 function isChinaRelatedTopic(text: string): boolean {
-  return /中国|国内|多地|民生|就业|消费|公共服务|医疗|教育|资本市场|北京|上海|深圳|广州|杭州|成都|重庆|国务院|央行|工信部|证监会|A股|人民币|中概股|台湾|台海|外交部|对华|涉华|南海|港澳/i.test(text);
+  return /中国|国内|多地|民生|就业|消费|公共服务|医疗|教育|资本市场|北京|上海|深圳|广州|杭州|成都|重庆|国务院|工信部|证监会|A股|人民币|中概股|台湾|台海|外交部|对华|涉华|南海|港澳/i.test(text);
 }
 
 function isInternationalTopic(text: string): boolean {
