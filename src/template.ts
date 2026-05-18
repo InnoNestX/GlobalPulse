@@ -90,10 +90,10 @@ function inferDailyHotNote(item: TopicItem, schedule: PulseSchedule, type: strin
   const category = item.category ?? "global-news";
   if (type === "social") return "热搜解读：关注话题是否继续发酵，以及对公众情绪、品牌或监管的影响。";
   if (type === "watch") return "后续看点：关注官方表态、事件进展和市场反应。";
-  if (type === "market" || category === "macro" || category === "finance") return "可能影响：关注利率、汇率、风险偏好和权益市场联动。";
-  if (type === "tech" || category === "industry") return "为什么值得关注：可能影响产业链、企业投资方向和增长预期。";
   if (type === "global" || category === "geopolitics") return "观察点：关注地缘风险、能源价格、利率预期和跨市场传导。";
   if (type === "domestic" || category === "policy") return "观察点：关注政策口径、实施节奏和相关行业影响。";
+  if (type === "market" || category === "macro" || category === "finance") return "可能影响：关注利率、汇率、风险偏好和权益市场联动。";
+  if (type === "tech" || category === "industry") return "为什么值得关注：可能影响产业链、企业投资方向和增长预期。";
   return "观察点：关注后续是否演变成政策、市场或社会情绪变量。";
 }
 
@@ -197,14 +197,17 @@ function groupItemsBySection(items: TopicItem[]): { global: TopicItem[]; domesti
 function inferDigestSection(item: TopicItem): "domestic" | "platform" | "global" {
   const text = `${item.title}\n${item.summary ?? ""}\n${item.source ?? ""}`;
   if (item.section === "platform" || /微博|抖音|小红书|知乎|百度|热搜|热榜|热议|douyin|weibo|trending/i.test(text)) return "platform";
+  if (item.section === "domestic" || isChinaRelatedTopic(text)) return "domestic";
   if (isInternationalTopic(text)) return "global";
-  if (item.section === "domestic") return "domestic";
-  if (/中国|国内|多地|民生|就业|消费|公共服务|医疗|教育|资本市场|北京|上海|深圳|广州|杭州|成都|重庆|国务院|央行|工信部|证监会|A股|人民币|中概股/i.test(text)) return "domestic";
   return "global";
 }
 
+function isChinaRelatedTopic(text: string): boolean {
+  return /中国|国内|多地|民生|就业|消费|公共服务|医疗|教育|资本市场|北京|上海|深圳|广州|杭州|成都|重庆|国务院|央行|工信部|证监会|A股|人民币|中概股|台湾|台海|外交部|对华|涉华|南海|港澳/i.test(text);
+}
+
 function isInternationalTopic(text: string): boolean {
-  return /全球|国际|海外|欧洲|欧盟|欧元区|美国|美联储|美元|美债|英债|德债|英国|德国|法国|日本|韩国|印度|俄罗斯|乌克兰|俄乌|中东|伊朗|以色列|加沙|红海|北约|关税|贸易战|南海|菲律宾|东南亚|摩根大通|高盛|global|international|Europe|US|United States|Fed|Russia|Ukraine|Middle East|Israel|Iran|Gaza|NATO|tariff/i.test(text);
+  return /全球|国际|海外|欧洲|欧盟|欧元区|美国|美联储|美元|美债|英债|德债|英国|德国|法国|日本|韩国|印度|俄罗斯|乌克兰|俄乌|中东|伊朗|以色列|加沙|红海|北约|关税|贸易战|菲律宾|东南亚|摩根大通|高盛|global|international|Europe|US|United States|Fed|Russia|Ukraine|Middle East|Israel|Iran|Gaza|NATO|tariff/i.test(text);
 }
 
 function sortByHeat(items: TopicItem[]): TopicItem[] {
