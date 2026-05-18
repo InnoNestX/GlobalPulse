@@ -59,6 +59,7 @@ function formatTelegramText(title: string, body: string): string {
     level: "info",
     tags: [],
     actions: [],
+    metadata: {},
   });
 
   return text
