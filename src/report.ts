@@ -16,7 +16,7 @@ interface TranslationOptions {
   allowAiFallback?: boolean;
 }
 
-const DAILY_HOT_TRANSLATION_LIMIT = 16;
+const DAILY_HOT_TRANSLATION_LIMIT = 12;
 const DAILY_HOT_TRANSLATION_CONCURRENCY = 3;
 const DEFAULT_TRANSLATION_CONCURRENCY = 4;
 const DAILY_HOT_DISPLAY_LIMIT = 20;
