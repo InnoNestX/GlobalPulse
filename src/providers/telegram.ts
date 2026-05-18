@@ -65,11 +65,15 @@ function formatTelegramText(title: string, body: string): string {
     metadata: {},
   });
 
-  return formatTelegramHtml(text
+  return formatTelegramHtml(stripLeadingLogLine(text)
     .replace(/Sources:\s*.*$/gim, "")
     .replace(/Tags:\s*.*$/gim, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim());
+}
+
+function stripLeadingLogLine(value: string): string {
+  return value.replace(/^\s*\[(?:info|success|warning|error)\][^\n]*(?:\n|$)/i, "").trimStart();
 }
 
 function formatTelegramHtml(value: string): string {
