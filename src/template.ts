@@ -58,7 +58,7 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
   appendSection(lines, zh ? "## 🌍 国际要闻" : "## 🌍 International Headlines", globalItems, schedule, "global");
   appendSection(lines, zh ? "## 🇨🇳 国内热点" : "## 🇨🇳 Domestic Highlights", domesticItems, schedule, "domestic");
   appendSection(lines, zh ? "## 🔥 全网热搜精选" : "## 🔥 Social Trends", platformDisplayItems, schedule, "social");
-  appendSection(lines, zh ? "## 📌 全网热论" : "## 📌 Top Discussion", topPlatformItem ? [topPlatformItem] : [], schedule, "social");
+  appendSection(lines, zh ? "## 📌 全网热度最高话题" : "## 📌 Top Discussion", topPlatformItem ? [topPlatformItem] : [], schedule, "social");
   appendSection(lines, zh ? "## 🧭 后续观察方向" : "## 🧭 What to Watch", [...watchItems, ...fallbackItems].slice(0, 8), schedule, "watch");
 
   const sourceSummary = formatSourceSummary(context.sourceUrl);
