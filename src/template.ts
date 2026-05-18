@@ -76,7 +76,8 @@ function appendSection(lines: string[], heading: string, items: TopicItem[], sch
 function renderDailyHotItems(items: TopicItem[], schedule: PulseSchedule, type: string): string {
   return items.map((item, index) => {
     const heat = typeof item.score === "number" ? ` · 热度 ${Math.round(item.score)}` : "";
-    const summary = item.summary ? `\n摘要：${escapeMarkdown(compactSummary(item.summary))}` : "";
+    const summaryText = compactSummary(item.summary, item.title);
+    const summary = summaryText ? `\n摘要：${escapeMarkdown(summaryText)}` : "";
     const note = inferDailyHotNote(item, schedule, type);
     const noteLine = note ? `\n${note}` : "";
     const link = normalizeHttpUrl(item.url) ? `\n[查看原文](${normalizeHttpUrl(item.url)})` : "";
@@ -97,21 +98,47 @@ function inferDailyHotNote(item: TopicItem, schedule: PulseSchedule, type: strin
 }
 
 function compactTitle(value: string): string {
-  return stripSourceSuffix(value).replace(/\s+/g, " ").trim();
+  const cleaned = stripKnownNoise(value).replace(/\s+/g, " ").trim();
+  return stripTrailingSource(cleaned) || value.trim();
 }
 
-function compactSummary(value: string): string {
-  const cleaned = stripSourceSuffix(value)
-    .replace(/在Google 新闻上查看更多头条新闻和观点/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
+function compactSummary(summary: string | undefined, title: string): string {
+  const base = stripKnownNoise(summary ?? "").trim();
+  const fallback = stripKnownNoise(title).trim();
+  const cleaned = stripRepeatedHeadline(base, fallback) || fallback;
+  if (!cleaned) return "";
   const sentences = cleaned.split(/(?<=[。！？!?])\s*/).filter(Boolean);
   const first = sentences[0] ?? cleaned;
-  return first.length > 120 ? `${first.slice(0, 118)}…` : first;
+  return first.length > 150 ? `${first.slice(0, 148)}…` : first;
 }
 
-function stripSourceSuffix(value: string): string {
-  return value.replace(/\s+-\s+[^\s-]+\s*$/, "").trim();
+function stripKnownNoise(value: string): string {
+  return value
+    .replace(/在Google 新闻上查看更多头条新闻和观点/g, "")
+    .replace(/查看更多头条新闻和观点/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function stripRepeatedHeadline(summary: string, title: string): string {
+  const normalizedTitle = stripTrailingSource(title);
+  let cleaned = summary;
+  if (normalizedTitle && cleaned.startsWith(normalizedTitle)) {
+    cleaned = cleaned.slice(normalizedTitle.length).trim();
+  }
+  cleaned = stripLeadingSourceName(cleaned);
+  return stripTrailingSource(cleaned).trim();
+}
+
+function stripLeadingSourceName(value: string): string {
+  return value.replace(/^(凤凰网|新浪财经|腾讯新闻|网易|搜狐|财新|财联社|央视新闻|新华社|中国新闻网|环球网|观察者网|BBC|Reuters|Bloomberg|Financial Times|AP News|CNBC|RFI|thepaper\.cn|jpchinapress\.com|chinanews\.com\.cn)\s*/i, "").trim();
+}
+
+function stripTrailingSource(value: string): string {
+  return value
+    .replace(/\s+(凤凰网|新浪财经|腾讯新闻|网易|搜狐|财新|财联社|央视新闻|新华社|中国新闻网|环球网|观察者网|BBC|Reuters|Bloomberg|Financial Times|AP News|CNBC|RFI|thepaper\.cn|jpchinapress\.com|chinanews\.com\.cn)\s*$/i, "")
+    .replace(/\s+-\s+[^\s-]+\s*$/, "")
+    .trim();
 }
 
 function groupItemsBySection(items: TopicItem[]): { global: TopicItem[]; domestic: TopicItem[]; platform: TopicItem[] } {
