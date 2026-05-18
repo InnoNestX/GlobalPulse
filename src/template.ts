@@ -35,8 +35,10 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
   }
 
   const zh = schedule.language === "zh";
-  const globalItems = sortByHeat(items.filter((item) => inferDigestSection(item) === "global")).slice(0, 4);
   const domesticItems = sortByHeat(items.filter((item) => inferDigestSection(item) === "domestic")).slice(0, 4);
+  const domesticSeed = new Set(domesticItems.map((item) => getItemKey(item)));
+  const globalCandidates = items.filter((item) => inferDigestSection(item) === "global" || (!domesticSeed.has(getItemKey(item)) && inferDigestSection(item) === "domestic"));
+  const globalItems = sortByHeat(globalCandidates).filter((item, index, array) => array.findIndex((other) => isSameTopicItem(item, other)) === index).slice(0, 4);
   const platformItems = sortByHeat(items.filter((item) => inferDigestSection(item) === "platform"));
   const topPlatformItem = platformItems[0] ?? null;
   const platformDisplayItems = platformItems.slice(1, 4);
@@ -108,6 +110,10 @@ function isChinaRelatedTopic(text: string): boolean {
 
 function sortByHeat(items: TopicItem[]): TopicItem[] {
   return [...items].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+}
+
+function getItemKey(item: TopicItem): string {
+  return normalizeHttpUrl(item.url) ?? item.title.trim().toLowerCase();
 }
 
 function isSameTopicItem(a: TopicItem, b: TopicItem | null): boolean {
