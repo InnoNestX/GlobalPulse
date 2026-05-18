@@ -42,6 +42,7 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
   const platformDisplayItems = platformItems.slice(1, 4);
   const used = [...globalItems, ...domesticItems, ...platformDisplayItems, ...(topPlatformItem ? [topPlatformItem] : [])];
   const watchItems = sortByHeat(items.filter((item) => !used.some((shown) => isSameTopicItem(item, shown)))).slice(0, 3);
+  const fallbackItems = sortByHeat(items.filter((item) => !used.some((shown) => isSameTopicItem(item, shown)) && !watchItems.some((shown) => isSameTopicItem(item, shown)))).slice(0, 8);
 
   const lines = [
     zh ? "# GlobalPulse 热点简报" : "# GlobalPulse Hot Brief",
@@ -56,7 +57,7 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
   appendSection(lines, zh ? "## 🇨🇳 国内热点" : "## 🇨🇳 Domestic Highlights", domesticItems, schedule, "domestic");
   appendSection(lines, zh ? "## 🔥 全网热搜精选" : "## 🔥 Social Trends", platformDisplayItems, schedule, "social");
   appendSection(lines, zh ? "## 📌 全网热度最高话题" : "## 📌 Top Social Topic", topPlatformItem ? [topPlatformItem] : [], schedule, "social");
-  appendSection(lines, zh ? "## 🧭 后续观察方向" : "## 🧭 What to Watch", watchItems, schedule, "watch");
+  appendSection(lines, zh ? "## 🧭 后续观察方向" : "## 🧭 What to Watch", [...watchItems, ...fallbackItems].slice(0, 8), schedule, "watch");
 
   const sourceSummary = formatSourceSummary(context.sourceUrl);
   if (sourceSummary) lines.push("", zh ? `> 数据来源：${sourceSummary}` : `> Sources: ${sourceSummary}`);
@@ -73,11 +74,21 @@ function appendSection(lines: string[], heading: string, items: TopicItem[], sch
 function renderDailyHotItems(items: TopicItem[], schedule: PulseSchedule, type: string): string {
   return items.map((item, index) => {
     const heat = typeof item.score === "number" ? ` · 热度 ${Math.round(item.score)}` : "";
-    const summary = item.summary ? `\n   摘要：${escapeMarkdown(item.summary.slice(0, 150))}` : "";
+    const summaryText = cleanText(item.summary ?? "").slice(0, 150);
+    const summary = summaryText ? `\n   摘要：${escapeMarkdown(summaryText)}` : "";
     const note = schedule.language === "zh" && type === "global" ? "\n   市场影响：关注全球市场、汇率、避险资产与地缘风险联动。" : "";
     const link = normalizeHttpUrl(item.url) ? `\n   [查看原文](${normalizeHttpUrl(item.url)})` : "";
-    return `${index + 1}. **${escapeMarkdown(item.title.trim())}**${heat}${summary}${note}${link}`;
+    return `${index + 1}. **${escapeMarkdown(cleanText(item.title).trim())}**${heat}${summary}${note}${link}`;
   }).join("\n");
+}
+
+function cleanText(value: string): string {
+  return value
+    .replace(/&(?:amp;)?nbsp;/gi, " ")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s*[（(]?\s*\b(?:[a-z0-9-]+\.)+(?:com|cn|org|net|io|gov|edu|hk|fr|uk|jp)\b\s*[）)]?\s*/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function formatSourceSummary(value: string): string {
@@ -115,12 +126,12 @@ function renderByFormat(template: string, variables: Record<string, string>, for
 
 function renderItemsMarkdown(items: TopicItem[], schedule: PulseSchedule): string {
   if (!items.length) return schedule.language === "zh" ? "_暂无可用热点数据。_" : "_No topic items were found._";
-  return items.map((item, index) => `${index + 1}. ${escapeMarkdown(item.title)}${item.summary ? `\n   ${item.summary}` : ""}${normalizeHttpUrl(item.url) ? `\n   [查看原文](${normalizeHttpUrl(item.url)})` : ""}`).join("\n");
+  return items.map((item, index) => `${index + 1}. ${escapeMarkdown(cleanText(item.title))}${item.summary ? `\n   ${cleanText(item.summary)}` : ""}${normalizeHttpUrl(item.url) ? `\n   [查看原文](${normalizeHttpUrl(item.url)})` : ""}`).join("\n");
 }
 
 function renderItemsText(items: TopicItem[], schedule: PulseSchedule): string {
   if (!items.length) return schedule.language === "zh" ? "暂无可用热点数据。" : "No topic items were found.";
-  return items.map((item, index) => `${index + 1}. ${item.title}${item.summary ? ` - ${item.summary}` : ""}${normalizeHttpUrl(item.url) ? " - 查看原文" : ""}`).join("\n");
+  return items.map((item, index) => `${index + 1}. ${cleanText(item.title)}${item.summary ? ` - ${cleanText(item.summary)}` : ""}${normalizeHttpUrl(item.url) ? " - 查看原文" : ""}`).join("\n");
 }
 
 function markdownToText(markdown: string): string {
