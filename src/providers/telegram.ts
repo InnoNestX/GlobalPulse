@@ -73,7 +73,7 @@ function formatTelegramText(title: string, body: string): string {
 }
 
 function stripLeadingLogLine(value: string): string {
-  return value.replace(/^\s*\[(?:info|success|warning|error)\][^\n]*(?:\n|$)/i, "").trimStart();
+  return value.replace(/^\s*\[(?:info|success|warning|error)\]\s*/i, "");
 }
 
 function formatTelegramHtml(value: string): string {
