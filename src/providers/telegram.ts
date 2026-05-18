@@ -2,6 +2,8 @@ import type { Provider } from "./types";
 import { formatPlainText } from "./format";
 import { jsonApiResponseToResult, providerNotConfigured } from "./shared";
 
+const TELEGRAM_TEXT_LIMIT = 4096;
+
 export const telegramProvider: Provider = {
   name: "telegram",
   isConfigured(env) {
@@ -21,7 +23,7 @@ export const telegramProvider: Provider = {
       },
       body: JSON.stringify({
         chat_id: env.TELEGRAM_CHAT_ID,
-        text: body.slice(0, 4096),
+        text: truncateTelegramHtml(body),
         parse_mode: "HTML",
         disable_web_page_preview: true,
         ...(actions.length > 0
@@ -98,6 +100,91 @@ function escapeTelegramHtml(value: string): string {
 
 function escapeTelegramAttribute(value: string): string {
   return escapeTelegramHtml(value).replace(/"/g, "&quot;");
+}
+
+function truncateTelegramHtml(value: string, limit = TELEGRAM_TEXT_LIMIT): string {
+  if (value.length <= limit) return value;
+
+  const suffix = "\n…";
+  const budget = Math.max(0, limit - suffix.length);
+  const lines = value.split("\n");
+  const output: string[] = [];
+  let length = 0;
+
+  for (const line of lines) {
+    const separatorLength = output.length > 0 ? 1 : 0;
+    if (length + separatorLength + line.length <= budget) {
+      output.push(line);
+      length += separatorLength + line.length;
+      continue;
+    }
+
+    const remaining = budget - length - separatorLength;
+    if (remaining > 24) {
+      output.push(truncateHtmlLine(line, remaining));
+    }
+    break;
+  }
+
+  const truncated = output.join("\n").replace(/\n+$/g, "");
+  return `${truncated}${suffix}`.slice(0, limit);
+}
+
+function truncateHtmlLine(line: string, maxLength: number): string {
+  let result = "";
+  let index = 0;
+  const closingTags: string[] = [];
+
+  while (index < line.length) {
+    const closingSuffix = closingTags.slice().reverse().join("");
+    if (line[index] === "<") {
+      const end = line.indexOf(">", index);
+      if (end < 0) break;
+      const tag = line.slice(index, end + 1);
+      const nextClosingTags = updateClosingTags(closingTags, tag);
+      const nextClosingSuffix = nextClosingTags.slice().reverse().join("");
+      if (result.length + tag.length + nextClosingSuffix.length > maxLength) break;
+      result += tag;
+      closingTags.splice(0, closingTags.length, ...nextClosingTags);
+      index = end + 1;
+      continue;
+    }
+
+    if (line[index] === "&") {
+      const end = line.indexOf(";", index);
+      if (end > index) {
+        const entity = line.slice(index, end + 1);
+        if (result.length + entity.length + closingSuffix.length > maxLength) break;
+        result += entity;
+        index = end + 1;
+        continue;
+      }
+    }
+
+    const char = line[index] ?? "";
+    if (result.length + char.length + closingSuffix.length > maxLength) break;
+    result += char;
+    index += 1;
+  }
+
+  const closingSuffix = closingTags.slice().reverse().join("");
+  return result + closingSuffix;
+}
+
+function updateClosingTags(current: string[], tag: string): string[] {
+  const next = [...current];
+  const lower = tag.toLowerCase();
+
+  if (lower === "<b>") {
+    next.push("</b>");
+  } else if (lower.startsWith("<a ")) {
+    next.push("</a>");
+  } else if (lower === "</b>" || lower === "</a>") {
+    const index = next.lastIndexOf(lower);
+    if (index >= 0) next.splice(index, 1);
+  }
+
+  return next;
 }
 
 function normalizeActions(actions: Array<{ label: string; url: string }>): Array<{ label: string; url: string }> {

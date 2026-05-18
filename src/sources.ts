@@ -92,13 +92,23 @@ async function fetchDailyHotTopicItems(query: string, language: AppLanguage, new
     ]),
     DAILY_HOT_REACHABILITY_CHECKS,
   );
-  const sourceUrl = [
-    newsApiKey ? (newsApiItems.length ? `NewsAPI已启用(${newsApiItems.length}条)` : "NewsAPI已配置但本次无结果") : "NewsAPI未配置",
-    `国内新闻(${domesticItems.length + domesticHeadlineItems.length + gdeltChinaItems.length}条)`,
-    `平台热搜讨论(${platformItems.length}条)`,
-    `国际新闻(${worldHeadlineItems.length + googleItems.length + globalEnglishItems.length + gdeltGlobalItems.length}条)`,
-  ].join("，");
+  const sourceUrl = buildDailyHotSourceSummary([
+    ["NewsAPI", newsApiItems.length],
+    ["国内新闻", domesticItems.length + domesticHeadlineItems.length + gdeltChinaItems.length],
+    ["平台热搜讨论", platformItems.length],
+    ["国际新闻", worldHeadlineItems.length + googleItems.length + globalEnglishItems.length + gdeltGlobalItems.length],
+  ], language);
   return { sourceUrl, items: sortTopicItems(items).slice(0, 28) };
+}
+
+function buildDailyHotSourceSummary(sources: Array<[string, number]>, language: AppLanguage): string {
+  const visible = sources
+    .filter(([, count]) => count > 0)
+    .map(([label, count]) => `${label}(${count}条)`);
+
+  return visible.length > 0
+    ? visible.join("，")
+    : language === "zh" ? "实时新闻源" : "Live news sources";
 }
 
 async function fetchCompositeTopicItems(query: string, language: AppLanguage): Promise<{ sourceUrl: string; items: TopicItem[] }> {
@@ -377,6 +387,7 @@ function markDomesticDailyHotItems(items: TopicItem[], scoreBoost = 700): TopicI
 function classifyNewsCategory(text: string): string {
   const lower = text.toLowerCase();
   if (/抖音|微博|百度热搜|热搜|爆火|走红|douyin|weibo|trending/.test(lower)) return "platform-hot";
+  if (/earthquake|flood|wildfire|disaster|public health|outbreak|disease|quake|地震|洪水|山火|灾害|公共卫生|疫情|传染病/.test(lower)) return "risk-event";
   if (/war|military|nato|russia|ukraine|israel|gaza|geopolitic|国防|军事|战争|俄乌|中东|地缘/.test(lower)) return "geopolitics";
   if (/policy|government|regulation|tariff|election|央行|政策|监管|关税|选举|财政/.test(lower)) return "policy";
   if (/inflation|rate|fed|central bank|cpi|gdp|通胀|利率|美联储|宏观|经济/.test(lower)) return "macro";
@@ -416,7 +427,7 @@ function isMeaningfulPlatformHotItem(item: TopicItem): boolean {
   const title = item.title.replace(/\s+-\s+微博\s*$/i, "").trim();
   const text = `${title}\n${item.summary ?? ""}`;
   if (/^(微博正文|微博|抖音|小红书|知乎|百度|登录|首页)$/i.test(title)) return false;
-  if (/微博正文|登录后可见|请先登录|客户端下载|无障碍|首页导航/i.test(text) && text.length < 40) return false;
+  if (/微博正文|登录后可见|请先登录|客户端下载|无障碍|首页导航|广告|推广/i.test(text) && text.length < 80) return false;
   if (/年度回忆|热点记忆|抖音热点记忆|年度盘点|年终盘点|往年回顾|历史回顾|合集/i.test(text)) return false;
   return /热搜|热榜|热议|热点|破亿|千万|爆|关注|讨论|回应|发布|宣布|政策|事件|事故|天气|地震|赛事|电影|消费|民生|医疗|教育|weibo|douyin|trending/i.test(text);
 }

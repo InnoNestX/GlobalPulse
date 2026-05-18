@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { saveSettings } from "../src/config";
 import type { Env } from "../src/env";
 import { handleRequest } from "../src/http";
+import { telegramProvider } from "../src/providers/telegram";
 import { runDueSchedules } from "../src/scheduler";
 
 const env: Env = {
@@ -292,6 +293,38 @@ describe("handleRequest", () => {
     expect(payload.text).not.toContain("**Headline**");
     expect(payload.text).not.toContain("Sources:");
     expect(payload.text).not.toContain("Tags:");
+  });
+
+  it("truncates Telegram HTML without cutting open tags", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true, result: { message_id: 1 } }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const longBody = Array.from({ length: 260 }, (_, index) =>
+      `${index + 1}. **很长标题${index + 1}** [查看原文](https://news.example.test/story-${index + 1}?ref=gp&item=${index + 1})`,
+    ).join("\n");
+
+    const result = await telegramProvider.send({
+      title: "Telegram long brief",
+      body: longBody,
+      level: "info",
+      actions: [],
+      tags: [],
+      metadata: {},
+    }, {
+      ...env,
+      TELEGRAM_BOT_TOKEN: "telegram-token",
+      TELEGRAM_CHAT_ID: "-100123456",
+    });
+
+    expect(result.ok).toBe(true);
+    const [, init] = getFetchCall(fetchMock, 0);
+    const payload = JSON.parse(String(init.body));
+    const text = String(payload.text);
+
+    expect(text.length).toBeLessThanOrEqual(4096);
+    expect((text.match(/<a /g) ?? [])).toHaveLength((text.match(/<\/a>/g) ?? []).length);
+    expect((text.match(/<b>/g) ?? [])).toHaveLength((text.match(/<\/b>/g) ?? []).length);
+    expect(text).toContain("\n…");
+    expect(text).not.toContain("[查看原文](");
   });
 
   it("sends customer-service messages through WeChat Official Account", async () => {
@@ -651,6 +684,7 @@ describe("handleRequest", () => {
       ...env,
       ADMIN_PASSWORD: "admin-pass",
       APP_KV: createMemoryKV(),
+      NEWSAPI_API_KEY: "newsapi-key",
     };
     const rss = (items: Array<{ title: string; link: string; source: string; description?: string }>) => new Response([
       "<rss><channel>",
@@ -668,13 +702,17 @@ describe("handleRequest", () => {
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
 
+      if (url.startsWith("https://newsapi.org/v2/")) {
+        return new Response(JSON.stringify({ articles: [] }), { status: 200 });
+      }
+
       if (url.startsWith("https://news.google.com/rss/search")) {
         const query = new URL(url).searchParams.get("q") ?? "";
         if (/global breaking news/i.test(query)) {
           return rss([
             { title: "G7 leaders discuss tariff and security coordination", link: "https://news.example.test/global-1", source: "Reuters", description: "Policy coordination and security talks dominated the meeting agenda." },
             { title: "Central banks face renewed inflation pressure", link: "https://news.example.test/global-2", source: "AP News", description: "Markets repriced rate expectations after fresh inflation signals." },
-            { title: "Energy supply risks rise after port disruption", link: "https://news.example.test/global-3", source: "BBC", description: "Shipping delays raised concerns over global energy supply chains." },
+            { title: "Energy supply risks rise after port disruption", link: "https://news.example.test/global-3", source: "BBC", description: "Shipping delays raised concerns over global energy supply chains.&nbsp;&nbsp;court.gov.cn" },
             { title: "AI chip export rules reshape supply chains", link: "https://news.example.test/global-4", source: "Bloomberg", description: "Technology policy continues to affect semiconductor flows." },
           ]);
         }
@@ -689,6 +727,8 @@ describe("handleRequest", () => {
           return rss([
             { title: "国内消费补贴政策带动服务业讨论", link: "https://news.example.test/domestic-1", source: "Caixin", description: "消费政策和服务业复苏受到关注。" },
             { title: "多地推进公共服务改革", link: "https://news.example.test/domestic-2", source: "RTHK", description: "医疗、教育和城市治理成为政策焦点。" },
+            { title: "全国助残日专场文艺演出举行", link: "https://news.example.test/domestic-low-1", source: "首都文明网", description: "文艺演出和志愿公益活动受到关注。" },
+            { title: "上海博物馆联票发布吸引游客打卡", link: "https://news.example.test/domestic-low-2", source: "大洋网", description: "博物馆日和文旅活动成为本地话题。" },
           ]);
         }
         return rss([
@@ -732,9 +772,14 @@ describe("handleRequest", () => {
 
     expect(body.preview.sourceStatus).toBe("live");
     expect(previewBody).not.toContain("暂无相关内容");
+    expect(previewBody).not.toContain("NewsAPI");
     expect(previewBody).not.toContain("微博正文");
     expect(previewBody).not.toContain("2024年度回忆");
     expect(previewBody).not.toContain("抖音热点记忆");
+    expect(previewBody).not.toContain("court.gov.cn");
+    expect(previewBody).not.toContain("&nbsp");
+    expect(previewBody).not.toContain("助残日");
+    expect(previewBody).not.toContain("博物馆联票");
     expect(previewBody).toContain("G7 leaders");
     expect(previewBody).toContain("高考服务政策");
     expect(previewBody).toContain("全网热度最高话题");
