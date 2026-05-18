@@ -642,6 +642,97 @@ describe("handleRequest", () => {
     expect(previewBody).not.toContain("example.com");
   });
 
+  it("filters generic platform pages and avoids empty daily hot sections", async () => {
+    const appEnv: Env = {
+      ...env,
+      ADMIN_PASSWORD: "admin-pass",
+      APP_KV: createMemoryKV(),
+    };
+    const rss = (items: Array<{ title: string; link: string; source: string; description?: string }>) => new Response([
+      "<rss><channel>",
+      ...items.map((item) => [
+        "<item>",
+        `<title>${item.title}</title>`,
+        `<link>${item.link}</link>`,
+        `<source>${item.source}</source>`,
+        item.description ? `<description>${item.description}</description>` : "",
+        "<pubDate>Mon, 18 May 2026 01:00:00 GMT</pubDate>",
+        "</item>",
+      ].join("")),
+      "</channel></rss>",
+    ].join(""), { status: 200 });
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+
+      if (url.startsWith("https://news.google.com/rss/search")) {
+        const query = new URL(url).searchParams.get("q") ?? "";
+        if (/global breaking news/i.test(query)) {
+          return rss([
+            { title: "G7 leaders discuss tariff and security coordination", link: "https://news.example.test/global-1", source: "Reuters", description: "Policy coordination and security talks dominated the meeting agenda." },
+            { title: "Central banks face renewed inflation pressure", link: "https://news.example.test/global-2", source: "AP News", description: "Markets repriced rate expectations after fresh inflation signals." },
+            { title: "Energy supply risks rise after port disruption", link: "https://news.example.test/global-3", source: "BBC", description: "Shipping delays raised concerns over global energy supply chains." },
+            { title: "AI chip export rules reshape supply chains", link: "https://news.example.test/global-4", source: "Bloomberg", description: "Technology policy continues to affect semiconductor flows." },
+          ]);
+        }
+        if (/site:weibo|site:douyin|知乎热榜|小红书|百度 热搜/i.test(query)) {
+          return rss([
+            { title: "微博正文 - 微博", link: "https://news.example.test/weibo-ad", source: "微博" },
+            { title: "微博热搜：高考服务政策引发讨论破亿", link: "https://news.example.test/platform-1", source: "微博热搜", description: "民生政策话题进入高热讨论。" },
+          ]);
+        }
+        if (/中国|China policy|site:rthk|site:scmp/i.test(query)) {
+          return rss([
+            { title: "国内消费补贴政策带动服务业讨论", link: "https://news.example.test/domestic-1", source: "Caixin", description: "消费政策和服务业复苏受到关注。" },
+            { title: "多地推进公共服务改革", link: "https://news.example.test/domestic-2", source: "RTHK", description: "医疗、教育和城市治理成为政策焦点。" },
+          ]);
+        }
+        return rss([
+          { title: "中国经济动能转换融资结构现新变化", link: "https://news.example.test/domestic-main", source: "凤凰网", description: "宏观政策和融资结构继续受到市场关注。" },
+        ]);
+      }
+
+      return new Response("ok", { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await handleRequest(new Request("https://worker.example/api/admin/preview", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer admin-pass",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        schedule: {
+          id: "daily-hot-filter-preview",
+          name: "每日热点",
+          enabled: true,
+          time: "10:00",
+          days: [0, 1, 2, 3, 4, 5, 6],
+          timezone: "Asia/Shanghai",
+          language: "zh",
+          outputFormat: "markdown",
+          reportType: "daily_hot",
+          targets: ["feishu"],
+          marketCalendar: "everyday",
+          tradingDaySource: "weekday",
+          topicQuery: "全球热点 国际新闻 地缘政治 产业趋势 宏观政策",
+          template: "# Demo\n\n{{itemsMarkdown}}",
+        },
+      }),
+    }), appEnv);
+
+    expect(response.status).toBe(200);
+    const body = await response.json() as { preview: { body: string; sourceStatus: string } };
+    const previewBody = body.preview.body;
+
+    expect(body.preview.sourceStatus).toBe("live");
+    expect(previewBody).not.toContain("暂无相关内容");
+    expect(previewBody).not.toContain("微博正文");
+    expect(previewBody).toContain("G7 leaders");
+    expect(previewBody).toContain("高考服务政策");
+    expect(previewBody).toContain("全网热度最高话题");
+  });
+
   it("keeps ordered email list numbers increasing when items have observation lines", async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ messageId: "email-1" }), { status: 201 }));
     vi.stubGlobal("fetch", fetchMock);
@@ -897,7 +988,7 @@ describe("handleRequest", () => {
 
     expect(result).toMatchObject({ checked: 1, executed: 1, skipped: 0 });
     expect(calls.length).toBeLessThan(50);
-    expect(reachabilityCalls).toHaveLength(6);
+    expect(reachabilityCalls).toHaveLength(0);
     expect(translateCalls.length).toBeLessThanOrEqual(12);
     expect(fetchMock).toHaveBeenCalledWith("https://open.feishu.cn/open-apis/bot/v2/hook/test-token", expect.objectContaining({
       method: "POST",
