@@ -44,6 +44,7 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
   const used = [...globalItems, ...domesticItems, ...platformDisplayItems, ...(topPlatformItem ? [topPlatformItem] : [])];
   const watchItems = items.filter((item) => !used.some((shown) => isSameTopicItem(item, shown))).slice(0, 3);
   const moreItems = items.filter((item) => !used.some((shown) => isSameTopicItem(item, shown)) && !watchItems.some((shown) => isSameTopicItem(item, shown))).slice(0, Math.max(0, 28 - used.length - watchItems.length));
+  const sourceSummary = formatSourceSummary(context.sourceUrl);
 
   const lines = [
     zh ? "# GlobalPulse 热点简报" : "# GlobalPulse Hot Brief",
@@ -61,7 +62,7 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
   appendSection(lines, zh ? "## 🧭 后续观察方向" : "## 🧭 What to Watch", watchItems, schedule, "watch");
   appendSection(lines, zh ? "## 🗞️ 更多重点" : "## 🗞️ More Key Items", moreItems, schedule, "more");
 
-  lines.push("", zh ? `> 数据来源：${context.sourceUrl}` : `> Sources: ${context.sourceUrl}`);
+  if (sourceSummary) lines.push("", zh ? `> 数据来源：${sourceSummary}` : `> Sources: ${sourceSummary}`);
 
   const markdown = lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
   return context.format === "text" ? markdownToText(markdown) : markdown;
@@ -75,11 +76,11 @@ function appendSection(lines: string[], heading: string, items: TopicItem[], sch
 function renderDailyHotItems(items: TopicItem[], schedule: PulseSchedule, type: string): string {
   return items.map((item, index) => {
     const heat = typeof item.score === "number" ? ` · 热度 ${Math.round(item.score)}` : "";
-    const summaryText = compactSummary(item.summary, item.title);
-    const summary = summaryText ? `\n摘要：${escapeMarkdown(summaryText)}` : "";
+    const summaryText = compactSummary(item.summary, item.title, item.category);
+    const summary = summaryText ? `\n   摘要：${escapeMarkdown(summaryText)}` : "";
     const note = inferDailyHotNote(item, schedule, type);
-    const noteLine = note ? `\n${note}` : "";
-    const link = normalizeHttpUrl(item.url) ? `\n[查看原文](${normalizeHttpUrl(item.url)})` : "";
+    const noteLine = note ? `\n   ${note}` : "";
+    const link = normalizeHttpUrl(item.url) ? `\n   [查看原文](${normalizeHttpUrl(item.url)})` : "";
     return `${index + 1}. **${escapeMarkdown(compactTitle(item.title))}**${heat}${summary}${noteLine}${link}`;
   }).join("\n\n");
 }
@@ -101,18 +102,45 @@ function compactTitle(value: string): string {
   return stripTrailingSource(cleaned) || value.trim();
 }
 
-function compactSummary(summary: string | undefined, title: string): string {
+function compactSummary(summary: string | undefined, title: string, category?: string): string {
+  const fallbackTitle = compactTitle(title);
   const base = stripKnownNoise(summary ?? "").trim();
-  const fallback = stripKnownNoise(title).trim();
-  const cleaned = stripRepeatedHeadline(base, fallback) || fallback;
+  const cleaned = stripRepeatedHeadline(base, fallbackTitle) || fallbackTitle;
   if (!cleaned) return "";
+
+  if (isNoisyAggregatedSummary(cleaned)) {
+    return buildFallbackSummary(fallbackTitle, category);
+  }
+
   const sentences = cleaned.split(/(?<=[。！？!?])\s*/).filter(Boolean);
-  const first = sentences[0] ?? cleaned;
-  return first.length > 150 ? `${first.slice(0, 148)}…` : first;
+  const first = stripTrailingSource(sentences[0] ?? cleaned);
+  const readable = removeInlineSourceTokens(first).trim();
+  if (!readable || isNoisyAggregatedSummary(readable)) return buildFallbackSummary(fallbackTitle, category);
+  return readable.length > 150 ? `${readable.slice(0, 148)}…` : readable;
+}
+
+function buildFallbackSummary(title: string, category?: string): string {
+  if (category === "geopolitics") return `围绕“${title}”的消息正在发酵，重点关注后续官方表态、地缘风险和市场避险情绪。`;
+  if (category === "macro" || category === "finance") return `围绕“${title}”的市场讨论升温，重点关注利率、汇率、资金面和相关资产价格反应。`;
+  if (category === "industry") return `围绕“${title}”的产业关注度上升，重点观察供应链、企业竞争格局和投资预期变化。`;
+  if (category === "policy") return `围绕“${title}”的政策信号受到关注，重点观察监管口径、实施节奏和相关行业影响。`;
+  return `围绕“${title}”的关注度上升，重点观察后续进展、公共讨论热度和潜在影响。`;
+}
+
+function isNoisyAggregatedSummary(value: string): boolean {
+  const sourceHits = countSourceTokens(value);
+  const domainHits = (value.match(/\b[a-z0-9.-]+\.(?:com|cn|org|net|io)\b/gi) ?? []).length;
+  const hasManyHeadlineFragments = /新浪|腾讯|凤凰|搜狐|网易|环球网|财联社|新华社|央视|Reuters|Bloomberg|BBC|AP News|Financial Times/i.test(value) && value.length > 80;
+  const noSentenceBreak = !/[。！？!?]/.test(value) && value.length > 80;
+  return sourceHits >= 2 || domainHits >= 1 || hasManyHeadlineFragments || noSentenceBreak;
+}
+
+function countSourceTokens(value: string): number {
+  return (value.match(/凤凰网|新浪财经|腾讯新闻|网易|搜狐|财新|财联社|央视新闻|新华社|中国新闻网|环球网|观察者网|澎湃新闻|大洋网|中国日报网|中华军事|星岛环球网|BBC|Reuters|Bloomberg|Financial Times|AP News|CNBC|RFI|thepaper\.cn|jpchinapress\.com|chinanews\.com\.cn|news\.cn/gi) ?? []).length;
 }
 
 function stripKnownNoise(value: string): string {
-  return value
+  return removeInlineSourceTokens(value)
     .replace(/&nbsp;/gi, " ")
     .replace(/\u00a0/g, " ")
     .replace(/在Google 新闻上查看更多头条新闻和观点/g, "")
@@ -121,12 +149,18 @@ function stripKnownNoise(value: string): string {
     .trim();
 }
 
+function removeInlineSourceTokens(value: string): string {
+  return value
+    .replace(/\s*(?:&nbsp;|\u00a0)+\s*/gi, " ")
+    .replace(/\s*\(?\s*(thepaper\.cn|jpchinapress\.com|chinanews\.com\.cn|news\.cn|rfi\.fr|bbc\.com|reuters\.com|bloomberg\.com)\s*\)?\s*/gi, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 function stripRepeatedHeadline(summary: string, title: string): string {
   const normalizedTitle = stripTrailingSource(title);
   let cleaned = summary;
-  if (normalizedTitle && cleaned.startsWith(normalizedTitle)) {
-    cleaned = cleaned.slice(normalizedTitle.length).trim();
-  }
+  if (normalizedTitle && cleaned.startsWith(normalizedTitle)) cleaned = cleaned.slice(normalizedTitle.length).trim();
   cleaned = stripLeadingSourceName(cleaned);
   return stripTrailingSource(cleaned).trim();
 }
@@ -136,11 +170,18 @@ function stripLeadingSourceName(value: string): string {
 }
 
 function stripTrailingSource(value: string): string {
-  return value
-    .replace(/\s*(?:&nbsp;|\u00a0)+\s*/gi, " ")
+  return removeInlineSourceTokens(value)
     .replace(/\s+(凤凰网|新浪财经|腾讯新闻|网易|搜狐|财新|财联社|央视新闻|新华社|中国新闻网|环球网|观察者网|澎湃新闻|大洋网|中国日报网|中华军事|星岛环球网|BBC|Reuters|Bloomberg|Financial Times|AP News|CNBC|RFI|thepaper\.cn|jpchinapress\.com|chinanews\.com\.cn|news\.cn)\s*$/i, "")
     .replace(/\s+-\s+[^\s-]+\s*$/, "")
     .trim();
+}
+
+function formatSourceSummary(value: string): string {
+  return value
+    .split(/[，,]/)
+    .map((part) => part.trim())
+    .filter((part) => part && !/无结果|0条|0\s*条|not configured|no result/i.test(part))
+    .join("，");
 }
 
 function groupItemsBySection(items: TopicItem[]): { global: TopicItem[]; domestic: TopicItem[]; platform: TopicItem[] } {
