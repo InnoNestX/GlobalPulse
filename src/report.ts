@@ -16,9 +16,10 @@ interface TranslationOptions {
   allowAiFallback?: boolean;
 }
 
-const DAILY_HOT_TRANSLATION_LIMIT = 12;
+const DAILY_HOT_TRANSLATION_LIMIT = 16;
 const DAILY_HOT_TRANSLATION_CONCURRENCY = 3;
 const DEFAULT_TRANSLATION_CONCURRENCY = 4;
+const DAILY_HOT_DISPLAY_LIMIT = 20;
 const GOOGLE_TRANSLATION_SEPARATOR = "1234567890GLOBALPULSE9876543210";
 
 export interface ReportBuildResult {
@@ -153,15 +154,15 @@ async function fetchItemsWithFallback(env: Env, schedule: PulseSchedule): Promis
 
 async function fetchEmergencyDailyHotItems(query: string, language: PulseSchedule["language"]): Promise<TopicItem[]> {
   try {
-    const fallback = await fetchTopicItems(query, language);
+    const fallback = await fetchTopicItems(query, language, undefined, { mode: "daily_hot" });
     return fallback.items
       .filter((item) => normalizeHttpUrl(item.url))
-      .map((item) => ({
+      .map((item, index) => ({
         ...item,
         section: item.section ?? inferSectionFromText(`${item.title}\n${item.summary ?? ""}`, item.source),
-        score: (item.score ?? 0) + 500,
+        score: Math.max((item.score ?? 0) + 50, 500 - index),
       }))
-      .slice(0, 12);
+      .slice(0, 28);
   } catch {
     return [];
   }
@@ -273,17 +274,17 @@ function selectDailyHotItems(items: TopicItem[], now: Date): TopicItem[] {
   if (topPlatformItem) {
     result.push(topPlatformItem);
   }
-  result.push(...pickFrom(scored, Math.max(0, 12 - result.length)));
+  result.push(...pickFrom(scored, Math.max(0, DAILY_HOT_DISPLAY_LIMIT - result.length)));
 
   return result.length > 0
     ? result
-    : items.filter((item) => !isLowInformationDailyHotItem(item, now) && !isDeveloperOnlyItem(item) && !isSingleCompanyFinanceItem(item)).slice(0, 12);
+    : items.filter((item) => !isLowInformationDailyHotItem(item, now) && !isDeveloperOnlyItem(item) && !isSingleCompanyFinanceItem(item)).slice(0, DAILY_HOT_DISPLAY_LIMIT);
 }
 
 function inferSectionFromText(text: string, source?: string | null): "domestic" | "platform" | "global" {
   const merged = `${text}\n${source ?? ""}`.toLowerCase();
   if (/抖音|微博|百度热搜|平台热搜|douyin|weibo|hot search/.test(merged)) return "platform";
-  if (/中国|国内|北京|上海|深圳|广州|杭州|成都|重庆|国家|国务院|央行|工信部|证监会|新华社|央视|人民日报|cctv|xinhuanet|people.cn|gov.cn/.test(merged)) return "domestic";
+  if (/中国|国内|多地|民生|就业|消费|公共服务|医疗|教育|资本市场|北京|上海|深圳|广州|杭州|成都|重庆|国家|国务院|央行|工信部|证监会|新华社|央视|人民日报|cctv|xinhuanet|people.cn|gov.cn/.test(merged)) return "domestic";
   return "global";
 }
 
