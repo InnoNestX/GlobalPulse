@@ -199,7 +199,7 @@ function inferDigestSection(item: TopicItem): "domestic" | "platform" | "global"
   if (item.section === "platform" || /微博|抖音|小红书|知乎|百度|热搜|热榜|热议|douyin|weibo|trending/i.test(text)) return "platform";
   if (isInternationalTopic(text)) return "global";
   if (item.section === "domestic") return "domestic";
-  if (/中国|国内|北京|上海|深圳|广州|杭州|成都|重庆|国务院|央行|工信部|证监会|A股|人民币|中概股/i.test(text)) return "domestic";
+  if (/中国|国内|多地|民生|就业|消费|公共服务|医疗|教育|资本市场|北京|上海|深圳|广州|杭州|成都|重庆|国务院|央行|工信部|证监会|A股|人民币|中概股/i.test(text)) return "domestic";
   return "global";
 }
 
