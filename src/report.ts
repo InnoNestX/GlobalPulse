@@ -10,6 +10,17 @@ interface TranslationResult {
   summary?: string;
 }
 
+interface TranslationOptions {
+  maxItems?: number;
+  concurrency?: number;
+  allowAiFallback?: boolean;
+}
+
+const DAILY_HOT_TRANSLATION_LIMIT = 12;
+const DAILY_HOT_TRANSLATION_CONCURRENCY = 3;
+const DEFAULT_TRANSLATION_CONCURRENCY = 4;
+const GOOGLE_TRANSLATION_SEPARATOR = "1234567890GLOBALPULSE9876543210";
+
 export interface ReportBuildResult {
   title: string;
   body: string;
@@ -24,9 +35,9 @@ export interface ReportBuildResult {
 export async function buildScheduleReport(env: Env, schedule: PulseSchedule, now = new Date()): Promise<ReportBuildResult> {
   const local = getLocalTimeParts(now, schedule.timezone, schedule.language);
   const fetched = await fetchItemsWithFallback(env, schedule);
-  const translatedItems = await maybeTranslateItems(env, fetched.items, schedule.language);
 
   if (shouldUseResearchEngine(schedule)) {
+    const translatedItems = await maybeTranslateItems(env, fetched.items, schedule.language);
     const research = await buildResearchMarketReport(env, schedule, translatedItems, local.label, now);
     return {
       title: research.title,
@@ -40,7 +51,8 @@ export async function buildScheduleReport(env: Env, schedule: PulseSchedule, now
     };
   }
 
-  const displayItems = selectDigestItems(schedule, translatedItems, now);
+  const selectedItems = selectDigestItems(schedule, fetched.items, now);
+  const displayItems = await maybeTranslateItems(env, selectedItems, schedule.language, translationOptionsForSchedule(schedule));
   const rendered = renderDigest(schedule, {
     generatedAt: local.label,
     timezone: schedule.timezone,
@@ -61,6 +73,18 @@ export async function buildScheduleReport(env: Env, schedule: PulseSchedule, now
     items: displayItems,
     actions: buildActions(displayItems, schedule.language),
   };
+}
+
+function translationOptionsForSchedule(schedule: PulseSchedule): TranslationOptions {
+  if (schedule.reportType === "daily_hot") {
+    return {
+      maxItems: DAILY_HOT_TRANSLATION_LIMIT,
+      concurrency: DAILY_HOT_TRANSLATION_CONCURRENCY,
+      allowAiFallback: false,
+    };
+  }
+
+  return { concurrency: DEFAULT_TRANSLATION_CONCURRENCY };
 }
 
 async function fetchItemsWithFallback(env: Env, schedule: PulseSchedule): Promise<{
@@ -297,18 +321,21 @@ function isSingleCompanyFinanceItem(item: TopicItem): boolean {
     && !/政策|监管|关税|通胀|利率|央行|地缘|战争|能源|供应链/i.test(text);
 }
 
-async function maybeTranslateItems(env: Env, items: TopicItem[], language: PulseSchedule["language"]): Promise<TopicItem[]> {
+async function maybeTranslateItems(env: Env, items: TopicItem[], language: PulseSchedule["language"], options: TranslationOptions = {}): Promise<TopicItem[]> {
   if (language !== "zh" || items.length === 0) return items;
-  return Promise.all(items.map(async (item) => {
+  const limit = Math.max(0, Math.min(options.maxItems ?? items.length, items.length));
+  const translatedItems = await mapWithConcurrency(items.slice(0, limit), options.concurrency ?? DEFAULT_TRANSLATION_CONCURRENCY, async (item) => {
     if (!needsTranslation(item.title) && !needsTranslation(item.summary)) return item;
-    const translated = await translateToChinese(env, item.title, item.summary);
+    const translated = await translateToChinese(env, item.title, item.summary, options);
     return withOptionalSummary({ ...item, title: translated.title?.trim() || item.title }, translated.summary?.trim() || item.summary);
-  }));
+  });
+  return [...translatedItems, ...items.slice(limit)];
 }
 
-async function translateToChinese(env: Env, title: string, summary?: string): Promise<TranslationResult> {
+async function translateToChinese(env: Env, title: string, summary?: string, options: TranslationOptions = {}): Promise<TranslationResult> {
   const translatedByGoogle = await translateViaGoogleFree(title, summary);
   if (translatedByGoogle.title || translatedByGoogle.summary) return translatedByGoogle;
+  if (options.allowAiFallback === false) return {};
 
   const ai = env.AI;
   if (!ai || typeof ai !== "object" || !("run" in ai) || typeof ai.run !== "function") return {};
@@ -337,8 +364,20 @@ async function translateToChinese(env: Env, title: string, summary?: string): Pr
 }
 
 async function translateViaGoogleFree(title: string, summary?: string): Promise<TranslationResult> {
-  const titleTranslation = needsTranslation(title) ? await translateSingleViaGoogleFree(title) : undefined;
-  const summaryTranslation = needsTranslation(summary) ? await translateSingleViaGoogleFree(summary ?? "") : undefined;
+  const titleNeedsTranslation = needsTranslation(title);
+  const summaryNeedsTranslation = needsTranslation(summary);
+
+  if (titleNeedsTranslation && summaryNeedsTranslation && summary?.trim()) {
+    const combined = await translateSingleViaGoogleFree(`${title}\n${GOOGLE_TRANSLATION_SEPARATOR}\n${summary}`);
+    const pair = splitCombinedTranslation(combined);
+    if (pair) {
+      return pair;
+    }
+    return {};
+  }
+
+  const titleTranslation = titleNeedsTranslation ? await translateSingleViaGoogleFree(title) : undefined;
+  const summaryTranslation = summaryNeedsTranslation ? await translateSingleViaGoogleFree(summary ?? "") : undefined;
   const translation: TranslationResult = {};
   if (titleTranslation) translation.title = titleTranslation;
   if (summaryTranslation) translation.summary = summaryTranslation;
@@ -368,6 +407,32 @@ function extractGoogleTranslation(payload: unknown): string | undefined {
   if (!Array.isArray(payload) || !Array.isArray(payload[0])) return undefined;
   const translated = payload[0].flatMap((segment) => Array.isArray(segment) && typeof segment[0] === "string" ? [segment[0]] : []).join("");
   return translated || undefined;
+}
+
+function splitCombinedTranslation(value: string | undefined): TranslationResult | undefined {
+  if (!value) return undefined;
+  const parts = value.split(new RegExp(`\\s*${GOOGLE_TRANSLATION_SEPARATOR}\\s*`, "i"));
+  if (parts.length < 2) return undefined;
+  const title = parts[0]?.trim();
+  const summary = parts.slice(1).join(" ").trim();
+  if (!title && !summary) return undefined;
+  return { ...(title ? { title } : {}), ...(summary ? { summary } : {}) };
+}
+
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>): Promise<R[]> {
+  const width = Math.max(1, Math.min(Math.floor(concurrency), items.length || 1));
+  const results = new Array<R>(items.length);
+  let index = 0;
+
+  await Promise.all(Array.from({ length: width }, async () => {
+    while (index < items.length) {
+      const current = index;
+      index += 1;
+      results[current] = await mapper(items[current] as T);
+    }
+  }));
+
+  return results;
 }
 
 function extractAiText(result: unknown): string | undefined {

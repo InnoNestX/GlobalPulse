@@ -794,6 +794,116 @@ describe("handleRequest", () => {
     expect(payload.content.text).toContain("Markets rally");
   });
 
+  it("keeps daily hot cron fetches under the free Worker subrequest budget", async () => {
+    const translationSeparator = "1234567890GLOBALPULSE9876543210";
+    const rss = (prefix: string, source: string) => new Response([
+      "<rss><channel>",
+      ...Array.from({ length: 8 }, (_, index) => [
+        "<item>",
+        `<title>${prefix} policy inflation topic ${index + 1}</title>`,
+        `<link>https://news.example.test/${prefix}-${index + 1}</link>`,
+        `<source>${source}</source>`,
+        `<description>${prefix} summary for global pulse item ${index + 1}</description>`,
+        "<pubDate>Mon, 18 May 2026 01:00:00 GMT</pubDate>",
+        "</item>",
+      ].join("")),
+      "</channel></rss>",
+    ].join(""), { status: 200 });
+    const newsApiPayload = (prefix: string) => new Response(JSON.stringify({
+      articles: Array.from({ length: 8 }, (_, index) => ({
+        title: `${prefix} policy inflation article ${index + 1}`,
+        description: `${prefix} summary for article ${index + 1}`,
+        url: `https://news.example.test/${prefix}-article-${index + 1}`,
+        publishedAt: "2026-05-18T01:00:00Z",
+        source: { name: "NewsAPI Test" },
+      })),
+    }), { status: 200 });
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? (input instanceof Request ? input.method : "GET");
+
+      if (method === "HEAD" && url.startsWith("https://news.example.test/")) {
+        return new Response(null, { status: 200 });
+      }
+
+      if (url.startsWith("https://translate.googleapis.com/translate_a/single")) {
+        const q = new URL(url).searchParams.get("q") ?? "";
+        const translated = q.includes(translationSeparator)
+          ? `已翻译标题\n${translationSeparator}\n已翻译摘要`
+          : "已翻译标题";
+        return new Response(JSON.stringify([[[translated]]]), { status: 200 });
+      }
+
+      if (url.startsWith("https://newsapi.org/v2/everything")) {
+        return newsApiPayload("global");
+      }
+
+      if (url.startsWith("https://newsapi.org/v2/top-headlines")) {
+        return newsApiPayload("headline");
+      }
+
+      if (url.startsWith("https://news.google.com/rss/search")) {
+        const query = new URL(url).searchParams.get("q") ?? "";
+        if (/weibo|douyin|热搜|热榜/i.test(query)) {
+          return rss("platform", "微博热搜");
+        }
+        if (/中国|China policy|site:rthk|site:scmp/i.test(query)) {
+          return rss("domestic", "Reuters");
+        }
+        return rss("global", "AP News");
+      }
+
+      return new Response(JSON.stringify({ code: 0, msg: "ok" }), { status: 200 });
+    });
+    const appEnv: Env = {
+      ...env,
+      APP_KV: createMemoryKV(),
+      NEWSAPI_API_KEY: "newsapi-key",
+    };
+    vi.stubGlobal("fetch", fetchMock);
+    await saveSettings(appEnv, {
+      appName: "GlobalPulse",
+      language: "zh",
+      timezone: "Asia/Shanghai",
+      defaultTargets: ["feishu"],
+      outputFormat: "markdown",
+      topicFocus: "全球热点",
+      template: "# Brief\n\n{{itemsMarkdown}}",
+      schedules: [{
+        id: "daily-hot-cron",
+        name: "每日热点",
+        enabled: true,
+        triggerMode: "cron",
+        cronExpression: "0 10 * * *",
+        time: "10:00",
+        days: [0, 1, 2, 3, 4, 5, 6],
+        timezone: "Asia/Shanghai",
+        language: "zh",
+        outputFormat: "markdown",
+        reportType: "daily_hot",
+        reportMode: "digest",
+        targets: ["feishu"],
+        marketCalendar: "everyday",
+        tradingDaySource: "weekday",
+        topicQuery: "全球热点 国际新闻 国内新闻 微博热搜 抖音热榜",
+        template: "# Brief\n\n{{itemsMarkdown}}",
+      }],
+    });
+
+    const result = await runDueSchedules(appEnv, new Date("2026-05-18T02:00:00Z"));
+    const calls = fetchMock.mock.calls;
+    const translateCalls = calls.filter((call) => String(call[0]).startsWith("https://translate.googleapis.com/translate_a/single"));
+    const reachabilityCalls = calls.filter((call) => (call[1] as RequestInit | undefined)?.method === "HEAD");
+
+    expect(result).toMatchObject({ checked: 1, executed: 1, skipped: 0 });
+    expect(calls.length).toBeLessThan(50);
+    expect(reachabilityCalls).toHaveLength(6);
+    expect(translateCalls.length).toBeLessThanOrEqual(12);
+    expect(fetchMock).toHaveBeenCalledWith("https://open.feishu.cn/open-apis/bot/v2/hook/test-token", expect.objectContaining({
+      method: "POST",
+    }));
+  });
+
   it("skips A-share schedules on non-trading weekends", async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ code: 0, msg: "ok" }), { status: 200 }));
     const appEnv: Env = {
