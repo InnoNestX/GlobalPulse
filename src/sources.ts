@@ -11,6 +11,8 @@ export interface TopicItem {
   section?: "domestic" | "platform" | "global" | undefined;
 }
 
+const DAILY_HOT_REACHABILITY_CHECKS = 6;
+
 export interface TopicFetchOptions {
   mode?: ReportType;
   newsApiKey?: string;
@@ -57,7 +59,10 @@ async function fetchDailyHotTopicItems(query: string, language: AppLanguage, new
   const globalEnglishItems = globalEnglishResult.status === "fulfilled" ? globalEnglishResult.value : [];
   const domesticItems = domesticResult.status === "fulfilled" ? domesticResult.value : [];
   const platformItems = platformResult.status === "fulfilled" ? platformResult.value : [];
-  const items = await filterReachableTopicItems(dedupeTopicItems([...platformItems, ...domesticItems, ...newsApiItems, ...googleItems, ...globalEnglishItems]));
+  const items = await filterReachableTopicItems(
+    dedupeTopicItems([...platformItems, ...domesticItems, ...newsApiItems, ...googleItems, ...globalEnglishItems]),
+    DAILY_HOT_REACHABILITY_CHECKS,
+  );
   const sourceUrl = [
     newsApiKey ? (newsApiItems.length ? `NewsAPI已启用(${newsApiItems.length}条)` : "NewsAPI已配置但本次无结果") : "NewsAPI未配置",
     `国内新闻(${domesticItems.length}条)`,
@@ -276,11 +281,15 @@ function inferPlatformHotSummary(title: string): string {
   return "平台热搜相关话题，适合快速了解过去数小时到24小时内大众关注点。";
 }
 
-async function filterReachableTopicItems(items: TopicItem[]): Promise<TopicItem[]> {
+async function filterReachableTopicItems(items: TopicItem[], maxChecks = 36): Promise<TopicItem[]> {
   const sorted = sortTopicItems(items);
-  const checked = await Promise.all(sorted.slice(0, 36).map(async (item) => await isReachableTopicUrl(item.url) ? item : undefined));
+  const checkedItems = sorted.slice(0, Math.max(0, maxChecks));
+  const checked = await Promise.all(checkedItems.map(async (item) => await isReachableTopicUrl(item.url) ? item : undefined));
   const reachable = checked.filter((item): item is TopicItem => Boolean(item));
-  return reachable;
+  const unchecked = sorted.slice(checkedItems.length);
+  const validUnchecked = unchecked.filter((item) => isValidTopicUrl(item.url));
+  const result = [...reachable, ...validUnchecked];
+  return result.length > 0 ? result : sorted.filter((item) => isValidTopicUrl(item.url));
 }
 
 async function isReachableTopicUrl(value: string): Promise<boolean> {
@@ -324,6 +333,11 @@ function isKnownPlaceholderUrl(value: string): boolean {
   } catch {
     return true;
   }
+}
+
+function isValidTopicUrl(value: string): boolean {
+  const url = normalizeHttpUrl(value);
+  return Boolean(url && !isKnownPlaceholderUrl(url));
 }
 
 async function fetchSinaFinanceItems(): Promise<TopicItem[]> {

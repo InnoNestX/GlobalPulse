@@ -1,4 +1,4 @@
-import { appendLog, getRunMarker, getSettings, setRunMarker, type PulseSchedule } from "./config";
+import { appendLog, getRunMarker, getSettings, setRunMarker, type AppSettings, type PulseSchedule } from "./config";
 import { sendIncomingMessage } from "./delivery";
 import type { Env } from "./env";
 import { matchCronExpression } from "./cron";
@@ -22,7 +22,7 @@ export async function runDueSchedules(env: Env, now = new Date()): Promise<Sched
 
   for (const schedule of enabledSchedules) {
     if (await shouldRunSchedule(env, schedule, now)) {
-      await runSchedule(env, schedule, now);
+      await runSchedule(env, schedule, now, settings);
       executed += 1;
     } else {
       skipped += 1;
@@ -36,7 +36,7 @@ export async function runDueSchedules(env: Env, now = new Date()): Promise<Sched
   };
 }
 
-export async function runSchedule(env: Env, schedule: PulseSchedule, now = new Date()): Promise<DeliverySummary> {
+export async function runSchedule(env: Env, schedule: PulseSchedule, now = new Date(), settings?: AppSettings): Promise<DeliverySummary> {
   const local = getLocalTimeParts(now, schedule.timezone, schedule.language);
   const markerTime = schedule.triggerMode === "cron" ? local.time : schedule.time;
   await setRunMarker(env, schedule.id, local.date, markerTime, now.toISOString());
@@ -45,7 +45,7 @@ export async function runSchedule(env: Env, schedule: PulseSchedule, now = new D
     const reportEnv = await mergeMarketDataProviderSettings(env);
     const report = await buildScheduleReport(reportEnv, schedule, now);
     // Resolve email recipient IDs → comma-separated addresses
-    const appSettings = await getSettings(env);
+    const appSettings = settings ?? await getSettings(env);
     const emailToAddresses = schedule.emailRecipientIds
       .map((id: string) => appSettings.emailRecipients.find((r) => r.id === id && r.enabled)?.address)
       .filter(Boolean)
@@ -74,7 +74,7 @@ export async function runSchedule(env: Env, schedule: PulseSchedule, now = new D
       messageBody.emailRecipientOverride = emailToAddresses;
     }
 
-    const summary = await sendIncomingMessage(messageBody as unknown as Parameters<typeof sendIncomingMessage>[0], env);
+    const summary = await sendIncomingMessage(messageBody as unknown as Parameters<typeof sendIncomingMessage>[0], env, appSettings);
 
     await appendLog(env, {
       id: crypto.randomUUID(),
@@ -111,7 +111,7 @@ export async function runScheduleById(env: Env, scheduleId: string, now = new Da
     throw new Error(`Schedule "${scheduleId}" was not found`);
   }
 
-  return runSchedule(env, schedule, now);
+  return runSchedule(env, schedule, now, settings);
 }
 
 async function shouldRunSchedule(env: Env, schedule: PulseSchedule, now: Date): Promise<boolean> {
