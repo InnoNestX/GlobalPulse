@@ -677,6 +677,7 @@ describe("handleRequest", () => {
         if (/site:weibo|site:douyin|知乎热榜|小红书|百度 热搜/i.test(query)) {
           return rss([
             { title: "微博正文 - 微博", link: "https://news.example.test/weibo-ad", source: "微博" },
+            { title: "2024年度回忆#抖音热点记忆2024 - 抖音", link: "https://news.example.test/douyin-memory", source: "抖音" },
             { title: "微博热搜：高考服务政策引发讨论破亿", link: "https://news.example.test/platform-1", source: "微博热搜", description: "民生政策话题进入高热讨论。" },
           ]);
         }
@@ -728,6 +729,8 @@ describe("handleRequest", () => {
     expect(body.preview.sourceStatus).toBe("live");
     expect(previewBody).not.toContain("暂无相关内容");
     expect(previewBody).not.toContain("微博正文");
+    expect(previewBody).not.toContain("2024年度回忆");
+    expect(previewBody).not.toContain("抖音热点记忆");
     expect(previewBody).toContain("G7 leaders");
     expect(previewBody).toContain("高考服务政策");
     expect(previewBody).toContain("全网热度最高话题");
@@ -993,6 +996,11 @@ describe("handleRequest", () => {
     expect(fetchMock).toHaveBeenCalledWith("https://open.feishu.cn/open-apis/bot/v2/hook/test-token", expect.objectContaining({
       method: "POST",
     }));
+    const [, init] = fetchMock.mock.calls.find((call) => call[0] === "https://open.feishu.cn/open-apis/bot/v2/hook/test-token") as unknown as [string, RequestInit];
+    const payload = JSON.parse(String(init.body));
+    const itemCount = (String(payload.content.text).match(/^\d+\. \*\*/gm) ?? []).length;
+    expect(itemCount).toBeGreaterThanOrEqual(10);
+    expect(payload.content.text).not.toContain("暂无相关内容");
   });
 
   it("skips A-share schedules on non-trading weekends", async () => {

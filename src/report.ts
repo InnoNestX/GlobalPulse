@@ -171,7 +171,7 @@ function selectDigestItems(schedule: PulseSchedule, items: TopicItem[], now: Dat
 
 function selectDailyHotItems(items: TopicItem[], now: Date): TopicItem[] {
   const nowMs = now.getTime();
-  const filtered = items.filter((item) => !isDeveloperOnlyItem(item) && !isSingleCompanyFinanceItem(item) && !isLowInformationDailyHotItem(item) && (() => {
+  const filtered = items.filter((item) => !isDeveloperOnlyItem(item) && !isSingleCompanyFinanceItem(item) && !isLowInformationDailyHotItem(item, now) && (() => {
     if (!item.publishedAt) return true;
     const pubMs = Date.parse(item.publishedAt);
     if (!Number.isFinite(pubMs)) return true;
@@ -250,7 +250,7 @@ function selectDailyHotItems(items: TopicItem[], now: Date): TopicItem[] {
 
   return result.length > 0
     ? result
-    : items.filter((item) => !isLowInformationDailyHotItem(item) && !isDeveloperOnlyItem(item) && !isSingleCompanyFinanceItem(item)).slice(0, 12);
+    : items.filter((item) => !isLowInformationDailyHotItem(item, now) && !isDeveloperOnlyItem(item) && !isSingleCompanyFinanceItem(item)).slice(0, 12);
 }
 
 function inferSectionFromText(text: string, source?: string | null): "domestic" | "platform" | "global" {
@@ -324,17 +324,26 @@ function isSingleCompanyFinanceItem(item: TopicItem): boolean {
     && !/政策|监管|关税|通胀|利率|央行|地缘|战争|能源|供应链/i.test(text);
 }
 
-function isLowInformationDailyHotItem(item: TopicItem): boolean {
+function isLowInformationDailyHotItem(item: TopicItem, now: Date): boolean {
   const rawTitle = item.title.trim();
   const title = rawTitle.replace(/\s+-\s+(微博|Weibo|抖音|Douyin|小红书|知乎|百度)\s*$/i, "").trim();
   const text = `${title}\n${item.summary ?? ""}`;
   const source = item.source ?? "";
   const isPlatform = item.section === "platform" || /微博|weibo|抖音|douyin|小红书|知乎|百度|热搜/i.test(source);
+  const currentYear = now.getFullYear();
 
   if (/^(微博正文|微博|weibo|抖音|douyin|小红书|知乎|百度|登录|首页|详情页)$/i.test(title)) return true;
   if (/微博正文|登录后可见|请先登录|客户端下载|无障碍|首页导航|广告|推广/i.test(text) && text.length < 60) return true;
+  if (/年度回忆|热点记忆|抖音热点记忆|年度盘点|年终盘点|往年回顾|历史回顾|合集/i.test(text)) return true;
+  if (isPlatform && hasStaleYearMarker(text, currentYear)) return true;
   if (isPlatform && !/热搜|热榜|热议|热点|破亿|千万|爆|关注|讨论|回应|发布|宣布|政策|事件|事故|天气|地震|赛事|电影|消费|民生|医疗|教育|trending/i.test(text)) return true;
   return title.length < 6 && !item.summary;
+}
+
+function hasStaleYearMarker(text: string, currentYear: number): boolean {
+  if (!/年度|回忆|记忆|盘点|回顾|合集|挑战|热点/.test(text)) return false;
+  const years = Array.from(text.matchAll(/\b(20\d{2})\b/g)).map((match) => Number(match[1]));
+  return years.some((year) => Number.isFinite(year) && year < currentYear);
 }
 
 async function maybeTranslateItems(env: Env, items: TopicItem[], language: PulseSchedule["language"], options: TranslationOptions = {}): Promise<TopicItem[]> {
