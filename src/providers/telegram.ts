@@ -22,6 +22,7 @@ export const telegramProvider: Provider = {
       body: JSON.stringify({
         chat_id: env.TELEGRAM_CHAT_ID,
         text: body.slice(0, 4096),
+        parse_mode: "HTML",
         disable_web_page_preview: true,
         ...(actions.length > 0
           ? {
@@ -62,11 +63,18 @@ function formatTelegramText(title: string, body: string): string {
     metadata: {},
   });
 
-  return text
+  return escapeTelegramHtml(text
     .replace(/Sources:\s*.*$/gim, "")
     .replace(/Tags:\s*.*$/gim, "")
     .replace(/\n{3,}/g, "\n\n")
-    .trim();
+    .trim());
+}
+
+function escapeTelegramHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 function normalizeActions(actions: Array<{ label: string; url: string }>): Array<{ label: string; url: string }> {
