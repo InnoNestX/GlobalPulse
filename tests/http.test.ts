@@ -270,7 +270,7 @@ describe("handleRequest", () => {
       body: JSON.stringify({
         target: "telegram",
         title: "Telegram check",
-        body: "Bot delivery works",
+        body: "Bot delivery works\n\n1. **Headline** [🔗](https://news.example.test/story?ref=gp&item=1)",
       }),
     }), {
       ...env,
@@ -286,6 +286,10 @@ describe("handleRequest", () => {
     expect(payload.chat_id).toBe("-100123456");
     expect(payload.text).toContain("Telegram check");
     expect(payload.parse_mode).toBe("HTML");
+    expect(payload.text).toContain("<b>Headline</b>");
+    expect(payload.text).toContain("<a href=\"https://news.example.test/story?ref=gp&amp;item=1\">🔗</a>");
+    expect(payload.text).not.toContain("[🔗](");
+    expect(payload.text).not.toContain("**Headline**");
     expect(payload.text).not.toContain("Sources:");
     expect(payload.text).not.toContain("Tags:");
   });
