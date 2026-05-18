@@ -119,24 +119,51 @@ async function fetchItemsWithFallback(env: Env, schedule: PulseSchedule): Promis
       items: topicData.items,
     };
   } catch (error) {
+    const emergencyDailyHotItems = isDailyHot
+      ? await fetchEmergencyDailyHotItems(effectiveQuery, schedule.language)
+      : [];
+    const fallbackItems = emergencyDailyHotItems.length > 0
+      ? emergencyDailyHotItems
+      : getSampleItems(schedule.language, schedule.reportType);
     const fallbackSource = isDailyHot
-      ? newsApiEnabled ? "NewsAPI(configured), Google News fallback" : "Google News fallback"
+      ? emergencyDailyHotItems.length > 0
+        ? "备用综合来源"
+        : newsApiEnabled ? "NewsAPI(configured), Google News fallback" : "Google News fallback"
       : schedule.sourceUrl || "Google News, Sina Finance, Hacker News, GitHub Search, alternative.me";
-    const fallbackItems = getSampleItems(schedule.language, schedule.reportType);
     const errorMessage = error instanceof Error ? error.message : "unknown error";
 
     return {
       status: "fallback",
       message: schedule.language === "zh"
         ? isDailyHot
-          ? `实时抓取失败，未使用示例新闻；请稍后重试或检查数据源配置：${errorMessage}`
+          ? emergencyDailyHotItems.length > 0
+            ? `主热点源抓取失败，已启用备用综合来源：${errorMessage}`
+            : `实时抓取失败，请稍后重试或检查数据源配置：${errorMessage}`
           : `实时抓取失败，已回退示例数据：${errorMessage}`
         : isDailyHot
-          ? `Live fetch failed; no sample news was inserted. Please retry later or check source settings: ${errorMessage}`
+          ? emergencyDailyHotItems.length > 0
+            ? `Primary hot-news sources failed; emergency composite sources were used: ${errorMessage}`
+            : `Live fetch failed. Please retry later or check source settings: ${errorMessage}`
           : `Live fetch failed, fallback sample data is used: ${errorMessage}`,
       sourceUrl: fallbackSource,
       items: fallbackItems,
     };
+  }
+}
+
+async function fetchEmergencyDailyHotItems(query: string, language: PulseSchedule["language"]): Promise<TopicItem[]> {
+  try {
+    const fallback = await fetchTopicItems(query, language);
+    return fallback.items
+      .filter((item) => normalizeHttpUrl(item.url))
+      .map((item) => ({
+        ...item,
+        section: item.section ?? inferSectionFromText(`${item.title}\n${item.summary ?? ""}`, item.source),
+        score: (item.score ?? 0) + 500,
+      }))
+      .slice(0, 12);
+  } catch {
+    return [];
   }
 }
 
