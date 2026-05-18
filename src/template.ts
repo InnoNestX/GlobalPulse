@@ -35,7 +35,7 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
   }
 
   const zh = schedule.language === "zh";
-  const globalItems = sortByHeat(items.filter((item) => inferDigestSection(item) === "global")).slice(0, 8);
+  const globalItems = sortByHeat(items.filter((item) => inferDigestSection(item) === "global")).slice(0, 4);
   const domesticItems = sortByHeat(items.filter((item) => inferDigestSection(item) === "domestic")).slice(0, 4);
   const platformItems = sortByHeat(items.filter((item) => inferDigestSection(item) === "platform"));
   const topPlatformItem = platformItems[0] ?? null;
