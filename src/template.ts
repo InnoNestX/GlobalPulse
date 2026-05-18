@@ -42,9 +42,6 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
   const platformItems = takeUniqueByHeat(items.filter((item) => inferDigestSection(item) === "platform"), 4);
   const topPlatformItem = platformItems[0] ?? null;
   const platformDisplayItems = platformItems.slice(1, 4);
-  const used = [...globalItems, ...domesticItems, ...platformDisplayItems, ...(topPlatformItem ? [topPlatformItem] : [])];
-  const watchItems = takeUniqueByHeat(items.filter((item) => !used.some((shown) => isSameTopicItem(item, shown))), 3);
-  const fallbackItems = takeUniqueByHeat(items.filter((item) => !used.some((shown) => isSameTopicItem(item, shown)) && !watchItems.some((shown) => isSameTopicItem(item, shown))), 8);
 
   const lines = [
     zh ? "# GlobalPulse 热点简报" : "# GlobalPulse Hot Brief",
@@ -59,7 +56,6 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
   appendSection(lines, zh ? "## 🇨🇳 国内热点" : "## 🇨🇳 Domestic Highlights", domesticItems, schedule, "domestic");
   appendSection(lines, zh ? "## 🔥 全网热搜精选" : "## 🔥 Social Trends", platformDisplayItems, schedule, "social");
   appendSection(lines, zh ? "## 📌 全网热度最高话题" : "## 📌 Top Discussion", topPlatformItem ? [topPlatformItem] : [], schedule, "social");
-  appendSection(lines, zh ? "## 🧭 后续观察方向" : "## 🧭 What to Watch", [...watchItems, ...fallbackItems].slice(0, 8), schedule, "watch");
 
   const sourceSummary = formatSourceSummary(context.sourceUrl);
   if (sourceSummary) lines.push("", zh ? `> 数据来源：${sourceSummary}` : `> Sources: ${sourceSummary}`);
