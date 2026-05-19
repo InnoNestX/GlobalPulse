@@ -36,8 +36,7 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
 
   const zh = schedule.language === "zh";
   const domesticItems = takeUniqueByHeat(items.filter((item) => inferDigestSection(item) === "domestic"), 4);
-  const domesticSeed = new Set(domesticItems.map((item) => getItemKey(item)));
-  const globalCandidates = items.filter((item) => inferDigestSection(item) === "global" || (!domesticSeed.has(getItemKey(item)) && inferDigestSection(item) === "domestic"));
+  const globalCandidates = items.filter((item) => inferDigestSection(item) === "global" && !isChinaRelatedTopic(`${item.title}\n${item.summary ?? ""}\n${item.source ?? ""}`));
   const globalItems = takeUniqueByHeat(globalCandidates, 4);
   const platformItems = takeUniqueByHeat(items.filter((item) => inferDigestSection(item) === "platform"), 4);
   const topPlatformItem = platformItems[0] ?? null;
@@ -112,7 +111,7 @@ function inferDigestSection(item: TopicItem): "domestic" | "platform" | "global"
 }
 
 function isChinaRelatedTopic(text: string): boolean {
-  return /中国|国内|多地|民生|就业|消费|资本市场|北京|上海|深圳|广州|杭州|成都|重庆|国务院|工信部|证监会|A股|人民币|中概股|台湾|台海|外交部|对华|涉华|南海|港澳/i.test(text);
+  return /中国|国内|多地|民生|就业|消费|资本市场|北京|上海|深圳|广州|杭州|成都|重庆|国务院|工信部|证监会|A股|人民币|中概股|台湾|台海|外交部|对华|涉华|南海|港澳|\bChina\b|\bChinese\b|\bBeijing\b|\bShanghai\b|\bShenzhen\b|\bGuangzhou\b|\bHangzhou\b|\bChengdu\b|\bChongqing\b|\bTaiwan\b|\bHong Kong\b|\bMacau\b|\bMacao\b|\bPBOC\b|\bCSRC\b|\bA-shares?\b|\byuan\b|\brenminbi\b|South China Sea/i.test(text);
 }
 
 function sortByHeat(items: TopicItem[]): TopicItem[] {

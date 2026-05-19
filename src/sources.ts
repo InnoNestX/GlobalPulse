@@ -403,7 +403,7 @@ function inferSection(item: TopicItem): "domestic" | "platform" | "global" {
 function inferSectionFromText(text: string, source?: string | null): "domestic" | "platform" | "global" {
   const merged = `${text}\n${source ?? ""}`.toLowerCase();
   if (/抖音|微博|小红书|知乎|百度|热搜|hot search|douyin|weibo|xhs/.test(merged)) return "platform";
-  if (/中国|国内|北京|上海|深圳|广州|杭州|成都|重庆|国家|国务院|央行|工信部|证监会|新华社|央视|人民日报|cctv|xinhuanet|people.cn|gov.cn/.test(merged)) return "domestic";
+  if (/中国|国内|北京|上海|深圳|广州|杭州|成都|重庆|国务院|人民银行|工信部|证监会|新华社|央视|人民日报|cctv|xinhuanet|people.cn|gov.cn|\bchina\b|\bchinese\b|\bbeijing\b|\bshanghai\b|\bshenzhen\b|\bguangzhou\b|\bhangzhou\b|\bchengdu\b|\bchongqing\b|\btaiwan\b|\bhong kong\b|\bmacau\b|\bmacao\b|\bpboc\b|\bcsrc\b|\ba-shares?\b|\byuan\b|\brenminbi\b|south china sea/.test(merged)) return "domestic";
   return "global";
 }
 

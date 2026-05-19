@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { saveSettings } from "../src/config";
+import { saveSettings, type PulseSchedule } from "../src/config";
 import type { Env } from "../src/env";
 import { handleRequest } from "../src/http";
 import { telegramProvider } from "../src/providers/telegram";
 import { runDueSchedules } from "../src/scheduler";
+import { renderDigest } from "../src/template";
 
 const env: Env = {
   API_TOKEN: "test-token",
@@ -1050,6 +1051,38 @@ describe("handleRequest", () => {
     const itemCount = (String(payload.content.text).match(/^\d+\. \*\*/gm) ?? []).length;
     expect(itemCount).toBeGreaterThanOrEqual(10);
     expect(payload.content.text).not.toContain("暂无相关内容");
+  });
+
+  it("keeps China-related stories out of international daily hot headlines", () => {
+    const schedule = {
+      name: "每日热点",
+      language: "zh",
+      outputFormat: "markdown",
+      reportType: "daily_hot",
+    } as PulseSchedule;
+    const { body } = renderDigest(schedule, {
+      generatedAt: "2026-05-19 10:00",
+      timezone: "Asia/Shanghai",
+      topicQuery: "全球热点",
+      sourceUrl: "test",
+      format: "markdown",
+      items: [
+        { title: "China policy debate dominates global markets", url: "https://news.example.test/china-1", source: "Reuters", section: "global", score: 3000 },
+        { title: "台湾海峡紧张局势引发关注", url: "https://news.example.test/taiwan-1", source: "AP News", section: "global", score: 2990 },
+        { title: "Beijing announces new technology rules", url: "https://news.example.test/beijing-1", source: "BBC", section: "global", score: 2980 },
+        { title: "Middle East ceasefire talks enter new round", url: "https://news.example.test/global-1", source: "AP News", section: "global", score: 2100 },
+        { title: "European central banks debate inflation path", url: "https://news.example.test/global-2", source: "Financial Times", section: "global", score: 2050 },
+        { title: "UN warns climate disasters are straining public systems", url: "https://news.example.test/global-3", source: "BBC", section: "global", score: 2000 },
+        { title: "Oil shipping routes face renewed geopolitical risk", url: "https://news.example.test/global-4", source: "Reuters", section: "global", score: 1950 },
+        { title: "中国消费政策继续影响市场预期", url: "https://news.example.test/domestic-1", source: "SCMP", section: "domestic", score: 1900 },
+        { title: "微博热搜：民生服务新规引发讨论", url: "https://news.example.test/platform-1", source: "微博热搜", section: "platform", score: 1800 },
+      ],
+    });
+    const internationalSection = body.split("## 🌍 国际要闻")[1]?.split("## 🇨🇳 国内热点")[0] ?? "";
+
+    expect(internationalSection).toContain("Middle East");
+    expect(internationalSection).toContain("European central banks");
+    expect(internationalSection).not.toMatch(/China|Chinese|Beijing|台湾|中国/);
   });
 
   it("skips A-share schedules on non-trading weekends", async () => {
