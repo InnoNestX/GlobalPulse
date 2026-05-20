@@ -4,6 +4,7 @@ import { fetchTopicItems, type TopicItem } from "./sources";
 import { renderDigest } from "./template";
 import { getLocalTimeParts } from "./time";
 import { buildResearchMarketReport, shouldUseResearchEngine } from "./research";
+import { getStoredJson, putStoredJson } from "./state-store";
 
 interface TranslationResult {
   title?: string;
@@ -16,11 +17,19 @@ interface TranslationOptions {
   allowAiFallback?: boolean;
 }
 
+interface DailyHotItemCache {
+  savedAt: string;
+  sourceUrl: string;
+  items: TopicItem[];
+}
+
 const DAILY_HOT_TRANSLATION_LIMIT = 12;
 const DAILY_HOT_TRANSLATION_CONCURRENCY = 3;
 const DEFAULT_TRANSLATION_CONCURRENCY = 4;
 const DAILY_HOT_DISPLAY_LIMIT = 20;
 const GOOGLE_TRANSLATION_SEPARATOR = "1234567890GLOBALPULSE9876543210";
+const DAILY_HOT_CACHE_TTL_SECONDS = 60 * 60 * 36;
+const DAILY_HOT_CACHE_MAX_AGE_MS = 36 * 60 * 60 * 1000;
 
 export interface ReportBuildResult {
   title: string;
@@ -35,7 +44,7 @@ export interface ReportBuildResult {
 
 export async function buildScheduleReport(env: Env, schedule: PulseSchedule, now = new Date()): Promise<ReportBuildResult> {
   const local = getLocalTimeParts(now, schedule.timezone, schedule.language);
-  const fetched = await fetchItemsWithFallback(env, schedule);
+  const fetched = await fetchItemsWithFallback(env, schedule, now);
 
   if (shouldUseResearchEngine(schedule)) {
     const translatedItems = await maybeTranslateItems(env, fetched.items, schedule.language);
@@ -53,6 +62,9 @@ export async function buildScheduleReport(env: Env, schedule: PulseSchedule, now
   }
 
   const selectedItems = selectDigestItems(schedule, fetched.items, now);
+  if (schedule.reportType === "daily_hot" && fetched.status === "live" && selectedItems.length > 0) {
+    await saveDailyHotItemCache(env, schedule, selectedItems, fetched.sourceUrl, now);
+  }
   const displayItems = await maybeTranslateItems(env, selectedItems, schedule.language, translationOptionsForSchedule(schedule));
   const rendered = renderDigest(schedule, {
     generatedAt: local.label,
@@ -88,7 +100,7 @@ function translationOptionsForSchedule(schedule: PulseSchedule): TranslationOpti
   return { concurrency: DEFAULT_TRANSLATION_CONCURRENCY };
 }
 
-async function fetchItemsWithFallback(env: Env, schedule: PulseSchedule): Promise<{
+async function fetchItemsWithFallback(env: Env, schedule: PulseSchedule, now = new Date()): Promise<{
   status: "live" | "fallback";
   message: string;
   sourceUrl: string;
@@ -120,12 +132,19 @@ async function fetchItemsWithFallback(env: Env, schedule: PulseSchedule): Promis
     const emergencyDailyHotItems = isDailyHot
       ? await fetchEmergencyDailyHotItems(effectiveQuery, schedule.language)
       : [];
+    const cachedDailyHotItems = isDailyHot && emergencyDailyHotItems.length === 0
+      ? await getDailyHotItemCache(env, schedule, now)
+      : undefined;
     const fallbackItems = emergencyDailyHotItems.length > 0
       ? emergencyDailyHotItems
+      : cachedDailyHotItems?.items.length
+        ? cachedDailyHotItems.items
       : getSampleItems(schedule.language, schedule.reportType);
     const fallbackSource = isDailyHot
       ? emergencyDailyHotItems.length > 0
         ? "备用综合来源"
+        : cachedDailyHotItems?.items.length
+          ? `最近一次成功缓存：${cachedDailyHotItems.sourceUrl}`
         : schedule.language === "zh" ? "备用示例数据" : "Sample fallback"
       : schedule.sourceUrl || "Google News, Sina Finance, Hacker News, GitHub Search, alternative.me";
     const errorMessage = error instanceof Error ? error.message : "unknown error";
@@ -136,17 +155,63 @@ async function fetchItemsWithFallback(env: Env, schedule: PulseSchedule): Promis
         ? isDailyHot
           ? emergencyDailyHotItems.length > 0
             ? `主热点源抓取失败，已启用备用综合来源：${errorMessage}`
+            : cachedDailyHotItems?.items.length
+              ? `主热点源抓取失败，已使用最近一次成功热点缓存（${formatCacheTimestamp(cachedDailyHotItems.savedAt, schedule)}）：${errorMessage}`
             : `实时抓取失败，请稍后重试或检查数据源配置：${errorMessage}`
           : `实时抓取失败，已回退示例数据：${errorMessage}`
         : isDailyHot
           ? emergencyDailyHotItems.length > 0
             ? `Primary hot-news sources failed; emergency composite sources were used: ${errorMessage}`
+            : cachedDailyHotItems?.items.length
+              ? `Primary hot-news sources failed; using the last successful hot-news cache (${formatCacheTimestamp(cachedDailyHotItems.savedAt, schedule)}): ${errorMessage}`
             : `Live fetch failed. Please retry later or check source settings: ${errorMessage}`
           : `Live fetch failed, fallback sample data is used: ${errorMessage}`,
       sourceUrl: fallbackSource,
       items: fallbackItems,
     };
   }
+}
+
+async function saveDailyHotItemCache(env: Env, schedule: PulseSchedule, items: TopicItem[], sourceUrl: string, now: Date): Promise<void> {
+  const cache: DailyHotItemCache = {
+    savedAt: now.toISOString(),
+    sourceUrl,
+    items: items
+      .filter((item) => item.title.trim() && normalizeHttpUrl(item.url))
+      .slice(0, DAILY_HOT_DISPLAY_LIMIT),
+  };
+
+  if (!cache.items.length) return;
+  await putStoredJson(env, dailyHotItemCacheKey(schedule), cache, DAILY_HOT_CACHE_TTL_SECONDS);
+}
+
+async function getDailyHotItemCache(env: Env, schedule: PulseSchedule, now: Date): Promise<DailyHotItemCache | undefined> {
+  const cache = await getStoredJson<DailyHotItemCache>(env, dailyHotItemCacheKey(schedule));
+  if (!cache || typeof cache.savedAt !== "string" || typeof cache.sourceUrl !== "string" || !Array.isArray(cache.items)) {
+    return undefined;
+  }
+
+  const savedAtMs = Date.parse(cache.savedAt);
+  if (!Number.isFinite(savedAtMs)) return undefined;
+  const ageMs = now.getTime() - savedAtMs;
+  if (ageMs < 0 || ageMs > DAILY_HOT_CACHE_MAX_AGE_MS) return undefined;
+
+  const items = cache.items
+    .filter((item) => item && typeof item.title === "string" && typeof item.url === "string")
+    .filter((item) => item.title.trim() && normalizeHttpUrl(item.url))
+    .slice(0, DAILY_HOT_DISPLAY_LIMIT);
+
+  return items.length > 0 ? { ...cache, items } : undefined;
+}
+
+function dailyHotItemCacheKey(schedule: PulseSchedule): string {
+  return `daily-hot:last-live:v1:${schedule.language}:${schedule.id}`;
+}
+
+function formatCacheTimestamp(value: string, schedule: PulseSchedule): string {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return value;
+  return getLocalTimeParts(date, schedule.timezone, schedule.language).label;
 }
 
 async function fetchEmergencyDailyHotItems(query: string, language: PulseSchedule["language"]): Promise<TopicItem[]> {
