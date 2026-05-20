@@ -35,10 +35,11 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
   }
 
   const zh = schedule.language === "zh";
-  const domesticItems = takeUniqueByHeat(items.filter((item) => inferDigestSection(item) === "domestic"), 4);
-  const globalCandidates = items.filter((item) => inferDigestSection(item) === "global" && !isChinaRelatedTopic(`${item.title}\n${item.summary ?? ""}\n${item.source ?? ""}`));
+  const renderableItems = items.filter((item) => inferDigestSection(item) !== "platform" || isConcretePlatformTopic(item));
+  const domesticItems = takeUniqueByHeat(renderableItems.filter((item) => inferDigestSection(item) === "domestic"), 4);
+  const globalCandidates = renderableItems.filter((item) => inferDigestSection(item) === "global" && !isChinaRelatedTopic(`${item.title}\n${item.summary ?? ""}\n${item.source ?? ""}`));
   const globalItems = takeUniqueByHeat(globalCandidates, 4);
-  const platformItems = takeUniqueByHeat(items.filter((item) => inferDigestSection(item) === "platform"), 4);
+  const platformItems = takeUniqueByHeat(renderableItems.filter((item) => inferDigestSection(item) === "platform"), 4);
   const topPlatformItem = platformItems[0] ?? null;
   const platformDisplayItems = platformItems.slice(1, 4);
   const primaryItems = [
@@ -49,7 +50,7 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
   ];
   const primaryKeys = new Set(primaryItems.map((item) => getItemKey(item)));
   const supplementalItems = primaryItems.length < 10
-    ? takeUniqueByHeat(items.filter((item) => !primaryKeys.has(getItemKey(item))), 10 - primaryItems.length)
+    ? takeUniqueByHeat(renderableItems.filter((item) => !primaryKeys.has(getItemKey(item))), 10 - primaryItems.length)
     : [];
 
   const lines = [
@@ -112,6 +113,21 @@ function inferDigestSection(item: TopicItem): "domestic" | "platform" | "global"
 
 function isChinaRelatedTopic(text: string): boolean {
   return /中国|国内|多地|民生|就业|消费|资本市场|北京|上海|深圳|广州|杭州|成都|重庆|国务院|工信部|证监会|A股|人民币|中概股|台湾|台海|外交部|对华|涉华|南海|港澳|\bChina\b|\bChinese\b|\bBeijing\b|\bShanghai\b|\bShenzhen\b|\bGuangzhou\b|\bHangzhou\b|\bChengdu\b|\bChongqing\b|\bTaiwan\b|\bHong Kong\b|\bMacau\b|\bMacao\b|\bPBOC\b|\bCSRC\b|\bA-shares?\b|\byuan\b|\brenminbi\b|South China Sea/i.test(text);
+}
+
+function isConcretePlatformTopic(item: TopicItem): boolean {
+  const title = cleanText(item.title);
+  if (isGenericPlatformIndexTitle(title)) return false;
+  if (/^(微博正文|微博|weibo|抖音|douyin|小红书|知乎|百度|登录|首页|详情页)$/i.test(title)) return false;
+  return true;
+}
+
+function isGenericPlatformIndexTitle(value: string): boolean {
+  const normalized = value
+    .replace(/\s*[-—–·|｜]\s*(微博|新浪微博|抖音|百度|知乎|小红书|bilibili|哔哩哔哩)\s*$/i, "")
+    .replace(/\s+/g, "")
+    .trim();
+  return /^(微博实时热点|微博热点|微博热搜|微博热搜榜|微博榜单|微博发现|抖音热点|抖音热点榜|抖音热榜|百度热搜|百度热搜榜|知乎热榜|小红书热搜|bilibili热门|哔哩哔哩热门)$/i.test(normalized);
 }
 
 function sortByHeat(items: TopicItem[]): TopicItem[] {
