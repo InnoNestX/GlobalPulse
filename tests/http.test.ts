@@ -719,6 +719,7 @@ describe("handleRequest", () => {
         }
         if (/site:weibo|site:douyin|知乎热榜|小红书|百度 热搜/i.test(query)) {
           return rss([
+            { title: "微博实时热点 - 微博", link: "https://news.example.test/weibo-hot-index", source: "微博", description: "微博实时热点 微博" },
             { title: "微博正文 - 微博", link: "https://news.example.test/weibo-ad", source: "微博" },
             { title: "2024年度回忆#抖音热点记忆2024 - 抖音", link: "https://news.example.test/douyin-memory", source: "抖音" },
             { title: "微博热搜：高考服务政策引发讨论破亿", link: "https://news.example.test/platform-1", source: "微博热搜", description: "民生政策话题进入高热讨论。" },
@@ -774,6 +775,7 @@ describe("handleRequest", () => {
     expect(body.preview.sourceStatus).toBe("live");
     expect(previewBody).not.toContain("暂无相关内容");
     expect(previewBody).not.toContain("NewsAPI");
+    expect(previewBody).not.toContain("微博实时热点");
     expect(previewBody).not.toContain("微博正文");
     expect(previewBody).not.toContain("2024年度回忆");
     expect(previewBody).not.toContain("抖音热点记忆");
@@ -784,6 +786,8 @@ describe("handleRequest", () => {
     expect(previewBody).toContain("G7 leaders");
     expect(previewBody).toContain("高考服务政策");
     expect(previewBody).toContain("全网热度最高话题");
+    const topTopicSection = previewBody.split("## 📌 全网热度最高话题")[1]?.split("## 🧩 补充要闻")[0] ?? "";
+    expect(topTopicSection).toContain("高考服务政策");
   });
 
   it("keeps ordered email list numbers increasing when items have observation lines", async () => {
@@ -1083,6 +1087,34 @@ describe("handleRequest", () => {
     expect(internationalSection).toContain("Middle East");
     expect(internationalSection).toContain("European central banks");
     expect(internationalSection).not.toMatch(/China|Chinese|Beijing|台湾|中国/);
+  });
+
+  it("does not use generic platform index pages as the top daily hot topic", () => {
+    const schedule = {
+      name: "每日热点",
+      language: "zh",
+      outputFormat: "markdown",
+      reportType: "daily_hot",
+    } as PulseSchedule;
+    const { body } = renderDigest(schedule, {
+      generatedAt: "2026-05-19 10:00",
+      timezone: "Asia/Shanghai",
+      topicQuery: "微博热搜 抖音热榜",
+      sourceUrl: "test",
+      format: "markdown",
+      items: [
+        { title: "微博实时热点 - 微博", url: "https://weibo.example.test/hot", source: "微博", section: "platform", summary: "微博实时热点 微博", score: 9999 },
+        { title: "抖音热点榜 - 抖音", url: "https://douyin.example.test/hot", source: "抖音", section: "platform", summary: "抖音热点榜 抖音", score: 8999 },
+        { title: "微博热搜：公共交通票价调整引发讨论", url: "https://news.example.test/platform-1", source: "微博热搜", section: "platform", summary: "多地民生政策成为社交平台讨论焦点。", score: 1200 },
+        { title: "抖音热榜：国产芯片发布带动科技讨论", url: "https://news.example.test/platform-2", source: "抖音热榜", section: "platform", summary: "科技产业链话题热度持续上升。", score: 1100 },
+      ],
+    });
+    const topTopicSection = body.split("## 📌 全网热度最高话题")[1]?.split("## 🧩 补充要闻")[0] ?? "";
+
+    expect(body).not.toContain("微博实时热点");
+    expect(body).not.toContain("抖音热点榜 - 抖音");
+    expect(topTopicSection).toContain("公共交通票价调整");
+    expect(topTopicSection).not.toContain("微博实时热点");
   });
 
   it("skips A-share schedules on non-trading weekends", async () => {

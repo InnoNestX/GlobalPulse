@@ -358,12 +358,21 @@ function isLowInformationDailyHotItem(item: TopicItem, now: Date): boolean {
   const isPlatform = item.section === "platform" || /微博|weibo|抖音|douyin|小红书|知乎|百度|热搜/i.test(source);
   const currentYear = now.getFullYear();
 
+  if (isGenericPlatformIndexTitle(rawTitle)) return true;
   if (/^(微博正文|微博|weibo|抖音|douyin|小红书|知乎|百度|登录|首页|详情页)$/i.test(title)) return true;
   if (/微博正文|登录后可见|请先登录|客户端下载|无障碍|首页导航|广告|推广/i.test(text) && text.length < 60) return true;
   if (/年度回忆|热点记忆|抖音热点记忆|年度盘点|年终盘点|往年回顾|历史回顾|合集/i.test(text)) return true;
   if (isPlatform && hasStaleYearMarker(text, currentYear)) return true;
   if (isPlatform && !/热搜|热榜|热议|热点|破亿|千万|爆|关注|讨论|回应|发布|宣布|政策|事件|事故|天气|地震|赛事|电影|消费|民生|医疗|教育|trending/i.test(text)) return true;
   return title.length < 6 && !item.summary;
+}
+
+function isGenericPlatformIndexTitle(value: string): boolean {
+  const normalized = value
+    .replace(/\s*[-—–·|｜]\s*(微博|新浪微博|抖音|百度|知乎|小红书|bilibili|哔哩哔哩)\s*$/i, "")
+    .replace(/\s+/g, "")
+    .trim();
+  return /^(微博实时热点|微博热点|微博热搜|微博热搜榜|微博榜单|微博发现|抖音热点|抖音热点榜|抖音热榜|百度热搜|百度热搜榜|知乎热榜|小红书热搜|bilibili热门|哔哩哔哩热门)$/i.test(normalized);
 }
 
 function isLowSignalInvestmentBriefItem(item: TopicItem): boolean {
