@@ -67,8 +67,8 @@ async function fetchDailyHotTopicItems(query: string, language: AppLanguage, new
   ]);
   let newsApiItems: TopicItem[] = [];
   if (newsApiKey) {
-    const newsApiResult = await fetchNewsApiDailyHotItems(query, language, newsApiKey);
-    newsApiItems = newsApiResult;
+    const [newsApiResult] = await Promise.allSettled([fetchNewsApiDailyHotItems(query, language, newsApiKey)]);
+    newsApiItems = newsApiResult?.status === "fulfilled" ? newsApiResult.value : [];
   }
   const googleItems = googleResult.status === "fulfilled" ? googleResult.value : [];
   const worldHeadlineItems = worldHeadlineResult.status === "fulfilled" ? markGlobalDailyHotItems(worldHeadlineResult.value, 850) : [];

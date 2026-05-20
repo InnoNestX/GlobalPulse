@@ -3,6 +3,7 @@ import { saveSettings, type PulseSchedule } from "../src/config";
 import type { Env } from "../src/env";
 import { handleRequest } from "../src/http";
 import { telegramProvider } from "../src/providers/telegram";
+import { buildScheduleReport } from "../src/report";
 import { runDueSchedules } from "../src/scheduler";
 import { renderDigest } from "../src/template";
 
@@ -1055,6 +1056,134 @@ describe("handleRequest", () => {
     const itemCount = (String(payload.content.text).match(/^\d+\. \*\*/gm) ?? []).length;
     expect(itemCount).toBeGreaterThanOrEqual(10);
     expect(payload.content.text).not.toContain("暂无相关内容");
+  });
+
+  it("uses the last successful daily hot cache when cron live sources are empty", async () => {
+    let liveSourcesAvailable = true;
+    const rss = (items: Array<{ title: string; link: string; source: string; description: string }>) => new Response([
+      "<rss><channel>",
+      ...items.map((item) => [
+        "<item>",
+        `<title>${item.title}</title>`,
+        `<link>${item.link}</link>`,
+        `<source>${item.source}</source>`,
+        `<description>${item.description}</description>`,
+        "<pubDate>Wed, 20 May 2026 01:00:00 GMT</pubDate>",
+        "</item>",
+      ].join("")),
+      "</channel></rss>",
+    ].join(""), { status: 200 });
+    const globalItems = [
+      { title: "欧洲央行讨论通胀路径", link: "https://news.example.test/global-cache-1", source: "Reuters", description: "欧洲货币政策和通胀路径受到市场关注。" },
+      { title: "中东停火谈判进入新阶段", link: "https://news.example.test/global-cache-2", source: "AP News", description: "地缘局势和能源市场继续受到影响。" },
+      { title: "全球港口拥堵推高供应链风险", link: "https://news.example.test/global-cache-3", source: "BBC", description: "航运延误影响制造业供应链。" },
+      { title: "AI芯片出口规则影响全球产业链", link: "https://news.example.test/global-cache-4", source: "Bloomberg", description: "半导体政策变化牵动科技公司供应。" },
+    ];
+    const domesticItems = [
+      { title: "国内消费补贴政策带动服务业讨论", link: "https://news.example.test/domestic-cache-1", source: "Caixin", description: "消费政策和民生支出成为关注焦点。" },
+      { title: "多地推进医疗公共服务改革", link: "https://news.example.test/domestic-cache-2", source: "RTHK", description: "医疗、教育和公共服务改革持续推进。" },
+      { title: "资本市场监管新规引发机构解读", link: "https://news.example.test/domestic-cache-3", source: "SCMP", description: "监管政策影响市场预期。" },
+      { title: "就业服务政策覆盖高校毕业生", link: "https://news.example.test/domestic-cache-4", source: "Nikkei Asia", description: "民生就业政策成为社会热点。" },
+    ];
+    const platformItems = [
+      { title: "微博热搜：公共交通票价调整引发讨论", link: "https://news.example.test/platform-cache-1", source: "微博热搜", description: "多地公共交通票价和民生成本成为高热话题。" },
+      { title: "抖音热榜：国产芯片发布带动科技讨论", link: "https://news.example.test/platform-cache-2", source: "抖音热榜", description: "科技产业链相关话题热度上升。" },
+      { title: "微博热议：高考服务政策受到关注", link: "https://news.example.test/platform-cache-3", source: "微博热搜", description: "教育民生服务政策进入热搜讨论。" },
+      { title: "百度热搜：暴雨天气影响城市出行", link: "https://news.example.test/platform-cache-4", source: "百度热搜", description: "公共安全和城市交通成为讨论焦点。" },
+    ];
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+
+      if (url === "https://open.feishu.cn/open-apis/bot/v2/hook/test-token") {
+        return new Response(JSON.stringify({ code: 0, msg: "ok" }), { status: 200 });
+      }
+
+      if (url.startsWith("https://newsapi.org/v2/")) {
+        throw new Error("NewsAPI timed out");
+      }
+
+      if (!liveSourcesAvailable) {
+        return new Response("", { status: 503 });
+      }
+
+      if (url.startsWith("https://news.google.com/rss/headlines/section/topic/WORLD")) {
+        return rss(globalItems);
+      }
+      if (url.startsWith("https://news.google.com/rss/headlines/section/topic/NATION")) {
+        return rss(domesticItems);
+      }
+      if (url.startsWith("https://news.google.com/rss/search")) {
+        const query = new URL(url).searchParams.get("q") ?? "";
+        if (/weibo|douyin|热搜|热榜|小红书|知乎|百度/i.test(query)) {
+          return rss(platformItems);
+        }
+        if (/中国|China policy|site:rthk|site:scmp/i.test(query)) {
+          return rss(domesticItems);
+        }
+        return rss(globalItems);
+      }
+
+      return new Response("", { status: 503 });
+    });
+    const appEnv: Env = {
+      ...env,
+      APP_KV: createMemoryKV(),
+      NEWSAPI_API_KEY: "newsapi-key",
+    };
+    const schedule: PulseSchedule = {
+      id: "daily-hot-cache",
+      name: "每日热点（Cron）",
+      enabled: true,
+      triggerMode: "cron",
+      skipNonTradingInCron: false,
+      cronExpression: "0 10 * * *",
+      time: "10:00",
+      days: [0, 1, 2, 3, 4, 5, 6],
+      timezone: "Asia/Shanghai",
+      language: "zh",
+      outputFormat: "markdown",
+      reportType: "daily_hot",
+      reportMode: "digest",
+      marketSession: "intraday",
+      focusSymbols: [],
+      positionSymbols: [],
+      moduleSwitches: { news: true },
+      emailRecipientIds: [],
+      targets: ["feishu"],
+      marketCalendar: "everyday",
+      tradingDaySource: "weekday",
+      marketHolidayDates: [],
+      topicQuery: "全球热点 国际新闻 地缘政治 产业趋势 宏观政策",
+      template: "# Brief\n\n{{itemsMarkdown}}",
+    };
+    vi.stubGlobal("fetch", fetchMock);
+
+    const liveReport = await buildScheduleReport(appEnv, schedule, new Date("2026-05-20T01:30:00Z"));
+    expect(liveReport.sourceStatus).toBe("live");
+    expect(liveReport.body).toContain("公共交通票价");
+
+    liveSourcesAvailable = false;
+    await saveSettings(appEnv, {
+      appName: "GlobalPulse",
+      language: "zh",
+      timezone: "Asia/Shanghai",
+      defaultTargets: ["feishu"],
+      outputFormat: "markdown",
+      topicFocus: "全球热点",
+      template: "# Brief\n\n{{itemsMarkdown}}",
+      schedules: [schedule],
+    });
+
+    const result = await runDueSchedules(appEnv, new Date("2026-05-20T02:00:00Z"));
+    expect(result).toMatchObject({ checked: 1, executed: 1, skipped: 0 });
+
+    const [, init] = fetchMock.mock.calls.find((call) => call[0] === "https://open.feishu.cn/open-apis/bot/v2/hook/test-token") as unknown as [string, RequestInit];
+    const payload = JSON.parse(String(init.body));
+    const text = String(payload.content.text);
+    expect(text).toContain("最近一次成功缓存");
+    expect(text).toContain("公共交通票价");
+    expect(text).not.toContain("备用示例数据");
+    expect(text).not.toContain("暂无相关内容");
   });
 
   it("keeps China-related stories out of international daily hot headlines", () => {
