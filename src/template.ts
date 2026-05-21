@@ -118,8 +118,31 @@ function isChinaRelatedTopic(text: string): boolean {
 function isConcretePlatformTopic(item: TopicItem): boolean {
   const title = cleanText(item.title);
   if (isGenericPlatformIndexTitle(title)) return false;
+  if (isLowInformationPlatformTopic(title, item.summary)) return false;
   if (/^(微博正文|微博|weibo|抖音|douyin|小红书|知乎|百度|登录|首页|详情页)$/i.test(title)) return false;
   return true;
+}
+
+function isLowInformationPlatformTopic(title: string, summary?: string): boolean {
+  const normalized = normalizePlatformSignalText(`${title}\n${summary ?? ""}`);
+  if (hasSubstantivePlatformSignal(normalized)) return false;
+  if (normalized.length < 12) return true;
+  return /笑死|哈哈|好笑|搞笑|泪目|破防|谁懂|离谱|上头|绝了|太真实|火了?|爆火|出圈|名场面|名梗|段子|挑战|热门视频/i.test(normalized);
+}
+
+function normalizePlatformSignalText(value: string): string {
+  return value
+    .replace(/\s*[-—–·|｜]\s*(微博|新浪微博|抖音|百度|知乎|小红书|bilibili|哔哩哔哩)\s*$/gim, " ")
+    .replace(/[@＠]\s*(微博热搜|微博热点|抖音热点|抖音热榜|百度热搜|知乎热榜|小红书热搜)\b/gi, " ")
+    .replace(/#[^#\s]{1,30}#/g, " ")
+    .replace(/\b(?:weibo|douyin|trending|hot\s*search)\b/gi, " ")
+    .replace(/微博|抖音|百度|知乎|小红书|热搜|热榜|热点/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasSubstantivePlatformSignal(value: string): boolean {
+  return /政策|监管|通报|调查|回应|发布|宣布|官宣|调整|改革|补贴|降价|涨价|召回|处罚|立案|判决|起诉|逮捕|救援|失联|伤亡|死亡|事故|事件|地震|暴雨|洪水|台风|山火|火灾|公共安全|公共卫生|疫情|医疗|医保|医院|教育|高考|中考|就业|住房|房贷|消费|金融|股市|A股|人民币|央行|利率|通胀|芯片|半导体|人工智能|科技|创新|新能源|汽车|能源|航运|供应链|赛事|票房|获奖|停运|恢复|破亿|千万|讨论|关注/i.test(value);
 }
 
 function isGenericPlatformIndexTitle(value: string): boolean {

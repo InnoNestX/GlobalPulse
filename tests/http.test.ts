@@ -721,6 +721,7 @@ describe("handleRequest", () => {
         if (/site:weibo|site:douyin|知乎热榜|小红书|百度 热搜/i.test(query)) {
           return rss([
             { title: "微博实时热点 - 微博", link: "https://news.example.test/weibo-hot-index", source: "微博", description: "微博实时热点 微博" },
+            { title: "我真要笑死了#AI#火@抖音热点 - 抖音", link: "https://news.example.test/douyin-vague", source: "抖音", description: "我真要笑死了#AI#火@抖音热点 抖音" },
             { title: "微博正文 - 微博", link: "https://news.example.test/weibo-ad", source: "微博" },
             { title: "2024年度回忆#抖音热点记忆2024 - 抖音", link: "https://news.example.test/douyin-memory", source: "抖音" },
             { title: "微博热搜：高考服务政策引发讨论破亿", link: "https://news.example.test/platform-1", source: "微博热搜", description: "民生政策话题进入高热讨论。" },
@@ -777,6 +778,7 @@ describe("handleRequest", () => {
     expect(previewBody).not.toContain("暂无相关内容");
     expect(previewBody).not.toContain("NewsAPI");
     expect(previewBody).not.toContain("微博实时热点");
+    expect(previewBody).not.toContain("我真要笑死了");
     expect(previewBody).not.toContain("微博正文");
     expect(previewBody).not.toContain("2024年度回忆");
     expect(previewBody).not.toContain("抖音热点记忆");
@@ -1234,6 +1236,7 @@ describe("handleRequest", () => {
       items: [
         { title: "微博实时热点 - 微博", url: "https://weibo.example.test/hot", source: "微博", section: "platform", summary: "微博实时热点 微博", score: 9999 },
         { title: "抖音热点榜 - 抖音", url: "https://douyin.example.test/hot", source: "抖音", section: "platform", summary: "抖音热点榜 抖音", score: 8999 },
+        { title: "我真要笑死了#AI#火@抖音热点 - 抖音", url: "https://douyin.example.test/vague", source: "抖音", section: "platform", summary: "我真要笑死了#AI#火@抖音热点 抖音", score: 7999 },
         { title: "微博热搜：公共交通票价调整引发讨论", url: "https://news.example.test/platform-1", source: "微博热搜", section: "platform", summary: "多地民生政策成为社交平台讨论焦点。", score: 1200 },
         { title: "抖音热榜：国产芯片发布带动科技讨论", url: "https://news.example.test/platform-2", source: "抖音热榜", section: "platform", summary: "科技产业链话题热度持续上升。", score: 1100 },
       ],
@@ -1242,6 +1245,7 @@ describe("handleRequest", () => {
 
     expect(body).not.toContain("微博实时热点");
     expect(body).not.toContain("抖音热点榜 - 抖音");
+    expect(body).not.toContain("我真要笑死了");
     expect(topTopicSection).toContain("公共交通票价调整");
     expect(topTopicSection).not.toContain("微博实时热点");
   });
