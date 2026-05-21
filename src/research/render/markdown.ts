@@ -359,8 +359,12 @@ function buildDefaultWatchItems(market: ReportType): string[] {
 }
 
 function renderMoverSpotlight(leaders: MarketQuote[], losers: MarketQuote[], forbiddenPattern: RegExp): string[] {
-  const leaderRows = filterMovers(leaders, forbiddenPattern).slice(0, 5);
-  const loserRows = filterMovers(losers, forbiddenPattern).slice(0, 5);
+  const leaderRows = filterMovers(leaders, forbiddenPattern)
+    .filter((row) => row.change_pct > 0)
+    .slice(0, 5);
+  const loserRows = filterMovers(losers, forbiddenPattern)
+    .filter((row) => row.change_pct < 0)
+    .slice(0, 5);
   const size = Math.max(leaderRows.length, loserRows.length, 1);
   const lines = [
     "### 🚦 领涨 / 领跌速览",

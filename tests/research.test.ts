@@ -133,6 +133,38 @@ describe("research report deterministic templates", () => {
     expect(body).not.toMatch(/上证指数|深证成指|SPY|QQQ/);
   });
 
+  it("keeps negative assets out of the leader column and positive assets out of losers", () => {
+    const packet = mockPacket("crypto", "post_close", [
+      { symbol: "BTC", price: 76756, change_pct: -0.09, source: "mock" },
+      { symbol: "ETH", price: 2110.71, change_pct: -0.56, source: "mock" },
+      { symbol: "DOGE", price: 0.1032, change_pct: -1.42, source: "mock" },
+    ]);
+    packet.market.leaders = [
+      { symbol: "TON", price: 3.2, change_pct: 2.1, source: "mock" },
+      { symbol: "BTC", price: 76756, change_pct: -0.09, source: "mock" },
+      { symbol: "LINK", price: 14.1, change_pct: -0.51, source: "mock" },
+    ];
+    packet.market.losers = [
+      { symbol: "XRP", price: 2.18, change_pct: -2.19, source: "mock" },
+      { symbol: "SOL", price: 142.8, change_pct: 0.81, source: "mock" },
+      { symbol: "DOGE", price: 0.1032, change_pct: -1.42, source: "mock" },
+    ];
+
+    const body = renderResearchMarkdown(packet, mockReport({ summary: "加密市场短线偏弱。", newsTitle: "Bitcoin ETF inflow improves crypto liquidity" }));
+    const spotlight = body.split("### 🚦 领涨 / 领跌速览")[1]?.split("###")[0] ?? "";
+    const rows = spotlight.split("\n").filter((line) => line.startsWith("| ") && !line.includes("---") && !line.includes("领涨资产"));
+
+    expect(spotlight).toContain("| TON | +2.10%");
+    expect(spotlight).toContain("| XRP | -2.19%");
+    for (const row of rows) {
+      const cells = row.split("|").map((cell) => cell.trim());
+      if (cells[1] !== "暂无 ⚠️") expect(cells[2]?.startsWith("+")).toBe(true);
+      if (cells[3] !== "暂无 ⚠️") expect(cells[4]?.startsWith("-")).toBe(true);
+    }
+    expect(spotlight).not.toContain("| BTC | -0.09% |");
+    expect(spotlight).not.toContain("| SOL | +0.81%");
+  });
+
   it("keeps the fixed template when market data is missing", () => {
     const body = renderResearchMarkdown(
       {
