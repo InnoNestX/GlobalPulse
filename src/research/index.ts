@@ -51,8 +51,14 @@ export async function buildResearchMarketReport(
     requiredFields: [],
   });
   const tradingSession = await resolveTradingSession(env, schedule, now);
-  const leaders = marketData.universe.slice().sort((a, b) => b.change_pct - a.change_pct).slice(0, 8);
-  const losers = marketData.universe.slice().sort((a, b) => a.change_pct - b.change_pct).slice(0, 8);
+  const leaders = marketData.universe
+    .filter((row) => row.change_pct > 0)
+    .sort((a, b) => b.change_pct - a.change_pct)
+    .slice(0, 8);
+  const losers = marketData.universe
+    .filter((row) => row.change_pct < 0)
+    .sort((a, b) => a.change_pct - b.change_pct)
+    .slice(0, 8);
   const stockInputs = buildStockInputs(symbols, marketData.universe, evidence, schedule.reportType);
   const packet: StockPacket = {
     meta: {
