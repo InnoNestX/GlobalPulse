@@ -1,1 +1,0 @@
-import{c as i,Q as a,j as n,m as e}from"./chunks/framework.BVCVcpew.js";const u=JSON.parse('{"title":"API Endpoints","description":"","frontmatter":{},"headers":[],"relativePath":"en/api.md","filePath":"en/api.md"}'),t={name:"en/api.md"};function l(p,s,h,r,d,k){return a(),n("div",null,[...s[0]||(s[0]=[e("",58)])])}const c=i(t,[["render",l]]);export{u as __pageData,c as default};
