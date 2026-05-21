@@ -2,6 +2,15 @@ node_modules/
 dist/
 dist-worker/
 .wrangler/
+docs-site/_site/
+assets/
+404.html
+README.html
+hashmap.json
+logo.svg
+vp-icons.css
+docs/en/
+docs/zh/
 references/
 deploy/
 !docs-site/docs/en/deploy/
