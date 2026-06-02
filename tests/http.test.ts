@@ -949,15 +949,27 @@ describe("handleRequest", () => {
     const translationSeparator = "1234567890GLOBALPULSE9876543210";
     const rss = (prefix: string, source: string) => new Response([
       "<rss><channel>",
-      ...Array.from({ length: 8 }, (_, index) => [
-        "<item>",
-        `<title>${prefix} policy inflation topic ${index + 1}</title>`,
-        `<link>https://news.example.test/${prefix}-${index + 1}</link>`,
-        `<source>${source}</source>`,
-        `<description>${prefix} summary for global pulse item ${index + 1}</description>`,
-        "<pubDate>Mon, 18 May 2026 01:00:00 GMT</pubDate>",
-        "</item>",
-      ].join("")),
+      ...Array.from({ length: 8 }, (_, index) => {
+        const title = prefix === "platform"
+          ? `微博热搜：消费补贴政策讨论 ${index + 1}`
+          : prefix === "domestic"
+            ? `中国宏观政策与民生服务话题 ${index + 1}`
+            : `${prefix} policy inflation topic ${index + 1}`;
+        const description = prefix === "platform"
+          ? `消费、民生和政策话题进入社交平台高热讨论 ${index + 1}`
+          : prefix === "domestic"
+            ? `中国政策、经济和民生服务成为国内新闻焦点 ${index + 1}`
+            : `${prefix} summary for global pulse item ${index + 1}`;
+        return [
+          "<item>",
+          `<title>${title}</title>`,
+          `<link>https://news.example.test/${prefix}-${index + 1}</link>`,
+          `<source>${source}</source>`,
+          `<description>${description}</description>`,
+          "<pubDate>Mon, 18 May 2026 01:00:00 GMT</pubDate>",
+          "</item>",
+        ].join("");
+      }),
       "</channel></rss>",
     ].join(""), { status: 200 });
     const newsApiPayload = (prefix: string) => new Response(JSON.stringify({
@@ -1186,6 +1198,125 @@ describe("handleRequest", () => {
     expect(text).toContain("公共交通票价");
     expect(text).not.toContain("备用示例数据");
     expect(text).not.toContain("暂无相关内容");
+  });
+
+  it("does not accept a single repeated headline as a usable daily hot report", async () => {
+    let sourceMode: "healthy" | "single" = "healthy";
+    const rss = (items: Array<{ title: string; link: string; source: string; description: string }>) => new Response([
+      "<rss><channel>",
+      ...items.map((item) => [
+        "<item>",
+        `<title>${item.title}</title>`,
+        `<link>${item.link}</link>`,
+        `<source>${item.source}</source>`,
+        `<description>${item.description}</description>`,
+        "<pubDate>Thu, 21 May 2026 01:00:00 GMT</pubDate>",
+        "</item>",
+      ].join("")),
+      "</channel></rss>",
+    ].join(""), { status: 200 });
+    const globalItems = [
+      { title: "国际经济讨论聚焦主要央行利率路径", link: "https://news.example.test/global-quality-1", source: "Reuters", description: "主要央行政策路径影响全球资产定价。" },
+      { title: "中东能源运输风险推升避险情绪", link: "https://news.example.test/global-quality-2", source: "AP News", description: "能源和航运市场继续关注地缘风险。" },
+      { title: "欧洲财政政策协调进入关键阶段", link: "https://news.example.test/global-quality-3", source: "BBC", description: "财政政策与增长预期影响欧洲市场。" },
+      { title: "AI供应链成为全球产业政策重点", link: "https://news.example.test/global-quality-4", source: "Bloomberg", description: "半导体和数据中心投资继续受到关注。" },
+    ];
+    const domesticItems = [
+      { title: "国内消费补贴政策带动服务业讨论", link: "https://news.example.test/domestic-quality-1", source: "Caixin", description: "消费政策和服务业修复成为市场焦点。" },
+      { title: "多地公共服务改革聚焦医疗和教育", link: "https://news.example.test/domestic-quality-2", source: "RTHK", description: "民生服务改革持续推进。" },
+      { title: "资本市场改革议题继续升温", link: "https://news.example.test/domestic-quality-3", source: "SCMP", description: "监管和融资制度调整影响市场预期。" },
+      { title: "就业政策调整释放稳民生信号", link: "https://news.example.test/domestic-quality-4", source: "Nikkei Asia", description: "就业和收入预期是社会关注重点。" },
+    ];
+    const platformItems = [
+      { title: "微博热搜：民生服务新规引发讨论破亿", link: "https://news.example.test/platform-quality-1", source: "微博热搜", description: "民生服务政策进入高热讨论。" },
+      { title: "抖音热榜：消费补贴政策受到关注", link: "https://news.example.test/platform-quality-2", source: "抖音热榜", description: "消费政策在社交平台热度上升。" },
+      { title: "微博热议：科技创新议题进入热榜", link: "https://news.example.test/platform-quality-3", source: "微博热搜", description: "科技创新和产业政策成为讨论焦点。" },
+      { title: "百度热搜：暴雨天气影响城市出行", link: "https://news.example.test/platform-quality-4", source: "百度热搜", description: "公共安全和交通出行话题升温。" },
+    ];
+    const repeatedHeadline = {
+      title: "重复国际要闻：单一外交新闻连续出现",
+      link: "https://news.example.test/repeated-global-only",
+      source: "Reuters",
+      description: "只有一条国际新闻被所有来源重复返回。",
+    };
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+
+      if (url.startsWith("https://newsapi.org/v2/")) {
+        return new Response(JSON.stringify({ articles: [] }), { status: 200 });
+      }
+
+      if (url.startsWith("https://api.gdeltproject.org/api/v2/doc/doc")) {
+        return new Response(JSON.stringify({ articles: [] }), { status: 200 });
+      }
+
+      if (url.startsWith("https://news.google.com/rss/headlines/section/topic/WORLD")) {
+        return rss(sourceMode === "healthy" ? globalItems : [repeatedHeadline]);
+      }
+      if (url.startsWith("https://news.google.com/rss/headlines/section/topic/NATION")) {
+        return rss(sourceMode === "healthy" ? domesticItems : [repeatedHeadline]);
+      }
+      if (url.startsWith("https://news.google.com/rss/search")) {
+        const query = new URL(url).searchParams.get("q") ?? "";
+        if (sourceMode === "single") {
+          return rss([repeatedHeadline]);
+        }
+        if (/weibo|douyin|热搜|热榜|小红书|知乎|百度/i.test(query)) {
+          return rss(platformItems);
+        }
+        if (/中国|China policy|site:rthk|site:scmp/i.test(query)) {
+          return rss(domesticItems);
+        }
+        return rss(globalItems);
+      }
+
+      return new Response(JSON.stringify({ code: 0, msg: "ok" }), { status: 200 });
+    });
+    const appEnv: Env = {
+      ...env,
+      APP_KV: createMemoryKV(),
+    };
+    const schedule: PulseSchedule = {
+      id: "daily-hot-quality",
+      name: "每日热点",
+      enabled: true,
+      triggerMode: "cron",
+      skipNonTradingInCron: false,
+      cronExpression: "0 10 * * *",
+      time: "10:00",
+      days: [0, 1, 2, 3, 4, 5, 6],
+      timezone: "Asia/Shanghai",
+      language: "zh",
+      outputFormat: "markdown",
+      reportType: "daily_hot",
+      reportMode: "digest",
+      marketSession: "intraday",
+      focusSymbols: [],
+      positionSymbols: [],
+      moduleSwitches: { news: true },
+      emailRecipientIds: [],
+      targets: ["feishu"],
+      marketCalendar: "everyday",
+      tradingDaySource: "weekday",
+      marketHolidayDates: [],
+      topicQuery: "全球热点 国际新闻 国内新闻 微博热搜 抖音热榜",
+      template: "# Brief\n\n{{itemsMarkdown}}",
+    };
+    vi.stubGlobal("fetch", fetchMock);
+
+    const healthyReport = await buildScheduleReport(appEnv, schedule, new Date("2026-05-21T01:30:00Z"));
+    expect(healthyReport.sourceStatus).toBe("live");
+    expect(healthyReport.body).toContain("民生服务新规");
+
+    sourceMode = "single";
+    const fallbackReport = await buildScheduleReport(appEnv, schedule, new Date("2026-05-21T02:00:00Z"));
+
+    expect(fallbackReport.sourceStatus).toBe("fallback");
+    expect(fallbackReport.sourceMessage).toContain("too few usable items");
+    expect(fallbackReport.body).toContain("最近一次成功缓存");
+    expect(fallbackReport.body).toContain("民生服务新规");
+    expect(fallbackReport.body).not.toContain("重复国际要闻");
+    expect((fallbackReport.body.match(/^\d+\. \*\*/gm) ?? []).length).toBeGreaterThanOrEqual(10);
   });
 
   it("keeps China-related stories out of international daily hot headlines", () => {

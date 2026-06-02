@@ -27,6 +27,8 @@ const DAILY_HOT_TRANSLATION_LIMIT = 12;
 const DAILY_HOT_TRANSLATION_CONCURRENCY = 3;
 const DEFAULT_TRANSLATION_CONCURRENCY = 4;
 const DAILY_HOT_DISPLAY_LIMIT = 20;
+const DAILY_HOT_MIN_USABLE_ITEMS = 6;
+const DAILY_HOT_MIN_USABLE_SECTIONS = 2;
 const GOOGLE_TRANSLATION_SEPARATOR = "1234567890GLOBALPULSE9876543210";
 const DAILY_HOT_CACHE_TTL_SECONDS = 60 * 60 * 36;
 const DAILY_HOT_CACHE_MAX_AGE_MS = 36 * 60 * 60 * 1000;
@@ -118,6 +120,10 @@ async function fetchItemsWithFallback(env: Env, schedule: PulseSchedule, now = n
       throw new Error("all live sources returned empty items");
     }
 
+    if (isDailyHot && !isDailyHotItemSetUsable(topicData.items, now)) {
+      throw new Error(buildDailyHotCoverageError(topicData.items, now));
+    }
+
     const dailyHotSourceHint = isDailyHot
       ? `每日热点实际来源：${topicData.sourceUrl}`
       : topicData.sourceUrl;
@@ -130,7 +136,7 @@ async function fetchItemsWithFallback(env: Env, schedule: PulseSchedule, now = n
     };
   } catch (error) {
     const emergencyDailyHotItems = isDailyHot
-      ? await fetchEmergencyDailyHotItems(effectiveQuery, schedule.language)
+      ? await fetchEmergencyDailyHotItems(effectiveQuery, schedule.language, now)
       : [];
     const cachedDailyHotItems = isDailyHot && emergencyDailyHotItems.length === 0
       ? await getDailyHotItemCache(env, schedule, now)
@@ -173,6 +179,8 @@ async function fetchItemsWithFallback(env: Env, schedule: PulseSchedule, now = n
 }
 
 async function saveDailyHotItemCache(env: Env, schedule: PulseSchedule, items: TopicItem[], sourceUrl: string, now: Date): Promise<void> {
+  if (!isDailyHotItemSetUsable(items, now)) return;
+
   const cache: DailyHotItemCache = {
     savedAt: now.toISOString(),
     sourceUrl,
@@ -181,7 +189,7 @@ async function saveDailyHotItemCache(env: Env, schedule: PulseSchedule, items: T
       .slice(0, DAILY_HOT_DISPLAY_LIMIT),
   };
 
-  if (!cache.items.length) return;
+  if (!isDailyHotItemSetUsable(cache.items, now)) return;
   await putStoredJson(env, dailyHotItemCacheKey(schedule), cache, DAILY_HOT_CACHE_TTL_SECONDS);
 }
 
@@ -201,11 +209,11 @@ async function getDailyHotItemCache(env: Env, schedule: PulseSchedule, now: Date
     .filter((item) => item.title.trim() && normalizeHttpUrl(item.url))
     .slice(0, DAILY_HOT_DISPLAY_LIMIT);
 
-  return items.length > 0 ? { ...cache, items } : undefined;
+  return isDailyHotItemSetUsable(items, now) ? { ...cache, items } : undefined;
 }
 
 function dailyHotItemCacheKey(schedule: PulseSchedule): string {
-  return `daily-hot:last-live:v1:${schedule.language}:${schedule.id}`;
+  return `daily-hot:last-live:v2:${schedule.language}:${schedule.id}`;
 }
 
 function formatCacheTimestamp(value: string, schedule: PulseSchedule): string {
@@ -214,10 +222,10 @@ function formatCacheTimestamp(value: string, schedule: PulseSchedule): string {
   return getLocalTimeParts(date, schedule.timezone, schedule.language).label;
 }
 
-async function fetchEmergencyDailyHotItems(query: string, language: PulseSchedule["language"]): Promise<TopicItem[]> {
+async function fetchEmergencyDailyHotItems(query: string, language: PulseSchedule["language"], now: Date): Promise<TopicItem[]> {
   try {
     const fallback = await fetchTopicItems(query, language, undefined, { mode: "daily_hot" });
-    return fallback.items
+    const items = fallback.items
       .filter((item) => normalizeHttpUrl(item.url))
       .map((item, index) => ({
         ...item,
@@ -225,9 +233,30 @@ async function fetchEmergencyDailyHotItems(query: string, language: PulseSchedul
         score: Math.max((item.score ?? 0) + 50, 500 - index),
       }))
       .slice(0, 28);
+    return isDailyHotItemSetUsable(items, now) ? items : [];
   } catch {
     return [];
   }
+}
+
+function buildDailyHotCoverageError(items: TopicItem[], now: Date): string {
+  const quality = getDailyHotItemSetQuality(items, now);
+  return `daily hot live sources returned too few usable items (${quality.itemCount} items across ${quality.sectionCount} sections)`;
+}
+
+function isDailyHotItemSetUsable(items: TopicItem[], now: Date): boolean {
+  const quality = getDailyHotItemSetQuality(items, now);
+  return quality.itemCount >= DAILY_HOT_MIN_USABLE_ITEMS && quality.sectionCount >= DAILY_HOT_MIN_USABLE_SECTIONS;
+}
+
+function getDailyHotItemSetQuality(items: TopicItem[], now: Date): { itemCount: number; sectionCount: number } {
+  const selected = selectDailyHotItems(items, now);
+  const sections = new Set(selected.map((item) => item.section ?? inferSectionFromText(`${item.title}\n${item.summary ?? ""}`, item.source)));
+
+  return {
+    itemCount: selected.length,
+    sectionCount: sections.size,
+  };
 }
 
 function buildEffectiveQuery(schedule: PulseSchedule): string {
