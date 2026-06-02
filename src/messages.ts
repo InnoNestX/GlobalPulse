@@ -1,4 +1,4 @@
-export const providerNames = ["feishu", "wechat_official_account", "wechat_clawbot", "telegram", "email", "whatsapp"] as const;
+export const providerNames = ["feishu", "wechat_official_account", "wechat_clawbot", "telegram", "email"] as const;
 
 export type ProviderName = (typeof providerNames)[number];
 
@@ -6,8 +6,6 @@ const providerAliases: Record<string, ProviderName> = {
   wechat_ai_agent: "wechat_clawbot",
   wechat_ai: "wechat_clawbot",
   wechat_oa: "wechat_official_account",
-  whatsapp_cloud: "whatsapp",
-  wa: "whatsapp",
 };
 
 export const messageLevels = ["info", "success", "warning", "error"] as const;
