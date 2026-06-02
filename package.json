@@ -1,7 +1,7 @@
 {
   "name": "globalpulse",
   "version": "0.1.0",
-  "description": "A Cloudflare Workers admin UI and scheduler for finance and global hotspot briefings pushed to Feishu, WeChat, and Telegram.",
+  "description": "A Cloudflare Workers admin UI and scheduler for finance and global hotspot briefings pushed to Feishu, WeChat, Telegram, Email, and WhatsApp.",
   "type": "module",
   "private": false,
   "license": "MIT",
@@ -21,7 +21,9 @@
     "wechat",
     "wechat-official-account",
     "wechat-clawbot",
-    "telegram"
+    "telegram",
+    "email",
+    "whatsapp"
   ],
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260511.1",
