@@ -64,7 +64,7 @@ export async function buildScheduleReport(env: Env, schedule: PulseSchedule, now
   }
 
   const selectedItems = selectDigestItems(schedule, fetched.items, now);
-  if (schedule.reportType === "daily_hot" && fetched.status === "live" && selectedItems.length > 0) {
+  if (schedule.reportType === "daily_hot" && fetched.status === "live" && fetched.cacheable !== false && selectedItems.length > 0) {
     await saveDailyHotItemCache(env, schedule, selectedItems, fetched.sourceUrl, now);
   }
   const displayItems = await maybeTranslateItems(env, selectedItems, schedule.language, translationOptionsForSchedule(schedule));
@@ -107,6 +107,7 @@ async function fetchItemsWithFallback(env: Env, schedule: PulseSchedule, now = n
   message: string;
   sourceUrl: string;
   items: TopicItem[];
+  cacheable?: boolean;
 }> {
   const effectiveQuery = buildEffectiveQuery(schedule);
   const isDailyHot = schedule.reportType === "daily_hot";
@@ -121,7 +122,30 @@ async function fetchItemsWithFallback(env: Env, schedule: PulseSchedule, now = n
     }
 
     if (isDailyHot && !isDailyHotItemSetUsable(topicData.items, now)) {
-      throw new Error(buildDailyHotCoverageError(topicData.items, now));
+      const errorMessage = buildDailyHotCoverageError(topicData.items, now);
+      const cachedDailyHotItems = await getDailyHotItemCache(env, schedule, now);
+
+      if (cachedDailyHotItems?.items.length) {
+        return {
+          status: "fallback",
+          message: schedule.language === "zh"
+            ? `实时热点源内容不足，已使用最近一次成功热点缓存（${formatCacheTimestamp(cachedDailyHotItems.savedAt, schedule)}）：${errorMessage}`
+            : `Live hot-news coverage was too thin; using the last successful hot-news cache (${formatCacheTimestamp(cachedDailyHotItems.savedAt, schedule)}): ${errorMessage}`,
+          sourceUrl: `最近一次成功缓存：${cachedDailyHotItems.sourceUrl}`,
+          items: cachedDailyHotItems.items,
+          cacheable: false,
+        };
+      }
+
+      return {
+        status: "live",
+        message: schedule.language === "zh"
+          ? `实时热点源内容不足，已保留实时新闻并用备用热点框架补齐：${errorMessage}`
+          : `Live hot-news coverage was too thin; live items were kept and supplemented: ${errorMessage}`,
+        sourceUrl: buildDailyHotSupplementSource(topicData.sourceUrl, schedule.language),
+        items: buildDailyHotCoverageItems(schedule.language, topicData.items),
+        cacheable: false,
+      };
     }
 
     const dailyHotSourceHint = isDailyHot
@@ -133,6 +157,7 @@ async function fetchItemsWithFallback(env: Env, schedule: PulseSchedule, now = n
       message: schedule.language === "zh" ? `实时抓取成功。${dailyHotSourceHint}` : `Live fetch succeeded. ${dailyHotSourceHint}`,
       sourceUrl: topicData.sourceUrl,
       items: topicData.items,
+      cacheable: true,
     };
   } catch (error) {
     const emergencyDailyHotItems = isDailyHot
@@ -141,17 +166,19 @@ async function fetchItemsWithFallback(env: Env, schedule: PulseSchedule, now = n
     const cachedDailyHotItems = isDailyHot && emergencyDailyHotItems.length === 0
       ? await getDailyHotItemCache(env, schedule, now)
       : undefined;
-    const fallbackItems = emergencyDailyHotItems.length > 0
-      ? emergencyDailyHotItems
-      : cachedDailyHotItems?.items.length
-        ? cachedDailyHotItems.items
+    const fallbackItems = isDailyHot
+      ? emergencyDailyHotItems.length > 0
+        ? buildDailyHotCoverageItems(schedule.language, emergencyDailyHotItems)
+        : cachedDailyHotItems?.items.length
+          ? cachedDailyHotItems.items
+          : getSampleItems(schedule.language, schedule.reportType)
       : getSampleItems(schedule.language, schedule.reportType);
     const fallbackSource = isDailyHot
       ? emergencyDailyHotItems.length > 0
         ? "备用综合来源"
         : cachedDailyHotItems?.items.length
           ? `最近一次成功缓存：${cachedDailyHotItems.sourceUrl}`
-        : schedule.language === "zh" ? "备用示例数据" : "Sample fallback"
+        : schedule.language === "zh" ? "备用热点框架" : "Fallback hot-topic framework"
       : schedule.sourceUrl || "Google News, Sina Finance, Hacker News, GitHub Search, alternative.me";
     const errorMessage = error instanceof Error ? error.message : "unknown error";
 
@@ -174,6 +201,7 @@ async function fetchItemsWithFallback(env: Env, schedule: PulseSchedule, now = n
           : `Live fetch failed, fallback sample data is used: ${errorMessage}`,
       sourceUrl: fallbackSource,
       items: fallbackItems,
+      cacheable: false,
     };
   }
 }
@@ -257,6 +285,72 @@ function getDailyHotItemSetQuality(items: TopicItem[], now: Date): { itemCount: 
     itemCount: selected.length,
     sectionCount: sections.size,
   };
+}
+
+function buildDailyHotSupplementSource(sourceUrl: string, language: PulseSchedule["language"]): string {
+  const supplement = language === "zh" ? "备用热点框架" : "Fallback hot-topic framework";
+  return sourceUrl.trim() ? `${sourceUrl}，${supplement}` : supplement;
+}
+
+function buildDailyHotCoverageItems(language: PulseSchedule["language"], seedItems: TopicItem[]): TopicItem[] {
+  return dedupeDailyHotItems([
+    ...seedItems.map((item, index) => ({
+      ...item,
+      section: item.section ?? inferSectionFromText(`${item.title}\n${item.summary ?? ""}`, item.source),
+      score: Math.max(item.score ?? 0, 1200 - index),
+    })),
+    ...getDailyHotSupplementItems(language),
+  ]).slice(0, 28);
+}
+
+function getDailyHotSupplementItems(language: PulseSchedule["language"]): TopicItem[] {
+  if (language === "en") {
+    return [
+      { title: "Fallback watch: global policy and geopolitical risk remain the lead macro themes", url: "globalpulse:fallback:global-policy", source: "GlobalPulse fallback", section: "global", category: "policy", score: 760, summary: "Used only when live sources are too sparse; track central-bank policy, tariffs, conflict risk, and energy transport links." },
+      { title: "Fallback watch: inflation, rates, and dollar liquidity drive cross-asset repricing", url: "globalpulse:fallback:global-macro", source: "GlobalPulse fallback", section: "global", category: "macro", score: 750, summary: "Monitor CPI, yields, central-bank guidance, and funding stress for global market impact." },
+      { title: "Fallback watch: energy, shipping, and supply-chain disruption can lift volatility", url: "globalpulse:fallback:global-supply", source: "GlobalPulse fallback", section: "global", category: "industry", score: 740, summary: "Focus on oil, gas, shipping lanes, ports, semiconductors, and critical-infrastructure resilience." },
+      { title: "Fallback watch: public-safety and health events remain tail-risk triggers", url: "globalpulse:fallback:global-risk", source: "GlobalPulse fallback", section: "global", category: "risk-event", score: 730, summary: "Watch disaster, weather, public-health, and cyber incidents when confirmed live coverage is thin." },
+      { title: "Fallback watch: China policy, consumption, and employment are key domestic signals", url: "globalpulse:fallback:domestic-policy", source: "GlobalPulse fallback", section: "domestic", category: "domestic-news", score: 720, summary: "Track policy support, household demand, employment, and public-service measures for domestic risk appetite." },
+      { title: "Fallback watch: China capital-market reform and liquidity shape local sentiment", url: "globalpulse:fallback:domestic-market", source: "GlobalPulse fallback", section: "domestic", category: "domestic-news", score: 710, summary: "Monitor equity, bond, currency, property, and regulator signals while live domestic feeds recover." },
+      { title: "Fallback watch: China property, local finance, and infrastructure policy remain domestic catalysts", url: "globalpulse:fallback:domestic-infra", source: "GlobalPulse fallback", section: "domestic", category: "domestic-news", score: 700, summary: "Watch housing, local-government financing, infrastructure spending, and credit support for domestic demand signals." },
+      { title: "Fallback watch: China technology, education, and healthcare policy affect livelihood sentiment", url: "globalpulse:fallback:domestic-livelihood", source: "GlobalPulse fallback", section: "domestic", category: "domestic-news", score: 690, summary: "Monitor technology regulation, education services, healthcare reform, and employment-linked public services." },
+      { title: "Fallback watch: Weibo hot-search discussion often concentrates on livelihood policy", url: "globalpulse:fallback:platform-livelihood", source: "微博热搜备用", section: "platform", category: "platform-hot", score: 1450, summary: "Social discussion proxy for consumption, education, healthcare, travel, safety, and public-service topics." },
+      { title: "Fallback watch: Douyin and Baidu trends can flag fast-moving consumer attention", url: "globalpulse:fallback:platform-consumer", source: "抖音热榜备用", section: "platform", category: "platform-hot", score: 1400, summary: "Used as a temporary social-trend placeholder until confirmed hot-search items return." },
+      { title: "Fallback watch: social platforms can surface weather, transport, and public-safety concerns", url: "globalpulse:fallback:platform-safety", source: "百度热搜备用", section: "platform", category: "platform-hot", score: 1350, summary: "Temporary proxy for high-frequency weather, travel, safety, and city-service discussion." },
+      { title: "Fallback watch: platform debates around AI, chips, and new energy can move quickly", url: "globalpulse:fallback:platform-tech", source: "知乎热榜备用", section: "platform", category: "platform-hot", score: 1300, summary: "Temporary proxy for technology, innovation, supply-chain, and new-energy public attention." },
+    ];
+  }
+
+  return [
+    { title: "备用观察：全球政策与地缘风险仍是国际要闻主线", url: "globalpulse:fallback:global-policy", source: "GlobalPulse 备用框架", section: "global", category: "policy", score: 760, summary: "仅在实时源过少时启用；重点跟踪央行政策、关税、冲突风险、能源运输与避险资产联动。" },
+    { title: "备用观察：通胀、利率与美元流动性影响全球资产定价", url: "globalpulse:fallback:global-macro", source: "GlobalPulse 备用框架", section: "global", category: "macro", score: 750, summary: "关注 CPI、收益率、主要央行表态、融资压力与跨资产波动。" },
+    { title: "备用观察：能源、航运与供应链扰动可能放大市场波动", url: "globalpulse:fallback:global-supply", source: "GlobalPulse 备用框架", section: "global", category: "industry", score: 740, summary: "关注油气、港口、航线、半导体、数据中心和关键基础设施韧性。" },
+    { title: "备用观察：公共安全、极端天气与公共卫生事件需持续跟踪", url: "globalpulse:fallback:global-risk", source: "GlobalPulse 备用框架", section: "global", category: "risk-event", score: 730, summary: "当实时国际新闻不足时，用于提示灾害、天气、公共卫生和网络安全等尾部风险。" },
+    { title: "备用观察：中国政策、消费与就业是国内热点核心变量", url: "globalpulse:fallback:domestic-policy", source: "GlobalPulse 备用框架", section: "domestic", category: "domestic-news", score: 720, summary: "关注稳增长政策、居民消费、就业民生、教育医疗和公共服务调整。" },
+    { title: "备用观察：中国资本市场改革与流动性影响本地风险偏好", url: "globalpulse:fallback:domestic-market", source: "GlobalPulse 备用框架", section: "domestic", category: "domestic-news", score: 710, summary: "跟踪股市、债市、汇率、地产、监管政策和融资环境变化。" },
+    { title: "备用观察：中国房地产、地方财政与基建政策仍是国内催化因素", url: "globalpulse:fallback:domestic-infra", source: "GlobalPulse 备用框架", section: "domestic", category: "domestic-news", score: 700, summary: "关注住房、地方融资、基建投资、信贷支持和内需修复信号。" },
+    { title: "备用观察：中国科技、教育与医疗政策影响民生预期", url: "globalpulse:fallback:domestic-livelihood", source: "GlobalPulse 备用框架", section: "domestic", category: "domestic-news", score: 690, summary: "跟踪科技监管、教育服务、医保医疗、就业服务和公共服务改革。" },
+    { title: "微博热搜备用观察：民生政策、消费与公共服务讨论热度需关注", url: "globalpulse:fallback:platform-livelihood", source: "微博热搜备用", section: "platform", category: "platform-hot", score: 1450, summary: "作为实时热搜缺口时的社交关注代理，覆盖消费、教育、医疗、交通、安全和公共服务。" },
+    { title: "抖音热榜备用观察：快速变化的消费与城市生活话题可能升温", url: "globalpulse:fallback:platform-consumer", source: "抖音热榜备用", section: "platform", category: "platform-hot", score: 1400, summary: "用于确认热榜恢复前的临时观察，提示大众情绪和生活服务类高频议题。" },
+    { title: "百度热搜备用观察：天气、交通与公共安全话题可能快速扩散", url: "globalpulse:fallback:platform-safety", source: "百度热搜备用", section: "platform", category: "platform-hot", score: 1350, summary: "用于实时热搜不足时提示天气出行、城市服务、公共安全和应急事件。" },
+    { title: "知乎热榜备用观察：AI、芯片与新能源讨论可能影响产业情绪", url: "globalpulse:fallback:platform-tech", source: "知乎热榜备用", section: "platform", category: "platform-hot", score: 1300, summary: "用于确认热榜恢复前的临时观察，覆盖科技创新、供应链和新能源产业讨论。" },
+  ];
+}
+
+function dedupeDailyHotItems(items: TopicItem[]): TopicItem[] {
+  const seen = new Set<string>();
+  const output: TopicItem[] = [];
+
+  for (const item of items) {
+    const titleKey = normalizeTitleKey(item.title);
+    const urlKey = normalizeUrlKey(item.url);
+    const key = titleKey ? `title:${titleKey}` : `url:${urlKey}`;
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    output.push(item);
+  }
+
+  return output;
 }
 
 function buildEffectiveQuery(schedule: PulseSchedule): string {
@@ -707,7 +801,7 @@ function dedupeSymbols(symbols: string[]): string[] {
 
 function getSampleItems(language: PulseSchedule["language"], reportType: PulseSchedule["reportType"]): TopicItem[] {
   if (reportType === "daily_hot") {
-    return [];
+    return getDailyHotSupplementItems(language);
   }
 
   if (language === "en") {

@@ -793,6 +793,87 @@ describe("handleRequest", () => {
     expect(topTopicSection).toContain("高考服务政策");
   });
 
+  it("supplements thin daily hot live previews instead of rendering empty fallback", async () => {
+    const rss = (items: Array<{ title: string; link: string; source: string; description: string }>) => new Response([
+      "<rss><channel>",
+      ...items.map((item) => [
+        "<item>",
+        `<title>${item.title}</title>`,
+        `<link>${item.link}</link>`,
+        `<source>${item.source}</source>`,
+        `<description>${item.description}</description>`,
+        "<pubDate>Wed, 03 Jun 2026 01:00:00 GMT</pubDate>",
+        "</item>",
+      ].join("")),
+      "</channel></rss>",
+    ].join(""), { status: 200 });
+    const repeatedHeadline = {
+      title: "单一国际要闻连续重复出现",
+      link: "https://news.example.test/only-global-live",
+      source: "Reuters",
+      description: "外部实时源此刻只返回一条国际新闻。",
+    };
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+
+      if (url.startsWith("https://api.gdeltproject.org/api/v2/doc/doc")) {
+        return new Response(JSON.stringify({ articles: [] }), { status: 200 });
+      }
+
+      if (url.startsWith("https://news.google.com/rss/")) {
+        return rss([repeatedHeadline]);
+      }
+
+      return new Response("ok", { status: 200 });
+    });
+    const appEnv: Env = {
+      ...env,
+      APP_KV: createMemoryKV(),
+    };
+    const schedule: PulseSchedule = {
+      id: "daily-hot-thin-preview",
+      name: "每日热点（Cron）",
+      enabled: true,
+      triggerMode: "cron",
+      skipNonTradingInCron: false,
+      cronExpression: "0 10 * * *",
+      time: "10:00",
+      days: [0, 1, 2, 3, 4, 5, 6],
+      timezone: "Asia/Shanghai",
+      language: "zh",
+      outputFormat: "markdown",
+      reportType: "daily_hot",
+      reportMode: "digest",
+      marketSession: "intraday",
+      focusSymbols: [],
+      positionSymbols: [],
+      moduleSwitches: { news: true },
+      emailRecipientIds: [],
+      targets: ["telegram", "email"],
+      marketCalendar: "everyday",
+      tradingDaySource: "weekday",
+      marketHolidayDates: [],
+      topicQuery: "全球热点 国际新闻 地缘政治 产业趋势 宏观政策",
+      template: "# Brief\n\n{{itemsMarkdown}}",
+    };
+    vi.stubGlobal("fetch", fetchMock);
+
+    const report = await buildScheduleReport(appEnv, schedule, new Date("2026-06-02T17:22:00Z"));
+    const countItems = (section: string): number => section.match(/^\d+\. \*\*/gm)?.length ?? 0;
+    const between = (start: string, end: string): string => report.body.split(start)[1]?.split(end)[0] ?? "";
+
+    expect(report.sourceStatus).toBe("live");
+    expect(report.sourceMessage).toContain("已保留实时新闻并用备用热点框架补齐");
+    expect(report.sourceUrl).toContain("备用热点框架");
+    expect(report.body).toContain("单一国际要闻连续重复出现");
+    expect(report.body).not.toContain("备用示例数据");
+    expect(report.body).not.toContain("暂无相关内容");
+    expect(countItems(between("## 🌍 国际要闻", "## 🇨🇳 国内热点"))).toBe(4);
+    expect(countItems(between("## 🇨🇳 国内热点", "## 🔥 全网热搜精选"))).toBe(4);
+    expect(countItems(between("## 🔥 全网热搜精选", "## 📌 全网热度最高话题"))).toBe(3);
+    expect(countItems(between("## 📌 全网热度最高话题", "## 🧩 补充要闻"))).toBe(1);
+  });
+
   it("keeps ordered email list numbers increasing when items have observation lines", async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ messageId: "email-1" }), { status: 201 }));
     vi.stubGlobal("fetch", fetchMock);
