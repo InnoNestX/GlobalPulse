@@ -1,4 +1,4 @@
-export const providerNames = ["feishu", "wechat_official_account", "wechat_clawbot", "telegram", "email"] as const;
+export const providerNames = ["feishu", "wechat_official_account", "wechat_clawbot", "telegram", "email", "whatsapp"] as const;
 
 export type ProviderName = (typeof providerNames)[number];
 
@@ -6,6 +6,8 @@ const providerAliases: Record<string, ProviderName> = {
   wechat_ai_agent: "wechat_clawbot",
   wechat_ai: "wechat_clawbot",
   wechat_oa: "wechat_official_account",
+  whatsapp_cloud: "whatsapp",
+  wa: "whatsapp",
 };
 
 export const messageLevels = ["info", "success", "warning", "error"] as const;
@@ -228,31 +230,20 @@ function readActions(value: unknown): Array<{ label: string; url: string }> {
     throw new HttpError(400, "Field \"actions\" must be an array");
   }
 
-  const actions: Array<{ label: string; url: string }> = [];
-
-  for (const entry of value) {
-    if (!isRecord(entry)) {
-      throw new HttpError(400, "Field \"actions\" entries must be objects");
+  return value.map((action) => {
+    if (!isRecord(action)) {
+      throw new HttpError(400, "Each action must be an object");
     }
 
-    const labelRaw = entry.label;
-    const urlRaw = entry.url;
-    if (typeof labelRaw !== "string" || labelRaw.trim().length === 0) {
-      throw new HttpError(400, "Field \"actions[].label\" must be a non-empty string");
-    }
+    const label = readRequiredString(action, "label", 40);
+    const url = readOptionalUrl(action.url);
 
-    const url = readOptionalUrl(urlRaw);
     if (!url) {
-      throw new HttpError(400, "Field \"actions[].url\" must be a valid URL");
+      throw new HttpError(400, "Each action must include a valid url");
     }
 
-    actions.push({
-      label: labelRaw.trim().slice(0, 32),
-      url,
-    });
-  }
-
-  return actions.slice(0, 20);
+    return { label, url };
+  }).slice(0, 6);
 }
 
 function readMetadata(value: unknown): Record<string, string | number | boolean | null> {
@@ -264,18 +255,9 @@ function readMetadata(value: unknown): Record<string, string | number | boolean 
     throw new HttpError(400, "Field \"metadata\" must be an object");
   }
 
-  const metadata: Record<string, string | number | boolean | null> = {};
-
-  for (const [key, entry] of Object.entries(value)) {
-    if (typeof entry === "string" || typeof entry === "number" || typeof entry === "boolean" || entry === null) {
-      metadata[key] = entry;
-      continue;
-    }
-
-    throw new HttpError(400, "Field \"metadata\" values must be string, number, boolean, or null");
-  }
-
-  return metadata;
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) =>
+    entry === null || ["string", "number", "boolean"].includes(typeof entry),
+  )) as Record<string, string | number | boolean | null>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
