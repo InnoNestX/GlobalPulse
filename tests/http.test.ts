@@ -601,7 +601,7 @@ describe("handleRequest", () => {
 
       if (url.startsWith("https://news.google.com/rss/search")) {
         const query = new URL(url).searchParams.get("q") ?? "";
-        if (/site:weibo|site:douyin|知乎热榜|小红书|百度 热搜/i.test(query)) {
+        if (/site:weibo|site:douyin|知乎热榜|小红书/i.test(query)) {
           return rss([
             { title: "全网热度第一：AI产品安全讨论热度破亿", link: "https://news.example.test/platform-top", source: "微博热搜" },
             { title: "微博热搜：民生服务新规引发讨论", link: "https://news.example.test/platform-1", source: "微博热搜" },
@@ -718,7 +718,7 @@ describe("handleRequest", () => {
             { title: "AI chip export rules reshape supply chains", link: "https://news.example.test/global-4", source: "Bloomberg", description: "Technology policy continues to affect semiconductor flows." },
           ]);
         }
-        if (/site:weibo|site:douyin|知乎热榜|小红书|百度 热搜/i.test(query)) {
+        if (/site:weibo|site:douyin|知乎热榜|小红书/i.test(query)) {
           return rss([
             { title: "微博实时热点 - 微博", link: "https://news.example.test/weibo-hot-index", source: "微博", description: "微博实时热点 微博" },
             { title: "我真要笑死了#AI#火@抖音热点 - 抖音", link: "https://news.example.test/douyin-vague", source: "抖音", description: "我真要笑死了#AI#火@抖音热点 抖音" },
@@ -793,7 +793,7 @@ describe("handleRequest", () => {
     expect(topTopicSection).toContain("高考服务政策");
   });
 
-  it("supplements thin daily hot live previews instead of rendering empty fallback", async () => {
+  it("uses real secondary sources when daily hot NewsAPI coverage is too thin", async () => {
     const rss = (items: Array<{ title: string; link: string; source: string; description: string }>) => new Response([
       "<rss><channel>",
       ...items.map((item) => [
@@ -813,11 +813,97 @@ describe("handleRequest", () => {
       source: "Reuters",
       description: "外部实时源此刻只返回一条国际新闻。",
     };
+    const globalHeadlines = [
+      { title: "国际峰会关注供应链安全协调", link: "https://news.example.test/global-rss-1", source: "BBC World", description: "多国讨论供应链、能源运输和关键基础设施韧性。" },
+      { title: "主要央行利率路径牵动全球市场", link: "https://news.example.test/global-rss-2", source: "Al Jazeera", description: "通胀和利率预期继续影响汇率与风险资产。" },
+      { title: "中东局势推动避险资产波动", link: "https://news.example.test/global-rss-3", source: "NYTimes World", description: "地缘风险成为全球市场关注焦点。" },
+      { title: "AI芯片出口规则影响产业链布局", link: "https://news.example.test/global-rss-4", source: "France24", description: "科技政策和供应链议题继续升温。" },
+    ];
+    const domesticHeadlines = [
+      { title: "中国消费政策继续释放稳增长信号", link: "https://news.example.test/domestic-rss-1", source: "SCMP", description: "消费、就业和服务业政策成为国内关注点。" },
+      { title: "多地公共服务改革聚焦医疗教育", link: "https://news.example.test/domestic-rss-2", source: "RTHK", description: "医疗、教育和城市治理改革继续推进。" },
+      { title: "中国资本市场改革讨论升温", link: "https://news.example.test/domestic-rss-3", source: "BBC中文", description: "监管政策、流动性和投资者信心受到关注。" },
+      { title: "国内新能源产业政策调整引发关注", link: "https://news.example.test/domestic-rss-4", source: "SCMP", description: "新能源、汽车和供应链政策继续影响产业预期。" },
+    ];
+    const toutiaoHotJson = (items: Array<{ title: string; hotValue: string; label?: string }>) => new Response(JSON.stringify({
+      data: items.map((item, index) => ({
+        Title: item.title,
+        QueryWord: item.title,
+        Url: `https://www.toutiao.com/trending/test-${index}/`,
+        HotValue: item.hotValue,
+        Label: item.label ?? "",
+        ClusterIdStr: `test-${index}`,
+      })),
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+    const tencentHotJson = (items: Array<{ title: string; summary: string; hotScore: number }>) => new Response(JSON.stringify({
+      ret: 0,
+      idlist: [{
+        newslist: [
+          { id: "TIP2022042216544300", title: "腾讯新闻用户最关注的热点，每10分钟更新一次" },
+          ...items.map((item, index) => ({
+            title: item.title,
+            longtitle: item.title,
+            url: `https://view.inews.qq.com/a/test-${index}`,
+            source: "腾讯新闻",
+            abstract: item.summary,
+            nlpAbstract: item.summary,
+            timestamp: 1780448400 - index * 60,
+            hotEvent: { title: item.title, hotScore: item.hotScore, ranking: index + 1 },
+          })),
+        ],
+      }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
 
+      if (url.startsWith("https://newsapi.org/v2/")) {
+        return new Response(JSON.stringify({
+          articles: [{
+            title: repeatedHeadline.title,
+            description: repeatedHeadline.description,
+            url: repeatedHeadline.link,
+            publishedAt: "2026-06-03T01:00:00Z",
+            source: { name: repeatedHeadline.source },
+          }],
+        }), { status: 200 });
+      }
+
       if (url.startsWith("https://api.gdeltproject.org/api/v2/doc/doc")) {
         return new Response(JSON.stringify({ articles: [] }), { status: 200 });
+      }
+
+      if (url.startsWith("https://www.toutiao.com/hot-event/hot-board/")) {
+        return toutiaoHotJson([
+          { title: "教育部发布2026年高考预警信息", hotValue: "6800000", label: "热" },
+          { title: "一文了解汛期知识、避险方法", hotValue: "5800000", label: "新" },
+          { title: "中方回应区域安全议题", hotValue: "4800000" },
+          { title: "新能源车企发布召回和补贴调整", hotValue: "3800000" },
+        ]);
+      }
+
+      if (url.startsWith("https://r.inews.qq.com/gw/event/hot_ranking_list")) {
+        return tencentHotJson([
+          { title: "多地提醒高考考生入场前须接受查验", summary: "教育考试、公共服务和民生话题进入新闻热榜。", hotScore: 5600000 },
+          { title: "强降雨影响城市交通出行", summary: "天气、交通和公共安全受到关注。", hotScore: 4600000 },
+        ]);
+      }
+
+      if (
+        url.startsWith("https://feeds.bbci.co.uk/news/world/rss.xml")
+        || url.startsWith("https://www.aljazeera.com/xml/rss/all.xml")
+        || url.startsWith("https://rss.nytimes.com/services/xml/rss/nyt/World.xml")
+        || url.startsWith("https://www.france24.com/en/rss")
+        || url.startsWith("https://feeds.npr.org/1004/rss.xml")
+      ) {
+        return rss(globalHeadlines);
+      }
+
+      if (
+        url.startsWith("https://www.rthk.hk/rthk/news/rss/")
+        || url.startsWith("https://www.scmp.com/rss/91/feed")
+        || url.startsWith("https://feeds.bbci.co.uk/zhongwen/simp/rss.xml")
+      ) {
+        return rss(domesticHeadlines);
       }
 
       if (url.startsWith("https://news.google.com/rss/")) {
@@ -829,6 +915,7 @@ describe("handleRequest", () => {
     const appEnv: Env = {
       ...env,
       APP_KV: createMemoryKV(),
+      NEWSAPI_API_KEY: "newsapi-key",
     };
     const schedule: PulseSchedule = {
       id: "daily-hot-thin-preview",
@@ -863,9 +950,19 @@ describe("handleRequest", () => {
     const between = (start: string, end: string): string => report.body.split(start)[1]?.split(end)[0] ?? "";
 
     expect(report.sourceStatus).toBe("live");
-    expect(report.sourceMessage).toContain("已保留实时新闻并用备用热点框架补齐");
-    expect(report.sourceUrl).toContain("备用热点框架");
+    expect(report.sourceMessage).toContain("实时抓取成功");
+    expect(report.sourceUrl).toContain("NewsAPI(1条)");
+    expect(report.sourceUrl).toContain("直接国际RSS");
+    expect(report.sourceUrl).toContain("直接中文RSS");
+    expect(report.sourceUrl).toContain("头条热榜");
+    expect(report.sourceUrl).toContain("腾讯新闻热榜");
     expect(report.body).toContain("单一国际要闻连续重复出现");
+    expect(report.body).toContain("中国消费政策继续释放稳增长信号");
+    expect(report.body).toContain("教育部发布2026年高考预警信息");
+    expect(report.body).toContain("腾讯新闻热榜");
+    expect(report.body).not.toContain("百度");
+    expect(report.body).not.toContain("备用观察");
+    expect(report.body).not.toContain("备用热点框架");
     expect(report.body).not.toContain("备用示例数据");
     expect(report.body).not.toContain("暂无相关内容");
     expect(countItems(between("## 🌍 国际要闻", "## 🇨🇳 国内热点"))).toBe(4);
@@ -1184,7 +1281,7 @@ describe("handleRequest", () => {
       { title: "微博热搜：公共交通票价调整引发讨论", link: "https://news.example.test/platform-cache-1", source: "微博热搜", description: "多地公共交通票价和民生成本成为高热话题。" },
       { title: "抖音热榜：国产芯片发布带动科技讨论", link: "https://news.example.test/platform-cache-2", source: "抖音热榜", description: "科技产业链相关话题热度上升。" },
       { title: "微博热议：高考服务政策受到关注", link: "https://news.example.test/platform-cache-3", source: "微博热搜", description: "教育民生服务政策进入热搜讨论。" },
-      { title: "百度热搜：暴雨天气影响城市出行", link: "https://news.example.test/platform-cache-4", source: "百度热搜", description: "公共安全和城市交通成为讨论焦点。" },
+      { title: "头条热榜：暴雨天气影响城市出行", link: "https://news.example.test/platform-cache-4", source: "今日头条热榜", description: "公共安全和城市交通成为讨论焦点。" },
     ];
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
       const url = String(input);
@@ -1209,7 +1306,7 @@ describe("handleRequest", () => {
       }
       if (url.startsWith("https://news.google.com/rss/search")) {
         const query = new URL(url).searchParams.get("q") ?? "";
-        if (/weibo|douyin|热搜|热榜|小红书|知乎|百度/i.test(query)) {
+        if (/weibo|douyin|热搜|热榜|小红书|知乎/i.test(query)) {
           return rss(platformItems);
         }
         if (/中国|China policy|site:rthk|site:scmp/i.test(query)) {
@@ -1312,7 +1409,7 @@ describe("handleRequest", () => {
       { title: "微博热搜：民生服务新规引发讨论破亿", link: "https://news.example.test/platform-quality-1", source: "微博热搜", description: "民生服务政策进入高热讨论。" },
       { title: "抖音热榜：消费补贴政策受到关注", link: "https://news.example.test/platform-quality-2", source: "抖音热榜", description: "消费政策在社交平台热度上升。" },
       { title: "微博热议：科技创新议题进入热榜", link: "https://news.example.test/platform-quality-3", source: "微博热搜", description: "科技创新和产业政策成为讨论焦点。" },
-      { title: "百度热搜：暴雨天气影响城市出行", link: "https://news.example.test/platform-quality-4", source: "百度热搜", description: "公共安全和交通出行话题升温。" },
+      { title: "腾讯新闻热榜：暴雨天气影响城市出行", link: "https://news.example.test/platform-quality-4", source: "腾讯新闻热榜", description: "公共安全和交通出行话题升温。" },
     ];
     const repeatedHeadline = {
       title: "重复国际要闻：单一外交新闻连续出现",
@@ -1342,7 +1439,7 @@ describe("handleRequest", () => {
         if (sourceMode === "single") {
           return rss([repeatedHeadline]);
         }
-        if (/weibo|douyin|热搜|热榜|小红书|知乎|百度/i.test(query)) {
+        if (/weibo|douyin|热搜|热榜|小红书|知乎/i.test(query)) {
           return rss(platformItems);
         }
         if (/中国|China policy|site:rthk|site:scmp/i.test(query)) {

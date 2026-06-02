@@ -14,6 +14,14 @@ export interface TopicItem {
 const DAILY_HOT_REACHABILITY_CHECKS = 0;
 const SOURCE_FETCH_TIMEOUT_MS = 8_000;
 const GDELT_FETCH_TIMEOUT_MS = 4_000;
+const RSS_FETCH_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (compatible; GlobalPulse/0.1)",
+  "Accept": "application/rss+xml, application/xml, text/xml, */*;q=0.8",
+};
+const JSON_FETCH_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (compatible; GlobalPulse/0.1)",
+  "Accept": "application/json, text/plain, */*",
+};
 
 export interface TopicFetchOptions {
   mode?: ReportType;
@@ -50,20 +58,26 @@ async function fetchDailyHotTopicItems(query: string, language: AppLanguage, new
     googleResult,
     worldHeadlineResult,
     globalEnglishResult,
+    directGlobalResult,
     domesticResult,
+    directDomesticResult,
     domesticHeadlineResult,
     platformResult,
+    toutiaoHotResult,
+    tencentHotResult,
     gdeltGlobalResult,
-    gdeltChinaResult,
   ] = await Promise.allSettled([
     fetchGoogleNewsItems(query, language, 8),
     fetchGoogleNewsTopicItems("WORLD", language, 8, "global"),
     language === "zh" ? fetchGoogleNewsItems(buildGlobalEnglishDailyHotQuery(query), "en", 10) : Promise.resolve([]),
+    fetchDirectGlobalNewsItems(language, 12),
     fetchChineseDomesticNewsItems(language, 10),
+    fetchDirectDomesticNewsItems(language, 10),
     fetchGoogleNewsTopicItems("NATION", language, 6, "domestic"),
     fetchPlatformHotDiscussionItems(language, 6),
+    fetchToutiaoHotItems(language, 10),
+    fetchTencentHotRankingItems(language, 10),
     fetchGdeltDailyHotItems("global", language, 8),
-    fetchGdeltDailyHotItems("china", language, 6),
   ]);
   let newsApiItems: TopicItem[] = [];
   if (newsApiKey) {
@@ -73,28 +87,38 @@ async function fetchDailyHotTopicItems(query: string, language: AppLanguage, new
   const googleItems = googleResult.status === "fulfilled" ? googleResult.value : [];
   const worldHeadlineItems = worldHeadlineResult.status === "fulfilled" ? markGlobalDailyHotItems(worldHeadlineResult.value, 850) : [];
   const globalEnglishItems = globalEnglishResult.status === "fulfilled" ? markGlobalDailyHotItems(globalEnglishResult.value) : [];
+  const directGlobalItems = directGlobalResult.status === "fulfilled" ? directGlobalResult.value : [];
   const domesticItems = domesticResult.status === "fulfilled" ? domesticResult.value : [];
+  const directDomesticItems = directDomesticResult.status === "fulfilled" ? directDomesticResult.value : [];
   const domesticHeadlineItems = domesticHeadlineResult.status === "fulfilled" ? markDomesticDailyHotItems(domesticHeadlineResult.value, 900) : [];
   const platformItems = platformResult.status === "fulfilled" ? platformResult.value : [];
+  const toutiaoHotItems = toutiaoHotResult.status === "fulfilled" ? toutiaoHotResult.value : [];
+  const tencentHotItems = tencentHotResult.status === "fulfilled" ? tencentHotResult.value : [];
   const gdeltGlobalItems = gdeltGlobalResult.status === "fulfilled" ? gdeltGlobalResult.value : [];
-  const gdeltChinaItems = gdeltChinaResult.status === "fulfilled" ? gdeltChinaResult.value : [];
   const items = await filterReachableTopicItems(
     dedupeTopicItems([
+      ...toutiaoHotItems,
+      ...tencentHotItems,
       ...platformItems,
+      ...directDomesticItems,
       ...domesticItems,
       ...domesticHeadlineItems,
       ...newsApiItems,
+      ...directGlobalItems,
       ...worldHeadlineItems,
       ...googleItems,
       ...globalEnglishItems,
       ...gdeltGlobalItems,
-      ...gdeltChinaItems,
     ]),
     DAILY_HOT_REACHABILITY_CHECKS,
   );
   const sourceUrl = buildDailyHotSourceSummary([
     ["NewsAPI", newsApiItems.length],
-    ["国内新闻", domesticItems.length + domesticHeadlineItems.length + gdeltChinaItems.length],
+    ["直接国际RSS", directGlobalItems.length],
+    ["直接中文RSS", directDomesticItems.length],
+    ["国内新闻", domesticItems.length + domesticHeadlineItems.length],
+    ["头条热榜", toutiaoHotItems.length],
+    ["腾讯新闻热榜", tencentHotItems.length],
     ["平台热搜讨论", platformItems.length],
     ["国际新闻", worldHeadlineItems.length + googleItems.length + globalEnglishItems.length + gdeltGlobalItems.length],
   ], language);
@@ -191,6 +215,64 @@ async function fetchGoogleNewsTopicItems(
   })).slice(0, limit);
 }
 
+async function fetchDirectGlobalNewsItems(language: AppLanguage, limit = 12): Promise<TopicItem[]> {
+  const feeds = language === "zh"
+    ? [
+        ["BBC中文", "https://feeds.bbci.co.uk/zhongwen/simp/rss.xml"],
+        ["BBC World", "https://feeds.bbci.co.uk/news/world/rss.xml"],
+        ["Al Jazeera", "https://www.aljazeera.com/xml/rss/all.xml"],
+        ["NYTimes World", "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"],
+        ["France24", "https://www.france24.com/en/rss"],
+      ] satisfies Array<[string, string]>
+    : [
+        ["BBC World", "https://feeds.bbci.co.uk/news/world/rss.xml"],
+        ["Al Jazeera", "https://www.aljazeera.com/xml/rss/all.xml"],
+        ["NYTimes World", "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"],
+        ["NPR World", "https://feeds.npr.org/1004/rss.xml"],
+        ["France24", "https://www.france24.com/en/rss"],
+      ] satisfies Array<[string, string]>;
+  const items = await fetchDirectRssFeeds(feeds, "global", 900, Math.max(limit, 16));
+  return items.filter((item) => item.section === "global").slice(0, limit);
+}
+
+async function fetchDirectDomesticNewsItems(language: AppLanguage, limit = 10): Promise<TopicItem[]> {
+  const feeds = language === "zh"
+    ? [
+        ["香港电台本地新闻", "https://www.rthk.hk/rthk/news/rss/c_expressnews_clocal.xml"],
+        ["SCMP China", "https://www.scmp.com/rss/91/feed"],
+        ["BBC中文", "https://feeds.bbci.co.uk/zhongwen/simp/rss.xml"],
+      ] satisfies Array<[string, string]>
+    : [
+        ["SCMP China", "https://www.scmp.com/rss/91/feed"],
+        ["BBC Chinese", "https://feeds.bbci.co.uk/zhongwen/simp/rss.xml"],
+      ] satisfies Array<[string, string]>;
+  const items = await fetchDirectRssFeeds(feeds, "domestic", 1000, Math.max(limit, 14));
+  return items.filter((item) => item.section === "domestic").slice(0, limit);
+}
+
+async function fetchDirectRssFeeds(
+  feeds: Array<[string, string]>,
+  preferredSection: "global" | "domestic",
+  scoreBase: number,
+  limit: number,
+): Promise<TopicItem[]> {
+  const results = await Promise.allSettled(feeds.map(async ([label, url], feedIndex) => {
+    const response = await fetchWithTimeout(url, { headers: RSS_FETCH_HEADERS });
+    if (!response.ok) return [];
+    return parseRssItems(await response.text()).map((item, itemIndex) => {
+      const section = inferSectionFromText(`${item.title}\n${item.summary ?? ""}`, item.source ?? label);
+      return {
+        ...item,
+        source: item.source ? `${label} / ${item.source}` : label,
+        category: classifyNewsCategory(`${item.title}\n${item.summary ?? ""}`),
+        section: section === "platform" ? preferredSection : section,
+        score: scoreBase - feedIndex * 25 - itemIndex,
+      } satisfies TopicItem;
+    });
+  }));
+  return dedupeTopicItems(results.flatMap((result) => result.status === "fulfilled" ? result.value : [])).slice(0, limit);
+}
+
 async function fetchChineseDomesticNewsItems(language: AppLanguage, limit = 10): Promise<TopicItem[]> {
   const queries = language === "zh"
     ? [
@@ -224,11 +306,11 @@ async function fetchChineseDomesticNewsItems(language: AppLanguage, limit = 10):
 async function fetchPlatformHotDiscussionItems(language: AppLanguage, limit = 8): Promise<TopicItem[]> {
   const queries = language === "zh"
     ? [
-        "site:weibo.com OR site:douyin.com OR site:bilibili.com OR 微博热搜 OR 抖音热点 OR 百度热搜",
-        "知乎热榜 OR 小红书热搜 OR 微博 知乎 百度 热搜",
+        "site:weibo.com OR site:douyin.com OR site:bilibili.com OR 微博热搜 OR 抖音热点",
+        "知乎热榜 OR 小红书热搜 OR 微博 知乎 热搜",
       ]
     : [
-        "Weibo trending OR Douyin trending OR Baidu hot search OR Baidu hot topic",
+        "Weibo trending OR Douyin trending OR Chinese social trends",
       ];
   const results = await Promise.allSettled(queries.map((q) => fetchGoogleNewsItems(q, language, limit * 2)));
   const allItems = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
@@ -242,6 +324,102 @@ async function fetchPlatformHotDiscussionItems(language: AppLanguage, limit = 8)
       score: (item.score ?? 0) + scorePlatformHotDiscussion(item),
       summary: item.summary || inferPlatformHotSummary(item.title),
     })).slice(0, limit);
+}
+
+async function fetchToutiaoHotItems(language: AppLanguage, limit = 10): Promise<TopicItem[]> {
+  if (language !== "zh") return [];
+
+  try {
+    const response = await fetchWithTimeout("https://www.toutiao.com/hot-event/hot-board/?origin=toutiao_pc", { headers: JSON_FETCH_HEADERS });
+    if (!response.ok) return [];
+    const payload = await response.json() as {
+      data?: Array<{
+        Title?: string;
+        QueryWord?: string;
+        Url?: string;
+        HotValue?: string;
+        ClusterIdStr?: string;
+        Label?: string;
+        ClusterType?: number;
+        InterestCategory?: string[];
+      }>;
+    };
+
+    return (payload.data ?? []).flatMap((entry, index): TopicItem[] => {
+      const title = cleanText(entry.Title || entry.QueryWord || "");
+      if (!title || isGenericPlatformIndexTitle(title)) return [];
+      const url = entry.Url || (entry.ClusterIdStr
+        ? `https://www.toutiao.com/trending/${entry.ClusterIdStr}/`
+        : `https://www.toutiao.com/search/?keyword=${encodeURIComponent(title)}`);
+      const hotScore = Number(entry.HotValue);
+      const heatBoost = Number.isFinite(hotScore) ? Math.min(600, Math.log10(Math.max(10, hotScore)) * 95) : 0;
+      const item: TopicItem = {
+        title: `头条热榜：${title}`,
+        url,
+        source: "今日头条热榜",
+        category: "platform-hot",
+        section: "platform",
+        score: 1500 + heatBoost - index * 12,
+      };
+      const label = entry.Label ? cleanText(entry.Label) : "";
+      const summary = label ? `今日头条热榜话题，标签：${label}。` : inferPlatformHotSummary(title);
+      if (summary) item.summary = summary;
+      return [item];
+    }).slice(0, limit);
+  } catch {
+    return [];
+  }
+}
+
+async function fetchTencentHotRankingItems(language: AppLanguage, limit = 10): Promise<TopicItem[]> {
+  if (language !== "zh") return [];
+
+  try {
+    const response = await fetchWithTimeout("https://r.inews.qq.com/gw/event/hot_ranking_list?page_size=20", { headers: JSON_FETCH_HEADERS });
+    if (!response.ok) return [];
+    const payload = await response.json() as {
+      idlist?: Array<{
+        newslist?: Array<{
+          title?: string;
+          longtitle?: string;
+          url?: string;
+          surl?: string;
+          shareUrl?: string;
+          source?: string;
+          chlname?: string;
+          abstract?: string;
+          nlpAbstract?: string;
+          timestamp?: number;
+          hotEvent?: { title?: string; hotScore?: number; ranking?: number };
+        }>;
+      }>;
+    };
+    const entries = (payload.idlist ?? []).flatMap((group) => Array.isArray(group.newslist) ? group.newslist : []);
+
+    return entries.flatMap((entry, index): TopicItem[] => {
+      const title = cleanText(entry.hotEvent?.title || entry.longtitle || entry.title || "");
+      const url = entry.url || entry.surl || entry.shareUrl;
+      if (!title || !url || isGenericPlatformIndexTitle(title) || title.includes("每10分钟更新一次")) return [];
+      const hotScore = Number(entry.hotEvent?.hotScore);
+      const ranking = typeof entry.hotEvent?.ranking === "number" ? entry.hotEvent.ranking : index + 1;
+      const heatBoost = Number.isFinite(hotScore) ? Math.min(560, Math.log10(Math.max(10, hotScore)) * 90) : 0;
+      const source = cleanText(entry.source || entry.chlname || "腾讯新闻");
+      const item: TopicItem = {
+        title: `腾讯新闻热榜：${title}`,
+        url,
+        source: source ? `腾讯新闻热榜 / ${source}` : "腾讯新闻热榜",
+        category: "platform-hot",
+        section: "platform",
+        score: 1480 + heatBoost - ranking * 12,
+      };
+      const summary = entry.nlpAbstract || entry.abstract;
+      if (summary) item.summary = summary;
+      if (entry.timestamp) item.publishedAt = new Date(entry.timestamp * 1000).toISOString();
+      return [item];
+    }).slice(0, limit);
+  } catch {
+    return [];
+  }
 }
 
 async function fetchNewsApiDailyHotItems(query: string, language: AppLanguage, apiKey: string): Promise<TopicItem[]> {
@@ -615,10 +793,18 @@ function dedupeTopicItems(items: TopicItem[]): TopicItem[] {
 function normalizeTopicKey(item: TopicItem): string {
   try {
     const url = new URL(item.url);
-    return url.hostname.replace(/^www\./, "") + url.pathname.replace(/\/$/, "");
+    const hostname = url.hostname.replace(/^www\./, "");
+    const pathname = url.pathname.replace(/\/$/, "");
+    const search = shouldKeepTopicSearchParams(hostname, pathname) ? url.search : "";
+    return hostname + pathname + search;
   } catch {
     return item.title.toLowerCase().replace(/\s+/g, " ").trim();
   }
+}
+
+function shouldKeepTopicSearchParams(hostname: string, pathname: string): boolean {
+  return (hostname === "google.com" && pathname === "/search")
+    || hostname === "news.google.com";
 }
 
 function sortTopicItems(items: TopicItem[]): TopicItem[] {
@@ -640,11 +826,11 @@ function parseRssItems(xml: string): TopicItem[] {
     const title = readTag(itemXml, "title");
     const link = readTag(itemXml, "link");
     if (!title || !link) continue;
-    const item: TopicItem = { title: decodeXml(title), url: decodeXml(link) };
+    const item: TopicItem = { title: cleanText(decodeXml(title)), url: decodeXml(link) };
     const source = readTag(itemXml, "source");
     const publishedAt = readTag(itemXml, "pubDate");
     const description = readTag(itemXml, "description");
-    if (source) item.source = normalizeDisplaySource(decodeXml(source));
+    if (source) item.source = normalizeDisplaySource(cleanText(decodeXml(source)));
     if (publishedAt) item.publishedAt = decodeXml(publishedAt);
     if (description) {
       const summary = cleanText(decodeXml(description)).replace(/\s+/g, " ").trim().slice(0, 240);
