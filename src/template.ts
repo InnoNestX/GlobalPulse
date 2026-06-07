@@ -37,7 +37,7 @@ function renderDailyHotBody(schedule: PulseSchedule, context: DigestContext, ite
   const zh = schedule.language === "zh";
   const renderableItems = items.filter((item) => inferDigestSection(item) !== "platform" || isConcretePlatformTopic(item));
   const domesticItems = takeUniqueByHeat(renderableItems.filter((item) => inferDigestSection(item) === "domestic"), 4);
-  const globalCandidates = renderableItems.filter((item) => inferDigestSection(item) === "global" && !isChinaRelatedTopic(`${item.title}\n${item.summary ?? ""}\n${item.source ?? ""}`));
+  const globalCandidates = renderableItems.filter((item) => inferDigestSection(item) === "global");
   const globalItems = takeUniqueByHeat(globalCandidates, 4);
   const platformItems = takeUniqueByHeat(renderableItems.filter((item) => inferDigestSection(item) === "platform"), 4);
   const topPlatformItem = platformItems[0] ?? null;
@@ -106,8 +106,11 @@ function formatSourceSummary(value: string): string {
 
 function inferDigestSection(item: TopicItem): "domestic" | "platform" | "global" {
   const text = `${item.title}\n${item.summary ?? ""}\n${item.source ?? ""}`;
-  if (item.section === "platform" || /微博|抖音|小红书|知乎|百度|热搜|热榜|热议|douyin|weibo|trending/i.test(text)) return "platform";
-  if (item.section === "domestic" || isChinaRelatedTopic(text)) return "domestic";
+  if (item.section === "platform") return "platform";
+  if (item.section === "domestic") return "domestic";
+  if (item.section === "global") return "global";
+  if (/微博|抖音|小红书|知乎|百度|热搜|热榜|热议|douyin|weibo|trending/i.test(text)) return "platform";
+  if (isChinaRelatedTopic(text)) return "domestic";
   return "global";
 }
 

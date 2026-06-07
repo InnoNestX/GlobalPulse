@@ -612,9 +612,9 @@ describe("handleRequest", () => {
         if (/中国|China policy|site:rthk|site:scmp/i.test(query)) {
           return rss([
             { title: "中国就业政策调整释放稳民生信号", link: "https://news.example.test/domestic-1", source: "SCMP" },
-            { title: "国内消费数据改善带动财经讨论", link: "https://news.example.test/domestic-2", source: "Reuters" },
+            { title: "国内消费数据改善带动财经讨论", link: "https://news.example.test/domestic-2", source: "财新" },
             { title: "多地公共服务改革聚焦医疗和教育", link: "https://news.example.test/domestic-3", source: "RTHK" },
-            { title: "中国资本市场改革议题继续升温", link: "https://news.example.test/domestic-4", source: "Bloomberg" },
+            { title: "中国资本市场改革议题继续升温", link: "https://news.example.test/domestic-4", source: "明报" },
           ]);
         }
         return rss([
@@ -822,7 +822,7 @@ describe("handleRequest", () => {
     const domesticHeadlines = [
       { title: "中国消费政策继续释放稳增长信号", link: "https://news.example.test/domestic-rss-1", source: "SCMP", description: "消费、就业和服务业政策成为国内关注点。" },
       { title: "多地公共服务改革聚焦医疗教育", link: "https://news.example.test/domestic-rss-2", source: "RTHK", description: "医疗、教育和城市治理改革继续推进。" },
-      { title: "中国资本市场改革讨论升温", link: "https://news.example.test/domestic-rss-3", source: "BBC中文", description: "监管政策、流动性和投资者信心受到关注。" },
+      { title: "中国资本市场改革讨论升温", link: "https://news.example.test/domestic-rss-3", source: "明报", description: "监管政策、流动性和投资者信心受到关注。" },
       { title: "国内新能源产业政策调整引发关注", link: "https://news.example.test/domestic-rss-4", source: "SCMP", description: "新能源、汽车和供应链政策继续影响产业预期。" },
     ];
     const toutiaoHotJson = (items: Array<{ title: string; hotValue: string; label?: string }>) => new Response(JSON.stringify({
@@ -953,7 +953,7 @@ describe("handleRequest", () => {
     expect(report.sourceMessage).toContain("实时抓取成功");
     expect(report.sourceUrl).toContain("NewsAPI(1条)");
     expect(report.sourceUrl).toContain("直接国际RSS");
-    expect(report.sourceUrl).toContain("直接中文RSS");
+    expect(report.sourceUrl).toContain("国内/香港媒体RSS");
     expect(report.sourceUrl).toContain("头条热榜");
     expect(report.sourceUrl).toContain("腾讯新闻热榜");
     expect(report.body).toContain("单一国际要闻连续重复出现");
@@ -965,6 +965,173 @@ describe("handleRequest", () => {
     expect(report.body).not.toContain("备用热点框架");
     expect(report.body).not.toContain("备用示例数据");
     expect(report.body).not.toContain("暂无相关内容");
+    expect(countItems(between("## 🌍 国际要闻", "## 🇨🇳 国内热点"))).toBe(4);
+    expect(countItems(between("## 🇨🇳 国内热点", "## 🔥 全网热搜精选"))).toBe(4);
+    expect(countItems(between("## 🔥 全网热搜精选", "## 📌 全网热度最高话题"))).toBe(3);
+    expect(countItems(between("## 📌 全网热度最高话题", "## 🧩 补充要闻"))).toBe(1);
+  });
+
+  it("keeps daily hot sections balanced when platform rankings dominate source scores", async () => {
+    const rss = (items: Array<{ title: string; link: string; source: string; description: string }>) => new Response([
+      "<rss><channel>",
+      ...items.map((item) => [
+        "<item>",
+        `<title>${item.title}</title>`,
+        `<link>${item.link}</link>`,
+        `<source>${item.source}</source>`,
+        `<description>${item.description}</description>`,
+        "<pubDate>Fri, 22 May 2026 01:00:00 GMT</pubDate>",
+        "</item>",
+      ].join("")),
+      "</channel></rss>",
+    ].join(""), { status: 200 });
+    const globalItems = ([
+      ["主要央行利率路径牵动全球市场", "通胀、利率和汇率变化影响跨资产风险偏好。"],
+      ["中东能源航运风险推升避险资产波动", "地缘风险和能源运输扰动继续影响油价和黄金。"],
+      ["欧洲财政政策协调影响欧元区增长预期", "财政政策、债券收益率和增长预期成为市场焦点。"],
+      ["全球半导体供应链调整影响数据中心投资", "芯片、能源和数据中心建设继续受到产业政策影响。"],
+      ["美国关税政策变化牵动国际贸易谈判", "贸易、关税和供应链配置影响企业投资计划。"],
+      ["公共卫生预警推动跨境旅行政策调整", "公共卫生和边境政策变化影响服务业与出行需求。"],
+      ["新兴市场汇率承压引发央行政策回应", "美元流动性和本币汇率波动影响资本流向。"],
+      ["全球港口拥堵增加制造业交付不确定性", "航运延误和供应链韧性成为产业关注点。"],
+      ["国际粮食价格上涨引发政策储备讨论", "农产品价格和食品通胀影响民生与财政政策。"],
+      ["主要经济体选举结果影响监管议程", "监管政策、贸易安排和产业补贴存在调整预期。"],
+      ["跨国能源企业调整天然气供应合同", "能源价格和长期供应协议影响欧洲工业成本。"],
+      ["网络安全事件冲击关键基础设施运行", "公共安全和数字基础设施韧性受到关注。"],
+      ["全球汽车供应链评估新能源补贴变化", "新能源车、芯片和贸易政策影响产业布局。"],
+      ["国际金融监管机构讨论稳定币规则", "金融监管和数字资产规则影响市场风险偏好。"],
+    ] satisfies Array<[string, string]>).map(([title, description], index) => ({
+      title,
+      link: `https://news.example.test/balanced-global-${index + 1}`,
+      source: "Reuters",
+      description,
+    }));
+    const domesticItems = Array.from({ length: 10 }, (_, index) => ({
+      title: `中国国内热点 ${index + 1}：消费政策和民生服务调整`,
+      link: `https://news.example.test/balanced-domestic-${index + 1}`,
+      source: "Caixin",
+      description: `国内消费、就业和公共服务政策受到关注 ${index + 1}。`,
+    }));
+    const platformTitles = Array.from({ length: 24 }, (_, index) => `消费补贴政策热议 ${index + 1}`);
+    const toutiaoHotJson = () => new Response(JSON.stringify({
+      data: platformTitles.map((title, index) => ({
+        Title: title,
+        QueryWord: title,
+        Url: `https://www.toutiao.com/trending/balanced-${index}/`,
+        HotValue: String(9000000 - index * 100000),
+        Label: index < 2 ? "hot" : "",
+        ClusterIdStr: `balanced-${index}`,
+      })),
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+    const tencentHotJson = () => new Response(JSON.stringify({
+      ret: 0,
+      idlist: [{
+        newslist: [
+          { id: "TIP2022042216544300", title: "腾讯新闻用户最关注的热点，每10分钟更新一次" },
+          ...platformTitles.map((title, index) => ({
+            title: `民生服务政策进入热榜 ${index + 1}`,
+            longtitle: `民生服务政策进入热榜 ${index + 1}`,
+            url: `https://view.inews.qq.com/a/balanced-${index}`,
+            source: "腾讯新闻",
+            abstract: "公共服务、消费政策和城市治理成为平台热议话题。",
+            nlpAbstract: "公共服务、消费政策和城市治理成为平台热议话题。",
+            timestamp: 1780486800 - index * 60,
+            hotEvent: { title, hotScore: 8800000 - index * 100000, ranking: index + 1 },
+          })),
+        ],
+      }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+
+      if (url.startsWith("https://api.gdeltproject.org/api/v2/doc/doc")) {
+        return new Response(JSON.stringify({ articles: [] }), { status: 200 });
+      }
+
+      if (url.startsWith("https://www.toutiao.com/hot-event/hot-board/")) {
+        return toutiaoHotJson();
+      }
+
+      if (url.startsWith("https://r.inews.qq.com/gw/event/hot_ranking_list")) {
+        return tencentHotJson();
+      }
+
+      if (
+        url.startsWith("https://www.rthk.hk/rthk/news/rss/")
+        || url.startsWith("https://www.scmp.com/rss/91/feed")
+        || url.startsWith("https://feeds.bbci.co.uk/zhongwen/simp/rss.xml")
+      ) {
+        return rss(domesticItems);
+      }
+
+      if (url.startsWith("https://news.google.com/rss/")) {
+        const query = new URL(url).searchParams.get("q") ?? "";
+        if (/weibo|douyin|热搜|热榜|小红书|知乎/i.test(query)) {
+          return rss(platformTitles.slice(0, 8).map((title, index) => ({
+            title: `微博热搜：${title}`,
+            link: `https://news.example.test/balanced-platform-search-${index + 1}`,
+            source: "微博热搜",
+            description: "消费、民生和政策话题进入社交平台高热讨论。",
+          })));
+        }
+        if (/中国|China policy|site:rthk|site:scmp/i.test(query)) {
+          return rss(domesticItems);
+        }
+        return rss(globalItems);
+      }
+
+      if (
+        url.startsWith("https://feeds.bbci.co.uk/news/world/rss.xml")
+        || url.startsWith("https://www.aljazeera.com/xml/rss/all.xml")
+        || url.startsWith("https://rss.nytimes.com/services/xml/rss/nyt/World.xml")
+        || url.startsWith("https://www.france24.com/en/rss")
+        || url.startsWith("https://feeds.npr.org/1004/rss.xml")
+      ) {
+        return rss(globalItems);
+      }
+
+      return new Response("ok", { status: 200 });
+    });
+    const appEnv: Env = {
+      ...env,
+      APP_KV: createMemoryKV(),
+    };
+    const schedule: PulseSchedule = {
+      id: "daily-hot-balanced",
+      name: "每日热点",
+      enabled: true,
+      triggerMode: "cron",
+      skipNonTradingInCron: false,
+      cronExpression: "0 10 * * *",
+      time: "10:00",
+      days: [0, 1, 2, 3, 4, 5, 6],
+      timezone: "Asia/Shanghai",
+      language: "zh",
+      outputFormat: "markdown",
+      reportType: "daily_hot",
+      reportMode: "digest",
+      marketSession: "intraday",
+      focusSymbols: [],
+      positionSymbols: [],
+      moduleSwitches: { news: true },
+      emailRecipientIds: [],
+      targets: ["feishu"],
+      marketCalendar: "everyday",
+      tradingDaySource: "weekday",
+      marketHolidayDates: [],
+      topicQuery: "全球热点 国际新闻 国内新闻 微博热搜 抖音热榜",
+      template: "# Brief\n\n{{itemsMarkdown}}",
+    };
+    vi.stubGlobal("fetch", fetchMock);
+
+    const report = await buildScheduleReport(appEnv, schedule, new Date("2026-05-22T02:00:00Z"));
+    const countItems = (section: string): number => section.match(/^\d+\. \*\*/gm)?.length ?? 0;
+    const between = (start: string, end: string): string => report.body.split(start)[1]?.split(end)[0] ?? "";
+
+    expect(report.sourceStatus).toBe("live");
+    expect(report.body).toContain("主要央行利率路径");
+    expect(report.body).toContain("中国国内热点");
+    expect(report.body).toContain("消费补贴政策热议");
     expect(countItems(between("## 🌍 国际要闻", "## 🇨🇳 国内热点"))).toBe(4);
     expect(countItems(between("## 🇨🇳 国内热点", "## 🔥 全网热搜精选"))).toBe(4);
     expect(countItems(between("## 🔥 全网热搜精选", "## 📌 全网热度最高话题"))).toBe(3);
@@ -1239,7 +1406,7 @@ describe("handleRequest", () => {
     expect(result).toMatchObject({ checked: 1, executed: 1, skipped: 0 });
     expect(calls.length).toBeLessThan(50);
     expect(reachabilityCalls).toHaveLength(0);
-    expect(translateCalls.length).toBeLessThanOrEqual(12);
+    expect(translateCalls.length).toBeLessThanOrEqual(20);
     expect(fetchMock).toHaveBeenCalledWith("https://open.feishu.cn/open-apis/bot/v2/hook/test-token", expect.objectContaining({
       method: "POST",
     }));
@@ -1247,6 +1414,8 @@ describe("handleRequest", () => {
     const payload = JSON.parse(String(init.body));
     const itemCount = (String(payload.content.text).match(/^\d+\. \*\*/gm) ?? []).length;
     expect(itemCount).toBeGreaterThanOrEqual(10);
+    expect(payload.content.text).toContain("已翻译标题");
+    expect(payload.content.text).not.toContain("global policy inflation");
     expect(payload.content.text).not.toContain("暂无相关内容");
   });
 
@@ -1497,7 +1666,7 @@ describe("handleRequest", () => {
     expect((fallbackReport.body.match(/^\d+\. \*\*/gm) ?? []).length).toBeGreaterThanOrEqual(10);
   });
 
-  it("keeps China-related stories out of international daily hot headlines", () => {
+  it("keeps international-media China-related stories in international daily hot headlines", () => {
     const schedule = {
       name: "每日热点",
       language: "zh",
@@ -1524,9 +1693,10 @@ describe("handleRequest", () => {
     });
     const internationalSection = body.split("## 🌍 国际要闻")[1]?.split("## 🇨🇳 国内热点")[0] ?? "";
 
+    expect(internationalSection).toContain("China policy debate");
+    expect(internationalSection).toContain("台湾海峡");
+    expect(internationalSection).toContain("Beijing announces");
     expect(internationalSection).toContain("Middle East");
-    expect(internationalSection).toContain("European central banks");
-    expect(internationalSection).not.toMatch(/China|Chinese|Beijing|台湾|中国/);
   });
 
   it("does not use generic platform index pages as the top daily hot topic", () => {

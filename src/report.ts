@@ -23,10 +23,10 @@ interface DailyHotItemCache {
   items: TopicItem[];
 }
 
-const DAILY_HOT_TRANSLATION_LIMIT = 12;
+const DAILY_HOT_DISPLAY_LIMIT = 20;
+const DAILY_HOT_TRANSLATION_LIMIT = DAILY_HOT_DISPLAY_LIMIT;
 const DAILY_HOT_TRANSLATION_CONCURRENCY = 3;
 const DEFAULT_TRANSLATION_CONCURRENCY = 4;
-const DAILY_HOT_DISPLAY_LIMIT = 20;
 const DAILY_HOT_MIN_USABLE_ITEMS = 6;
 const DAILY_HOT_MIN_USABLE_SECTIONS = 2;
 const GOOGLE_TRANSLATION_SEPARATOR = "1234567890GLOBALPULSE9876543210";
@@ -95,7 +95,7 @@ function translationOptionsForSchedule(schedule: PulseSchedule): TranslationOpti
     return {
       maxItems: DAILY_HOT_TRANSLATION_LIMIT,
       concurrency: DAILY_HOT_TRANSLATION_CONCURRENCY,
-      allowAiFallback: false,
+      allowAiFallback: true,
     };
   }
 
@@ -404,7 +404,7 @@ function selectDailyHotItems(items: TopicItem[], now: Date): TopicItem[] {
 function inferSectionFromText(text: string, source?: string | null): "domestic" | "platform" | "global" {
   const merged = `${text}\n${source ?? ""}`.toLowerCase();
   if (/抖音|微博|百度热搜|平台热搜|douyin|weibo|hot search/.test(merged)) return "platform";
-  if (/中国|国内|多地|民生|就业|消费|公共服务|医疗|教育|资本市场|北京|上海|深圳|广州|杭州|成都|重庆|国务院|人民银行|工信部|证监会|新华社|央视|人民日报|cctv|xinhuanet|people.cn|gov.cn|\bchina\b|\bchinese\b|\bbeijing\b|\bshanghai\b|\bshenzhen\b|\bguangzhou\b|\bhangzhou\b|\bchengdu\b|\bchongqing\b|\btaiwan\b|\bhong kong\b|\bmacau\b|\bmacao\b|\bpboc\b|\bcsrc\b|\ba-shares?\b|\byuan\b|\brenminbi\b|south china sea/.test(merged)) return "domestic";
+  if (/中国|中國|国内|國內|多地|民生|就业|就業|消费|消費|公共服务|公共服務|医疗|醫療|教育|资本市场|資本市場|北京|上海|深圳|广州|廣州|杭州|成都|重庆|重慶|国务院|國務院|人民银行|人民銀行|工信部|证监会|證監會|新华社|新華社|央视|央視|人民日报|人民日報|台湾|台灣|台海|香港|港澳|澳门|澳門|对华|對華|涉华|涉華|中朝|cctv|xinhuanet|people.cn|gov.cn|\bchina\b|\bchinese\b|\bbeijing\b|\bshanghai\b|\bshenzhen\b|\bguangzhou\b|\bhangzhou\b|\bchengdu\b|\bchongqing\b|\btaiwan\b|\bhong kong\b|\bmacau\b|\bmacao\b|\bpboc\b|\bcsrc\b|\ba-shares?\b|\byuan\b|\brenminbi\b|south china sea/.test(merged)) return "domestic";
   return "global";
 }
 
@@ -534,11 +534,11 @@ function isLowSignalInvestmentBriefItem(item: TopicItem): boolean {
 
   if (hasInvestmentBriefSignal(normalized)) return false;
 
-  return /文艺演出|助残日|博物馆|文博|文创|市集|打卡|旅游|景区|老字号|哲学社会科学|自主知识体系|党校|高校|大学|中学|小学|校园|书画|诗歌|阅读|朗诵|演出|艺术团|文化活动|志愿|公益|文明实践|非遗|展览|展会|运动会|开幕式|闭幕式|嘉年华|夜游|音乐节|短剧|综艺|电视剧|电影节|明星|粉丝|网红|美食节|天气好|养生|健康科普|萌娃|宠物|八卦|广告|推广|优惠券|促销|招商|报名|门票|获奖名单/i.test(normalized);
+  return /文艺演出|文藝演出|助残日|助殘日|博物馆|博物館|文博|文创|文創|市集|打卡|旅游|旅遊|景区|景區|老字号|老字號|哲学社会科学|哲學社會科學|自主知识体系|自主知識體系|党校|黨校|高校|大学|大學|中学|中學|小学|小學|校园|校園|书画|書畫|诗歌|詩歌|阅读|閱讀|朗诵|朗誦|演出|艺术团|藝術團|文化活动|文化活動|志愿|志願|公益|文明实践|文明實踐|非遗|非遺|展览|展覽|展会|展會|运动会|運動會|开幕式|開幕式|闭幕式|閉幕式|嘉年华|嘉年華|夜游|夜遊|音乐节|音樂節|短剧|短劇|综艺|綜藝|电视剧|電視劇|电影节|電影節|明星|粉丝|粉絲|网红|網紅|美食节|美食節|天气好|天氣好|养生|養生|健康科普|萌娃|宠物|寵物|八卦|广告|廣告|推广|推廣|优惠券|優惠券|促销|促銷|招商|报名|報名|门票|門票|获奖名单|獲獎名單|世界盃|世界杯|球迷|婚礼|婚禮|celebrity|entertainment|concert|music festival|box office|movie|film festival|fans?|wedding|rumou?rs?|swifties?|pop star|singer|actor|actress|sports?|tennis|grand slam|french open|qualifier|fairy ?tale|maestro|symphon|composer|popular music|music legend/i.test(normalized);
 }
 
 function hasInvestmentBriefSignal(text: string): boolean {
-  return /宏观|经济|政策|监管|财政|央行|货币|通胀|利率|就业|消费|出口|进口|关税|贸易|产业|供应链|能源|油价|天然气|电力|芯片|半导体|AI|人工智能|算力|数据中心|金融|资本市场|A股|股市|债券|汇率|人民币|美元|房地产|地产|制裁|地缘|外交|冲突|战争|军事|中东|俄乌|俄罗斯|乌克兰|美国|欧盟|伊朗|以色列|红海|南海|航运|港口|公共卫生|疫情|地震|洪水|灾害|安全|事故|IPO|并购|投资|融资|价格|市场|银行|保险|证券|基金|大宗|黄金|铜|粮食|农产品|汽车|新能源|药品|医疗|教育|民生|补贴|税|法案|法院|裁定|反垄断|数据|中俄|台海|南海|高考|住房|租赁/i.test(text);
+  return /宏观|宏觀|经济|經濟|政策|监管|監管|财政|財政|央行|货币|貨幣|通胀|通脹|利率|就业|就業|消费|消費|出口|进口|進口|关税|關稅|贸易|貿易|产业|產業|供应链|供應鏈|能源|油价|油價|天然气|天然氣|电力|電力|芯片|晶片|半导体|半導體|AI|人工智能|算力|数据中心|數據中心|金融|资本市场|資本市場|A股|股市|债券|債券|汇率|匯率|人民币|人民幣|美元|房地产|房地產|地产|地產|制裁|地缘|地緣|外交|冲突|衝突|战争|戰爭|军事|軍事|中东|中東|俄乌|俄烏|俄罗斯|俄羅斯|乌克兰|烏克蘭|美国|美國|欧盟|歐盟|伊朗|以色列|红海|紅海|南海|航运|航運|港口|公共卫生|公共衛生|疫情|地震|洪水|灾害|災害|安全|事故|IPO|并购|併購|投资|投資|融资|融資|价格|價格|市场|市場|银行|銀行|保险|保險|证券|證券|基金|大宗|黄金|黃金|铜|銅|粮食|糧食|农产品|農產品|汽车|汽車|新能源|药品|藥品|医疗|醫療|教育|民生|补贴|補貼|税|稅|法案|法院|裁定|反垄断|反壟斷|数据|數據|中俄|台海|南海|高考|住房|租赁|租賃|macro|economy|economic|policy|regulation|regulatory|tariff|trade|inflation|interest rate|central bank|federal reserve|fed\b|market|currency|dollar|supply chain|energy|oil|gas|semiconductor|chip|artificial intelligence|geopolitic|diplomacy|conflict|war|military|defen[cs]e|russia|ukraine|israel|iran|gaza|middle east|red sea|south china sea|china|taiwan|sanction|election|public health|outbreak|earthquake|flood|wildfire|disaster|safety|accident|court|lawsuit|antitrust|tax|housing|education|livelihood/i.test(text);
 }
 
 function hasStaleYearMarker(text: string, currentYear: number): boolean {

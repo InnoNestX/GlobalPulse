@@ -12,6 +12,10 @@ export interface TopicItem {
 }
 
 const DAILY_HOT_REACHABILITY_CHECKS = 0;
+const DAILY_HOT_RETURN_LIMIT = 28;
+const DAILY_HOT_GLOBAL_POOL_LIMIT = 10;
+const DAILY_HOT_DOMESTIC_POOL_LIMIT = 8;
+const DAILY_HOT_PLATFORM_POOL_LIMIT = 8;
 const SOURCE_FETCH_TIMEOUT_MS = 8_000;
 const GDELT_FETCH_TIMEOUT_MS = 4_000;
 const RSS_FETCH_HEADERS = {
@@ -96,7 +100,7 @@ async function fetchDailyHotTopicItems(query: string, language: AppLanguage, new
   const tencentHotItems = tencentHotResult.status === "fulfilled" ? tencentHotResult.value : [];
   const gdeltGlobalItems = gdeltGlobalResult.status === "fulfilled" ? gdeltGlobalResult.value : [];
   const items = await filterReachableTopicItems(
-    dedupeTopicItems([
+    [
       ...toutiaoHotItems,
       ...tencentHotItems,
       ...platformItems,
@@ -109,20 +113,54 @@ async function fetchDailyHotTopicItems(query: string, language: AppLanguage, new
       ...googleItems,
       ...globalEnglishItems,
       ...gdeltGlobalItems,
-    ]),
+    ],
     DAILY_HOT_REACHABILITY_CHECKS,
   );
   const sourceUrl = buildDailyHotSourceSummary([
     ["NewsAPI", newsApiItems.length],
     ["直接国际RSS", directGlobalItems.length],
-    ["直接中文RSS", directDomesticItems.length],
-    ["国内新闻", domesticItems.length + domesticHeadlineItems.length],
+    ["国内/香港媒体RSS", directDomesticItems.length],
+    ["国内/香港新闻", domesticItems.length + domesticHeadlineItems.length],
     ["头条热榜", toutiaoHotItems.length],
     ["腾讯新闻热榜", tencentHotItems.length],
     ["平台热搜讨论", platformItems.length],
     ["国际新闻", worldHeadlineItems.length + googleItems.length + globalEnglishItems.length + gdeltGlobalItems.length],
   ], language);
-  return { sourceUrl, items: sortTopicItems(items).slice(0, 28) };
+  return { sourceUrl, items: composeDailyHotItemPool(items, DAILY_HOT_RETURN_LIMIT) };
+}
+
+function composeDailyHotItemPool(items: TopicItem[], limit: number): TopicItem[] {
+  const sorted = sortTopicItems(items);
+  const bySection = {
+    global: [] as TopicItem[],
+    domestic: [] as TopicItem[],
+    platform: [] as TopicItem[],
+  };
+
+  for (const item of sorted) {
+    const section = item.section ?? inferSection(item);
+    bySection[section].push(item);
+  }
+
+  const selected: TopicItem[] = [];
+  const seen = new Set<string>();
+  const addFrom = (candidates: TopicItem[], max: number): void => {
+    for (const item of candidates) {
+      if (selected.length >= limit || max <= 0) break;
+      const key = normalizeTopicKey(item);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      selected.push(item);
+      max -= 1;
+    }
+  };
+
+  addFrom(bySection.global, DAILY_HOT_GLOBAL_POOL_LIMIT);
+  addFrom(bySection.domestic, DAILY_HOT_DOMESTIC_POOL_LIMIT);
+  addFrom(bySection.platform, DAILY_HOT_PLATFORM_POOL_LIMIT);
+  addFrom(sorted, limit - selected.length);
+
+  return selected;
 }
 
 function buildDailyHotSourceSummary(sources: Array<[string, number]>, language: AppLanguage): string {
@@ -218,7 +256,6 @@ async function fetchGoogleNewsTopicItems(
 async function fetchDirectGlobalNewsItems(language: AppLanguage, limit = 12): Promise<TopicItem[]> {
   const feeds = language === "zh"
     ? [
-        ["BBC中文", "https://feeds.bbci.co.uk/zhongwen/simp/rss.xml"],
         ["BBC World", "https://feeds.bbci.co.uk/news/world/rss.xml"],
         ["Al Jazeera", "https://www.aljazeera.com/xml/rss/all.xml"],
         ["NYTimes World", "https://rss.nytimes.com/services/xml/rss/nyt/World.xml"],
@@ -240,11 +277,9 @@ async function fetchDirectDomesticNewsItems(language: AppLanguage, limit = 10): 
     ? [
         ["香港电台本地新闻", "https://www.rthk.hk/rthk/news/rss/c_expressnews_clocal.xml"],
         ["SCMP China", "https://www.scmp.com/rss/91/feed"],
-        ["BBC中文", "https://feeds.bbci.co.uk/zhongwen/simp/rss.xml"],
       ] satisfies Array<[string, string]>
     : [
         ["SCMP China", "https://www.scmp.com/rss/91/feed"],
-        ["BBC Chinese", "https://feeds.bbci.co.uk/zhongwen/simp/rss.xml"],
       ] satisfies Array<[string, string]>;
   const items = await fetchDirectRssFeeds(feeds, "domestic", 1000, Math.max(limit, 14));
   return items.filter((item) => item.section === "domestic").slice(0, limit);
@@ -260,33 +295,30 @@ async function fetchDirectRssFeeds(
     const response = await fetchWithTimeout(url, { headers: RSS_FETCH_HEADERS });
     if (!response.ok) return [];
     return parseRssItems(await response.text()).map((item, itemIndex) => {
-      const section = inferSectionFromText(`${item.title}\n${item.summary ?? ""}`, item.source ?? label);
       return {
         ...item,
         source: item.source ? `${label} / ${item.source}` : label,
         category: classifyNewsCategory(`${item.title}\n${item.summary ?? ""}`),
-        section: section === "platform" ? preferredSection : section,
-        score: scoreBase - feedIndex * 25 - itemIndex,
+        section: preferredSection,
+        score: scoreBase - itemIndex * feeds.length - feedIndex,
       } satisfies TopicItem;
     });
   }));
-  return dedupeTopicItems(results.flatMap((result) => result.status === "fulfilled" ? result.value : [])).slice(0, limit);
+  return sortTopicItems(dedupeTopicItems(results.flatMap((result) => result.status === "fulfilled" ? result.value : []))).slice(0, limit);
 }
 
 async function fetchChineseDomesticNewsItems(language: AppLanguage, limit = 10): Promise<TopicItem[]> {
   const queries = language === "zh"
     ? [
         "中国 国内新闻 政策 民生 经济 产业 -site:cctv.com -site:xinhuanet.com -site:thepaper.cn",
-        "site:rthk.hk OR site:scmp.com OR site:ifeng.com OR site:caixin.com OR site:mingpao.com OR site:Initium OR site:tvbs.com.hk 国内 政策 经济 民生",
-        "China policy economy society livelihood Reuters AP Bloomberg BBC Financial Times Nikkei Asia",
+        "site:rthk.hk OR site:scmp.com OR site:ifeng.com OR site:caixin.com OR site:mingpao.com OR site:hk01.com OR site:hket.com 国内 政策 经济 民生",
       ]
     : [
         "China domestic policy economy society technology industry -site:cctv.com -site:xinhuanet.com -site:thepaper.cn",
-        "site:rthk.hk OR site:scmp.com OR site:ifeng.com OR site:caixin.com OR site:mingpao.com OR site:Initium OR site:tvbs.com.hk China policy economy society",
-        "China policy economy society livelihood Reuters AP Bloomberg BBC Financial Times Nikkei Asia",
+        "site:rthk.hk OR site:scmp.com OR site:ifeng.com OR site:caixin.com OR site:mingpao.com OR site:hk01.com OR site:hket.com China policy economy society",
       ];
   const results = await Promise.allSettled(queries.map((entry, index) =>
-    fetchGoogleNewsItems(entry, language === "zh" && index === 2 ? "en" : language, Math.ceil(limit / 2)),
+    fetchGoogleNewsItems(entry, language, Math.ceil(limit / 2)),
   ));
   const items = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
   return dedupeTopicItems(items).map((item) => ({
@@ -297,8 +329,9 @@ async function fetchChineseDomesticNewsItems(language: AppLanguage, limit = 10):
   })).filter((item) => {
     const src = item.source ?? "";
     if (/cctv|xinhuanet|央视|新华社/i.test(src)) return false;
+    if (/reuters|ap news|associated press|bloomberg|financial times|bbc|nytimes|al jazeera|npr|france24/i.test(src)) return false;
     const text = `${item.title}\n${item.summary ?? ""}`.toLowerCase();
-    if (!/中国|国内|北京|上海|深圳|广州|杭州|成都|重庆|国家|国务院|央行|工信部|证监会|gov\.cn/i.test(text)) return false;
+    if (!/中国|中國|国内|國內|多地|民生|就业|就業|消费|消費|公共服务|公共服務|医疗|醫療|教育|资本市场|資本市場|北京|上海|深圳|广州|廣州|杭州|成都|重庆|重慶|国家|國家|国务院|國務院|央行|工信部|证监会|證監會|香港|港澳|gov\.cn/i.test(text)) return false;
     return true;
   }).slice(0, limit);
 }
@@ -549,7 +582,7 @@ function buildGlobalEnglishDailyHotQuery(query: string): string {
 function markGlobalDailyHotItems(items: TopicItem[], scoreBoost = 700): TopicItem[] {
   return items.map((item) => ({
     ...item,
-    section: item.section === "platform" ? "platform" : "global",
+    section: item.section ?? "global",
     score: (item.score ?? 0) + scoreBoost,
   }));
 }
@@ -581,7 +614,8 @@ function inferSection(item: TopicItem): "domestic" | "platform" | "global" {
 function inferSectionFromText(text: string, source?: string | null): "domestic" | "platform" | "global" {
   const merged = `${text}\n${source ?? ""}`.toLowerCase();
   if (/抖音|微博|小红书|知乎|百度|热搜|hot search|douyin|weibo|xhs/.test(merged)) return "platform";
-  if (/中国|国内|北京|上海|深圳|广州|杭州|成都|重庆|国务院|人民银行|工信部|证监会|新华社|央视|人民日报|cctv|xinhuanet|people.cn|gov.cn|\bchina\b|\bchinese\b|\bbeijing\b|\bshanghai\b|\bshenzhen\b|\bguangzhou\b|\bhangzhou\b|\bchengdu\b|\bchongqing\b|\btaiwan\b|\bhong kong\b|\bmacau\b|\bmacao\b|\bpboc\b|\bcsrc\b|\ba-shares?\b|\byuan\b|\brenminbi\b|south china sea/.test(merged)) return "domestic";
+  if (/rthk|scmp|caixin|ifeng|mingpao|hk01|hket|财新|財新|明报|明報|香港电台|香港電台|凤凰|鳳凰|搜狐|新浪|中国经济网|中國經濟網/.test(merged)) return "domestic";
+  if (/中国|中國|国内|國內|北京|上海|深圳|广州|廣州|杭州|成都|重庆|重慶|国务院|國務院|人民银行|人民銀行|工信部|证监会|證監會|新华社|新華社|央视|央視|人民日报|人民日報|台湾|台灣|台海|香港|港澳|澳门|澳門|对华|對華|涉华|涉華|中朝|cctv|xinhuanet|people.cn|gov.cn|\bchina\b|\bchinese\b|\bbeijing\b|\bshanghai\b|\bshenzhen\b|\bguangzhou\b|\bhangzhou\b|\bchengdu\b|\bchongqing\b|\btaiwan\b|\bhong kong\b|\bmacau\b|\bmacao\b|\bpboc\b|\bcsrc\b|\ba-shares?\b|\byuan\b|\brenminbi\b|south china sea/.test(merged)) return "domestic";
   return "global";
 }
 
