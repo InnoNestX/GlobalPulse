@@ -6,6 +6,7 @@ import { DEFAULT_GLOBALPULSE_LOGO_SRC } from "./providers/email-logo";
 import { createDeliveryEnv, sendIncomingMessage } from "./delivery";
 import { normalizeCloudflareEvent, normalizeGitHubActionsEvent } from "./events";
 import { getProviderStatus } from "./providers";
+import { createHealthPayload } from "./health";
 import { HttpError, type IncomingMessageBody, normalizeMessage } from "./messages";
 import { createSchedulePreview } from "./preview";
 import { runSchedule, runScheduleById } from "./scheduler";
@@ -40,7 +41,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     }
 
     if (request.method === "GET" && url.pathname === "/health") {
-      return json({ ok: true }, env);
+      return json(createHealthPayload(env), env);
     }
 
     if (url.pathname.startsWith("/api/admin/")) {

@@ -61,10 +61,28 @@ function getFetchCall(fetchMock: ReturnType<typeof vi.fn>, index: number): [stri
 
 describe("handleRequest", () => {
   it("returns health without authentication", async () => {
-    const response = await handleRequest(new Request("https://worker.example/health"), {});
+    const response = await handleRequest(new Request("https://worker.example/health"), {
+      CF_VERSION_METADATA: {
+        id: "worker-version-id",
+        tag: "0123456789abcdef0123456789abcdef01234567",
+        timestamp: "2026-06-08T17:55:00.000Z",
+      },
+      WORKERS_CI_BRANCH: "main",
+      WORKERS_CI_BUILD_UUID: "workers-build-id",
+    });
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ ok: true });
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      service: "globalpulse",
+      commitId: "0123456789abcdef0123456789abcdef01234567",
+      commitShort: "0123456789ab",
+      branch: "main",
+      buildId: "workers-build-id",
+      deployedAt: "2026-06-08T17:55:00.000Z",
+      versionId: "worker-version-id",
+      versionTag: "0123456789abcdef0123456789abcdef01234567",
+    });
   });
 
   it("serves the original project logo as a png asset", async () => {
