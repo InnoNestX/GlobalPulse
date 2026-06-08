@@ -32,6 +32,21 @@ function createMemoryKV(): KVNamespace {
   } as unknown as KVNamespace;
 }
 
+function createBatchOnlyD1(): D1Database {
+  return {
+    prepare(sql: string) {
+      return {
+        bind(...args: unknown[]) {
+          return { sql, args };
+        },
+      };
+    },
+    async batch(statements: unknown[]) {
+      return statements.map(() => ({ success: true }));
+    },
+  } as unknown as D1Database;
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -1417,6 +1432,122 @@ describe("handleRequest", () => {
     expect(payload.content.text).toContain("已翻译标题");
     expect(payload.content.text).not.toContain("global policy inflation");
     expect(payload.content.text).not.toContain("暂无相关内容");
+  });
+
+  it("keeps market cron fetches under the free Worker subrequest budget", async () => {
+    const translationSeparator = "1234567890GLOBALPULSE9876543210";
+    const rss = () => new Response([
+      "<rss><channel>",
+      ...Array.from({ length: 8 }, (_, index) => [
+        "<item>",
+        `<title>Fed policy supports growth stocks ${index + 1}</title>`,
+        `<link>https://news.example.test/us-market-${index + 1}</link>`,
+        "<source>Reuters</source>",
+        `<description>Nasdaq, earnings and interest-rate expectations are driving the session ${index + 1}.</description>`,
+        "<pubDate>Mon, 18 May 2026 10:00:00 GMT</pubDate>",
+        "</item>",
+      ].join("")),
+      "</channel></rss>",
+    ].join(""), { status: 200 });
+    const yahooPayload = {
+      quoteResponse: {
+        result: ["SPY", "QQQ", "DIA", "IWM"].map((symbol, index) => ({
+          symbol,
+          regularMarketPrice: 100 + index,
+          regularMarketPreviousClose: 99 + index,
+          regularMarketChangePercent: 1,
+          marketState: "REGULAR",
+          regularMarketVolume: 10_000_000,
+          averageDailyVolume10Day: 9_000_000,
+        })),
+      },
+    };
+    const fredPayload = {
+      observations: Array.from({ length: 13 }, (_, index) => ({
+        value: String(4.5 - index * 0.02),
+        date: `2026-05-${String(18 - index).padStart(2, "0")}`,
+      })),
+    };
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+
+      if (url.startsWith("https://news.google.com/rss/search")) {
+        return rss();
+      }
+      if (url.startsWith("https://translate.googleapis.com/translate_a/single")) {
+        const q = new URL(url).searchParams.get("q") ?? "";
+        const translated = q.includes(translationSeparator)
+          ? `已翻译市场标题\n${translationSeparator}\n已翻译市场摘要`
+          : "已翻译市场标题";
+        return new Response(JSON.stringify([[[translated]]]), { status: 200 });
+      }
+      if (url.startsWith("https://query1.finance.yahoo.com/v7/finance/quote")) {
+        return new Response(JSON.stringify(yahooPayload), { status: 200 });
+      }
+      if (url.startsWith("https://api.stlouisfed.org/fred/series/observations")) {
+        return new Response(JSON.stringify(fredPayload), { status: 200 });
+      }
+      if (url.startsWith("https://date.nager.at/api/v3/PublicHolidays/")) {
+        return new Response(JSON.stringify([]), { status: 200 });
+      }
+      if (url === "https://open.feishu.cn/open-apis/bot/v2/hook/test-token") {
+        return new Response(JSON.stringify({ code: 0, msg: "ok" }), { status: 200 });
+      }
+
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    });
+    const appEnv: Env = {
+      ...env,
+      APP_KV: createMemoryKV(),
+      RESEARCH_DB: createBatchOnlyD1(),
+      FRED_API_KEY: "fred-key",
+    };
+    vi.stubGlobal("fetch", fetchMock);
+    await saveSettings(appEnv, {
+      appName: "GlobalPulse",
+      language: "zh",
+      timezone: "Asia/Shanghai",
+      defaultTargets: ["feishu"],
+      outputFormat: "markdown",
+      topicFocus: "美股",
+      template: "# Brief\n\n{{itemsMarkdown}}",
+      schedules: [{
+        id: "us-market-cron",
+        name: "美股分析（夜间 Cron）",
+        enabled: true,
+        triggerMode: "cron",
+        cronExpression: "30 21 * * *",
+        time: "21:30",
+        days: [1, 2, 3, 4, 5],
+        timezone: "Asia/Shanghai",
+        language: "zh",
+        outputFormat: "markdown",
+        reportType: "us_stock",
+        reportMode: "market",
+        marketSession: "post_close",
+        focusSymbols: ["SPY", "QQQ", "NVDA"],
+        positionSymbols: [],
+        moduleSwitches: { news: true, macro: true, us_market: true },
+        targets: ["feishu"],
+        marketCalendar: "us_stock",
+        tradingDaySource: "external",
+        topicQuery: "US stock Nasdaq Fed earnings",
+        template: "# Brief\n\n{{itemsMarkdown}}",
+      }],
+    });
+
+    const result = await runDueSchedules(appEnv, new Date("2026-05-18T13:30:00Z"));
+    const calls = fetchMock.mock.calls;
+    const translateCalls = calls.filter((call) => String(call[0]).startsWith("https://translate.googleapis.com/translate_a/single"));
+    const fredCalls = calls.filter((call) => String(call[0]).startsWith("https://api.stlouisfed.org/fred/series/observations"));
+
+    expect(result).toMatchObject({ checked: 1, executed: 1, skipped: 0 });
+    expect(calls.length).toBeLessThan(30);
+    expect(translateCalls.length).toBeLessThanOrEqual(8);
+    expect(fredCalls).toHaveLength(4);
+    expect(fetchMock).toHaveBeenCalledWith("https://open.feishu.cn/open-apis/bot/v2/hook/test-token", expect.objectContaining({
+      method: "POST",
+    }));
   });
 
   it("uses the last successful daily hot cache when cron live sources are empty", async () => {

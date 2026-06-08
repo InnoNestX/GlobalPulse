@@ -25,7 +25,9 @@ interface DailyHotItemCache {
 
 const DAILY_HOT_DISPLAY_LIMIT = 20;
 const DAILY_HOT_TRANSLATION_LIMIT = DAILY_HOT_DISPLAY_LIMIT;
-const DAILY_HOT_TRANSLATION_CONCURRENCY = 3;
+const DAILY_HOT_TRANSLATION_CONCURRENCY = 2;
+const MARKET_NEWS_TRANSLATION_LIMIT = 8;
+const MARKET_NEWS_TRANSLATION_CONCURRENCY = 2;
 const DEFAULT_TRANSLATION_CONCURRENCY = 4;
 const DAILY_HOT_MIN_USABLE_ITEMS = 6;
 const DAILY_HOT_MIN_USABLE_SECTIONS = 2;
@@ -49,7 +51,7 @@ export async function buildScheduleReport(env: Env, schedule: PulseSchedule, now
   const fetched = await fetchItemsWithFallback(env, schedule, now);
 
   if (shouldUseResearchEngine(schedule)) {
-    const translatedItems = await maybeTranslateItems(env, fetched.items, schedule.language);
+    const translatedItems = await maybeTranslateItems(env, fetched.items, schedule.language, translationOptionsForSchedule(schedule));
     const research = await buildResearchMarketReport(env, schedule, translatedItems, local.label, now);
     return {
       title: research.title,
@@ -95,7 +97,15 @@ function translationOptionsForSchedule(schedule: PulseSchedule): TranslationOpti
     return {
       maxItems: DAILY_HOT_TRANSLATION_LIMIT,
       concurrency: DAILY_HOT_TRANSLATION_CONCURRENCY,
-      allowAiFallback: true,
+      allowAiFallback: false,
+    };
+  }
+
+  if (shouldUseResearchEngine(schedule)) {
+    return {
+      maxItems: MARKET_NEWS_TRANSLATION_LIMIT,
+      concurrency: MARKET_NEWS_TRANSLATION_CONCURRENCY,
+      allowAiFallback: false,
     };
   }
 

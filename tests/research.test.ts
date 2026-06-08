@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { capConfidence } from "../src/research/scoring/confidence";
 import { buildEvidenceItems } from "../src/research/sources/news";
 import { evaluateDataQuality } from "../src/research/validate/dataQuality";
 import { defaultDecisionPolicy } from "../src/research/types/common";
 import { renderResearchMarkdown } from "../src/research/render/markdown";
 import { formatPlainText } from "../src/providers/format";
+import { persistResearchRun } from "../src/research/persistence/d1";
 import type { StockPacket } from "../src/research/types/packet";
 import type { ResearchReportJson } from "../src/research/types/report";
 
@@ -210,6 +211,55 @@ describe("research report deterministic templates", () => {
 
     expect(plain.split("\n")[0]).toBe("📊 **美股收盘复盘 (2026-05-15 20:30 北京时间)**");
     expect(plain).not.toContain("[Info] GlobalPulse");
+  });
+});
+
+describe("research persistence", () => {
+  it("writes research rows with a single D1 batch", async () => {
+    const batchCalls: unknown[][] = [];
+    const run = vi.fn();
+    const db = {
+      prepare(sql: string) {
+        return {
+          bind(...args: unknown[]) {
+            return { sql, args, run };
+          },
+        };
+      },
+      async batch(statements: unknown[]) {
+        batchCalls.push(statements);
+        return statements.map(() => ({ success: true }));
+      },
+    } as unknown as D1Database;
+    const packet = mockPacket("us_stock", "post_close", [
+      { symbol: "SPY", price: 739.32, change_pct: 0.15, source: "mock" },
+    ]);
+    const baseNews = packet.news[0];
+    if (!baseNews) throw new Error("mock packet missing news");
+    packet.news = Array.from({ length: 24 }, (_, index) => ({
+      ...baseNews,
+      id: `news-${index + 1}`,
+      title: `Fed policy supports growth stocks ${index + 1}`,
+    }));
+
+    await persistResearchRun(
+      { RESEARCH_DB: db },
+      packet,
+      mockReport({ newsTitle: "Fed policy supports growth stocks" }),
+      {
+        report: mockReport({}),
+        rawOutput: "{}",
+        parsedOutput: {},
+        provider: "deterministic",
+        model: "fallback",
+        fallbackUsed: true,
+      },
+      packet.api_usage ?? [],
+    );
+
+    expect(batchCalls).toHaveLength(1);
+    expect(batchCalls[0]).toHaveLength(19);
+    expect(run).not.toHaveBeenCalled();
   });
 });
 

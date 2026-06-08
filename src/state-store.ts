@@ -40,12 +40,19 @@ export async function getStoredText(env: Env, key: string): Promise<string | nul
 }
 
 export async function putStoredText(env: Env, key: string, value: string, ttlSeconds?: number): Promise<void> {
+  let storedInKv = false;
+
   if (env.APP_KV) {
     try {
       await env.APP_KV.put(key, value, ttlSeconds ? { expirationTtl: ttlSeconds } : undefined);
+      storedInKv = true;
     } catch (error) {
       console.warn("KV put failed", { key, error: normalizeError(error) });
     }
+  }
+
+  if (storedInKv) {
+    return;
   }
 
   if (!env.APP_STATE_DO) {

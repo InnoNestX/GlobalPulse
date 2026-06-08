@@ -61,17 +61,14 @@ export async function fetchMacroData(env: Env, reportType: ReportType, items: To
 
   const started = Date.now();
   try {
-    const [tenYear, twoYear, fedFunds, vix, dollarIndex, unemployment, cpi] = await Promise.all([
+    const [tenYear, twoYear, vix, cpi] = await Promise.all([
       fetchFredSeries(env.FRED_API_KEY, FRED_SERIES.tenYearYield),
       fetchFredSeries(env.FRED_API_KEY, FRED_SERIES.twoYearYield),
-      fetchFredSeries(env.FRED_API_KEY, FRED_SERIES.fedFunds),
       fetchFredSeries(env.FRED_API_KEY, FRED_SERIES.vix),
-      fetchFredSeries(env.FRED_API_KEY, FRED_SERIES.dollarIndex),
-      fetchFredSeries(env.FRED_API_KEY, FRED_SERIES.unemploymentRate),
       fetchFredSeries(env.FRED_API_KEY, FRED_SERIES.cpi, 13),
     ]);
 
-    const bundle: FredMacroBundle = { tenYear, twoYear, fedFunds, vix, dollarIndex, unemployment, cpi };
+    const bundle: FredMacroBundle = { tenYear, twoYear, fedFunds: {}, vix, dollarIndex: {}, unemployment: {}, cpi };
     setRate(rates, "美国10年期国债收益率", bundle.tenYear.latest);
     setRate(rates, "美国2年期国债收益率", bundle.twoYear.latest);
     setRate(rates, "美联储有效联邦基金利率", bundle.fedFunds.latest);

@@ -11,7 +11,7 @@ export async function persistResearchRun(env: Env, packet: StockPacket, report: 
   const now = new Date().toISOString();
 
   try {
-    await db.batch([
+    const statements: D1PreparedStatement[] = [
       db.prepare(`INSERT OR REPLACE INTO research_runs (id, schedule_id, schedule_name, market, report_type, model, degrade_level, data_quality_json, api_usage_json, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .bind(packet.meta.run_id, packet.meta.run_id.split(":")[0] ?? packet.meta.run_id, "", packet.meta.market, packet.meta.report_type, `${llm.provider}/${llm.model}`, packet.data_quality.degrade_level, JSON.stringify(packet.data_quality), JSON.stringify(usages), now),
@@ -21,30 +21,31 @@ export async function persistResearchRun(env: Env, packet: StockPacket, report: 
       db.prepare(`INSERT OR REPLACE INTO research_data_snapshots (id, run_id, snapshot_json, created_at)
         VALUES (?, ?, ?, ?)`)
         .bind(`${packet.meta.run_id}:snapshot`, packet.meta.run_id, JSON.stringify({ market: packet.market, macro: packet.macro, stocks: packet.stocks }), now),
-    ]);
+    ];
 
-    for (const item of packet.news) {
-      await db.prepare(`INSERT OR REPLACE INTO research_evidence (id, run_id, title, source, source_grade, url, published_at, ticker, used_in_conclusion, used_reason, verification_status, created_at)
+    for (const item of packet.news.slice(0, 16)) {
+      statements.push(db.prepare(`INSERT OR REPLACE INTO research_evidence (id, run_id, title, source, source_grade, url, published_at, ticker, used_in_conclusion, used_reason, verification_status, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .bind(item.id, packet.meta.run_id, item.title, item.source, item.source_grade, item.url ?? "", item.published_at ?? "", item.ticker ?? "", item.used_in_conclusion ? 1 : 0, item.used_reason ?? "", item.verification_status, now)
-        .run();
+      );
     }
 
-    for (const stock of packet.stocks) {
-      await db.prepare(`INSERT OR REPLACE INTO research_signals (id, run_id, ticker, macro_score, technical_score, news_score, momentum_score, risk_score, total_score, created_at)
+    for (const stock of packet.stocks.slice(0, 16)) {
+      statements.push(db.prepare(`INSERT OR REPLACE INTO research_signals (id, run_id, ticker, macro_score, technical_score, news_score, momentum_score, risk_score, total_score, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .bind(`${packet.meta.run_id}:signal:${stock.ticker}`, packet.meta.run_id, stock.ticker, stock.signals.macro, stock.signals.technical, stock.signals.news, stock.signals.momentum, stock.signals.risk, stock.signals.total, now)
-        .run();
+      );
     }
 
-    for (const card of report.stock_cards) {
-      await db.prepare(`INSERT OR REPLACE INTO research_stock_cards (id, run_id, ticker, score_total, professional_view, short_term_bias, action_level, confidence, evidence_count, source_grade_max, card_json, created_at)
+    for (const card of report.stock_cards.slice(0, 16)) {
+      statements.push(db.prepare(`INSERT OR REPLACE INTO research_stock_cards (id, run_id, ticker, score_total, professional_view, short_term_bias, action_level, confidence, evidence_count, source_grade_max, card_json, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .bind(`${packet.meta.run_id}:card:${card.ticker}`, packet.meta.run_id, card.ticker, card.score_total, card.professional_view, card.short_term_bias, card.action_level, card.confidence, card.evidence_count, card.source_grade_max, JSON.stringify(card), now)
-        .run();
+      );
     }
+
+    await db.batch(statements);
   } catch (error) {
     console.warn("Research D1 persistence failed", error);
   }
 }
-

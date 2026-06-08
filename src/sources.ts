@@ -42,6 +42,10 @@ export async function fetchTopicItems(
     return fetchDailyHotTopicItems(query, language, options.newsApiKey);
   }
 
+  if (!sourceUrl && isMarketReportMode(options.mode)) {
+    return fetchMarketTopicItems(query, language, options.mode);
+  }
+
   if (!sourceUrl) {
     return fetchCompositeTopicItems(query, language);
   }
@@ -60,28 +64,22 @@ export async function fetchTopicItems(
 async function fetchDailyHotTopicItems(query: string, language: AppLanguage, newsApiKey?: string): Promise<{ sourceUrl: string; items: TopicItem[] }> {
   const [
     googleResult,
-    worldHeadlineResult,
     globalEnglishResult,
     directGlobalResult,
     domesticResult,
     directDomesticResult,
-    domesticHeadlineResult,
     platformResult,
     toutiaoHotResult,
     tencentHotResult,
-    gdeltGlobalResult,
   ] = await Promise.allSettled([
-    fetchGoogleNewsItems(query, language, 8),
-    fetchGoogleNewsTopicItems("WORLD", language, 8, "global"),
+    fetchGoogleNewsItems(query, language, 6),
     language === "zh" ? fetchGoogleNewsItems(buildGlobalEnglishDailyHotQuery(query), "en", 10) : Promise.resolve([]),
     fetchDirectGlobalNewsItems(language, 12),
     fetchChineseDomesticNewsItems(language, 10),
     fetchDirectDomesticNewsItems(language, 10),
-    fetchGoogleNewsTopicItems("NATION", language, 6, "domestic"),
     fetchPlatformHotDiscussionItems(language, 6),
     fetchToutiaoHotItems(language, 10),
     fetchTencentHotRankingItems(language, 10),
-    fetchGdeltDailyHotItems("global", language, 8),
   ]);
   let newsApiItems: TopicItem[] = [];
   if (newsApiKey) {
@@ -89,16 +87,13 @@ async function fetchDailyHotTopicItems(query: string, language: AppLanguage, new
     newsApiItems = newsApiResult?.status === "fulfilled" ? newsApiResult.value : [];
   }
   const googleItems = googleResult.status === "fulfilled" ? googleResult.value : [];
-  const worldHeadlineItems = worldHeadlineResult.status === "fulfilled" ? markGlobalDailyHotItems(worldHeadlineResult.value, 850) : [];
   const globalEnglishItems = globalEnglishResult.status === "fulfilled" ? markGlobalDailyHotItems(globalEnglishResult.value) : [];
   const directGlobalItems = directGlobalResult.status === "fulfilled" ? directGlobalResult.value : [];
   const domesticItems = domesticResult.status === "fulfilled" ? domesticResult.value : [];
   const directDomesticItems = directDomesticResult.status === "fulfilled" ? directDomesticResult.value : [];
-  const domesticHeadlineItems = domesticHeadlineResult.status === "fulfilled" ? markDomesticDailyHotItems(domesticHeadlineResult.value, 900) : [];
   const platformItems = platformResult.status === "fulfilled" ? platformResult.value : [];
   const toutiaoHotItems = toutiaoHotResult.status === "fulfilled" ? toutiaoHotResult.value : [];
   const tencentHotItems = tencentHotResult.status === "fulfilled" ? tencentHotResult.value : [];
-  const gdeltGlobalItems = gdeltGlobalResult.status === "fulfilled" ? gdeltGlobalResult.value : [];
   const items = await filterReachableTopicItems(
     [
       ...toutiaoHotItems,
@@ -106,13 +101,10 @@ async function fetchDailyHotTopicItems(query: string, language: AppLanguage, new
       ...platformItems,
       ...directDomesticItems,
       ...domesticItems,
-      ...domesticHeadlineItems,
       ...newsApiItems,
       ...directGlobalItems,
-      ...worldHeadlineItems,
       ...googleItems,
       ...globalEnglishItems,
-      ...gdeltGlobalItems,
     ],
     DAILY_HOT_REACHABILITY_CHECKS,
   );
@@ -120,11 +112,11 @@ async function fetchDailyHotTopicItems(query: string, language: AppLanguage, new
     ["NewsAPI", newsApiItems.length],
     ["直接国际RSS", directGlobalItems.length],
     ["国内/香港媒体RSS", directDomesticItems.length],
-    ["国内/香港新闻", domesticItems.length + domesticHeadlineItems.length],
+    ["国内/香港新闻", domesticItems.length],
     ["头条热榜", toutiaoHotItems.length],
     ["腾讯新闻热榜", tencentHotItems.length],
     ["平台热搜讨论", platformItems.length],
-    ["国际新闻", worldHeadlineItems.length + googleItems.length + globalEnglishItems.length + gdeltGlobalItems.length],
+    ["国际新闻", googleItems.length + globalEnglishItems.length],
   ], language);
   return { sourceUrl, items: composeDailyHotItemPool(items, DAILY_HOT_RETURN_LIMIT) };
 }
@@ -183,6 +175,52 @@ async function fetchCompositeTopicItems(query: string, language: AppLanguage): P
   ]);
   const items = sources.flatMap((source) => source.status === "fulfilled" ? source.value : []);
   return { sourceUrl: "Google News, Sina Finance, Hacker News, GitHub Search, alternative.me", items: items.slice(0, 24) };
+}
+
+async function fetchMarketTopicItems(query: string, language: AppLanguage, mode: ReportType): Promise<{ sourceUrl: string; items: TopicItem[] }> {
+  const sources = await Promise.allSettled(buildMarketTopicFetchers(query, language, mode).map((fetcher) => fetcher()));
+  const items = sortTopicItems(dedupeTopicItems(sources.flatMap((source) => source.status === "fulfilled" ? source.value : [])))
+    .slice(0, mode === "a_share" ? 10 : 8);
+
+  return {
+    sourceUrl: marketTopicSourceLabel(mode, language),
+    items,
+  };
+}
+
+function buildMarketTopicFetchers(query: string, language: AppLanguage, mode: ReportType): Array<() => Promise<TopicItem[]>> {
+  if (mode === "a_share") {
+    return [
+      () => fetchGoogleNewsItems(query, language, 6),
+      () => fetchChineseDomesticNewsItems(language, 6),
+      () => fetchDirectDomesticNewsItems(language, 6),
+    ];
+  }
+
+  if (mode === "crypto") {
+    const cryptoQuery = language === "zh"
+      ? `${query} Bitcoin Ethereum crypto ETF regulation liquidity stablecoin`
+      : query;
+    return [
+      () => fetchGoogleNewsItems(cryptoQuery, "en", 8),
+      () => fetchFearGreedItem(),
+    ];
+  }
+
+  return [
+    () => fetchGoogleNewsItems(query, "en", 8),
+    () => fetchGoogleNewsItems(query, language, 4),
+  ];
+}
+
+function marketTopicSourceLabel(mode: ReportType, language: AppLanguage): string {
+  if (mode === "a_share") return language === "zh" ? "Google News，国内/香港媒体RSS" : "Google News, domestic/HK RSS";
+  if (mode === "crypto") return language === "zh" ? "Google News，Crypto Fear & Greed" : "Google News, Crypto Fear & Greed";
+  return language === "zh" ? "Google News 国际财经" : "Google News market headlines";
+}
+
+function isMarketReportMode(mode: ReportType | undefined): mode is "us_stock" | "a_share" | "crypto" {
+  return mode === "us_stock" || mode === "a_share" || mode === "crypto";
 }
 
 export function buildGoogleNewsRssUrl(query: string, language: AppLanguage): string {
@@ -339,16 +377,16 @@ async function fetchChineseDomesticNewsItems(language: AppLanguage, limit = 10):
 async function fetchPlatformHotDiscussionItems(language: AppLanguage, limit = 8): Promise<TopicItem[]> {
   const queries = language === "zh"
     ? [
-        "site:weibo.com OR site:douyin.com OR site:bilibili.com OR 微博热搜 OR 抖音热点",
-        "知乎热榜 OR 小红书热搜 OR 微博 知乎 热搜",
+        "site:weibo.com OR site:douyin.com OR site:bilibili.com OR 微博热搜 OR 抖音热点 OR 知乎热榜 OR 小红书热搜",
       ]
     : [
-        "Weibo trending OR Douyin trending OR Chinese social trends",
+      "Weibo trending OR Douyin trending OR Chinese social trends",
       ];
   const results = await Promise.allSettled(queries.map((q) => fetchGoogleNewsItems(q, language, limit * 2)));
   const allItems = results.flatMap((result) => result.status === "fulfilled" ? result.value : []);
   return allItems
-    .filter((item) => /微博|抖音|小红书|知乎|百度|热搜|破亿|千万|热议|热点话题|bilibili|weibo|douyin/i.test(item.title))
+    .filter((item) => !isBaiduPlatformItem(item))
+    .filter((item) => /微博|抖音|小红书|知乎|热搜|破亿|千万|热议|热点话题|bilibili|weibo|douyin/i.test(item.title))
     .filter(isMeaningfulPlatformHotItem)
     .map((item) => ({
       ...item,
@@ -456,16 +494,14 @@ async function fetchTencentHotRankingItems(language: AppLanguage, limit = 10): P
 }
 
 async function fetchNewsApiDailyHotItems(query: string, language: AppLanguage, apiKey: string): Promise<TopicItem[]> {
-  const [everythingResult, englishEverythingResult, headlinesResult] = await Promise.allSettled([
-    fetchNewsApiEverythingItems(query, language, apiKey),
-    language === "zh" ? fetchNewsApiEverythingItems(buildGlobalEnglishDailyHotQuery(query), "en", apiKey) : Promise.resolve([]),
-    fetchNewsApiTopHeadlineItems(language, apiKey),
-  ]);
-  return dedupeTopicItems([
-    ...(everythingResult.status === "fulfilled" ? everythingResult.value : []),
-    ...(englishEverythingResult.status === "fulfilled" ? englishEverythingResult.value : []),
-    ...(headlinesResult.status === "fulfilled" ? headlinesResult.value : []),
-  ]).map((item) => ({ ...item, section: item.section ?? "global", score: (item.score ?? 0) + 1000 })).slice(0, 16);
+  try {
+    const items = await fetchNewsApiEverythingItems(query, language, apiKey);
+    return dedupeTopicItems(items)
+      .map((item) => ({ ...item, section: item.section ?? "global", score: (item.score ?? 0) + 1000 }))
+      .slice(0, 8);
+  } catch {
+    return [];
+  }
 }
 
 async function fetchNewsApiEverythingItems(query: string, language: AppLanguage, apiKey: string): Promise<TopicItem[]> {
@@ -575,7 +611,7 @@ function buildNewsApiQuery(query: string, language: AppLanguage): string {
 function buildGlobalEnglishDailyHotQuery(query: string): string {
   const base = query.trim();
   const englishBase = base.replace(/[^\x00-\x7F]+/g, " ").replace(/\s+/g, " ").trim();
-  const englishFocus = "global breaking news geopolitics international economy public event China policy society livelihood technology finance Reuters AP BBC Bloomberg";
+  const englishFocus = "global breaking news geopolitics international economy public event technology finance Reuters AP BBC Bloomberg";
   return `${englishBase ? `${englishBase} ` : ""}${englishFocus}`.slice(0, 280);
 }
 
@@ -638,12 +674,17 @@ function inferPlatformHotSummary(title: string): string {
 function isMeaningfulPlatformHotItem(item: TopicItem): boolean {
   const title = item.title.replace(/\s+-\s+微博\s*$/i, "").trim();
   const text = `${title}\n${item.summary ?? ""}`;
+  if (isBaiduPlatformItem(item)) return false;
   if (isGenericPlatformIndexTitle(item.title)) return false;
   if (isLowInformationPlatformTopic(item.title, item.summary)) return false;
   if (/^(微博正文|微博|抖音|小红书|知乎|百度|登录|首页)$/i.test(title)) return false;
   if (/微博正文|登录后可见|请先登录|客户端下载|无障碍|首页导航|广告|推广/i.test(text) && text.length < 80) return false;
   if (/年度回忆|热点记忆|抖音热点记忆|年度盘点|年终盘点|往年回顾|历史回顾|合集/i.test(text)) return false;
   return /热搜|热榜|热议|热点|破亿|千万|爆|关注|讨论|回应|发布|宣布|政策|事件|事故|天气|地震|赛事|电影|消费|民生|医疗|教育|weibo|douyin|trending/i.test(text);
+}
+
+function isBaiduPlatformItem(item: TopicItem): boolean {
+  return /百度|baidu/i.test(`${item.title}\n${item.summary ?? ""}\n${item.source ?? ""}\n${item.url}`);
 }
 
 function isLowInformationPlatformTopic(title: string, summary?: string): boolean {
