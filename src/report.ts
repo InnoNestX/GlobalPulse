@@ -564,7 +564,7 @@ async function maybeTranslateItems(env: Env, items: TopicItem[], language: Pulse
   if (language !== "zh" || items.length === 0) return items;
   const limit = Math.max(0, Math.min(options.maxItems ?? items.length, items.length));
   const limitedItems = items.slice(0, limit);
-  const batchTranslations = options.preferBatchAi ? await translateItemsViaAiBatch(env, limitedItems) : new Map<number, TranslationResult>();
+  const batchTranslations = options.preferBatchAi ? await translateItemsViaBatchProviders(env, limitedItems) : new Map<number, TranslationResult>();
   const translatedItems = await mapWithConcurrency(limitedItems, options.concurrency ?? DEFAULT_TRANSLATION_CONCURRENCY, async (item, itemIndex) => {
     if (!needsTranslation(item.title) && !needsTranslation(item.summary)) return item;
     const batchTranslated = batchTranslations.get(itemIndex);
@@ -576,7 +576,49 @@ async function maybeTranslateItems(env: Env, items: TopicItem[], language: Pulse
   return [...translatedItems, ...items.slice(limit)];
 }
 
-async function translateItemsViaAiBatch(env: Env, items: TopicItem[]): Promise<Map<number, TranslationResult>> {
+async function translateItemsViaBatchProviders(env: Env, items: TopicItem[]): Promise<Map<number, TranslationResult>> {
+  const geminiTranslations = await translateItemsViaGeminiBatch(env, items);
+  if (geminiTranslations.size > 0) return geminiTranslations;
+  return translateItemsViaWorkersAiBatch(env, items);
+}
+
+async function translateItemsViaGeminiBatch(env: Env, items: TopicItem[]): Promise<Map<number, TranslationResult>> {
+  const candidates = buildTranslationCandidates(items);
+  if (!candidates.length || !env.GEMINI_API_KEY) return new Map();
+
+  const baseUrl = (env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai").replace(/\/$/, "");
+  const model = env.GEMINI_MODEL || "gemini-2.5-flash";
+  const prompt = buildBatchTranslationPrompt(candidates);
+
+  try {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${env.GEMINI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: "你是新闻翻译助手，只输出 JSON，不要输出解释。" },
+          { role: "user", content: prompt },
+        ],
+      }),
+    });
+    if (!response.ok) return new Map();
+    const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+    const content = payload.choices?.[0]?.message?.content;
+    if (!content) return new Map();
+    return parseAiBatchTranslationResult(content, items);
+  } catch (error) {
+    console.warn("Gemini batch translation failed", error);
+    return new Map();
+  }
+}
+
+async function translateItemsViaWorkersAiBatch(env: Env, items: TopicItem[]): Promise<Map<number, TranslationResult>> {
   const candidates = items
     .map((item, index) => ({ item, index }))
     .filter(({ item }) => needsTranslation(item.title) || needsTranslation(item.summary));
@@ -585,12 +627,7 @@ async function translateItemsViaAiBatch(env: Env, items: TopicItem[]): Promise<M
   const ai = env.AI;
   if (!ai || typeof ai !== "object" || !("run" in ai) || typeof ai.run !== "function") return new Map();
 
-  const prompt = [
-    "你是新闻翻译助手。将输入 JSON 中每条新闻的 title 和 summary 翻译成简体中文。",
-    "要求：只输出 JSON；保留国家、机构、公司、人名、数字和时间；不要新增事实；没有 summary 就返回空字符串。",
-    "输出格式必须是：{\"items\":[{\"index\":0,\"title\":\"...\",\"summary\":\"...\"}]}",
-    `输入：${JSON.stringify({ items: candidates.map(({ item, index }) => ({ index, title: item.title, summary: item.summary ?? "" })) })}`,
-  ].join("\n");
+  const prompt = buildBatchTranslationPrompt(candidates);
 
   try {
     const inference = await ai.run("@cf/meta/llama-3.1-8b-instruct", { prompt }) as unknown;
@@ -601,6 +638,21 @@ async function translateItemsViaAiBatch(env: Env, items: TopicItem[]): Promise<M
     console.warn("Workers AI batch translation failed", error);
     return new Map();
   }
+}
+
+function buildTranslationCandidates(items: TopicItem[]): Array<{ item: TopicItem; index: number }> {
+  return items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => needsTranslation(item.title) || needsTranslation(item.summary));
+}
+
+function buildBatchTranslationPrompt(candidates: Array<{ item: TopicItem; index: number }>): string {
+  return [
+    "将输入 JSON 中每条新闻的 title 和 summary 翻译成简体中文。",
+    "要求：只输出 JSON；保留国家、机构、公司、人名、数字和时间；不要新增事实；没有 summary 就返回空字符串。",
+    "输出格式必须是：{\"items\":[{\"index\":0,\"title\":\"...\",\"summary\":\"...\"}]}",
+    `输入：${JSON.stringify({ items: candidates.map(({ item, index }) => ({ index, title: item.title, summary: item.summary ?? "" })) })}`,
+  ].join("\n");
 }
 
 async function translateToChinese(env: Env, title: string, summary?: string, options: TranslationOptions = {}): Promise<TranslationResult> {
