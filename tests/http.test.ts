@@ -1676,7 +1676,7 @@ describe("handleRequest", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const report = await buildScheduleReport(appEnv, schedule, new Date("2026-06-08T17:40:00Z"));
-    const geminiCalls = fetchMock.mock.calls.filter((call) => String(call[0]).includes("generativelanguage.googleapis.com"));
+    const geminiCalls = fetchMock.mock.calls.filter((call) => String(call[0]) === "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions");
     const translateCalls = fetchMock.mock.calls.filter((call) => String(call[0]).startsWith("https://translate.googleapis.com/translate_a/single"));
 
     expect(report.sourceStatus).toBe("live");
@@ -1803,7 +1803,7 @@ describe("handleRequest", () => {
     });
 
     const result = await runDueSchedules(appEnv, new Date("2026-06-08T09:00:00Z"));
-    const geminiCalls = fetchMock.mock.calls.filter((call) => String(call[0]).includes("generativelanguage.googleapis.com"));
+    const geminiCalls = fetchMock.mock.calls.filter((call) => String(call[0]) === "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions");
     const translateCalls = fetchMock.mock.calls.filter((call) => String(call[0]).startsWith("https://translate.googleapis.com/translate_a/single"));
     const [, geminiInit] = geminiCalls[0] as unknown as [string, RequestInit];
     const [, feishuInit] = fetchMock.mock.calls.find((call) => call[0] === "https://open.feishu.cn/open-apis/bot/v2/hook/test-token") as unknown as [string, RequestInit];
