@@ -1434,6 +1434,124 @@ describe("handleRequest", () => {
     expect(payload.content.text).not.toContain("暂无相关内容");
   });
 
+  it("batch translates English daily hot headlines before rendering Chinese reports", async () => {
+    const rss = (items: Array<{ title: string; link: string; source: string; description: string }>) => new Response([
+      "<rss><channel>",
+      ...items.map((item) => [
+        "<item>",
+        `<title>${item.title}</title>`,
+        `<link>${item.link}</link>`,
+        `<source>${item.source}</source>`,
+        `<description>${item.description}</description>`,
+        "<pubDate>Tue, 09 Jun 2026 01:00:00 GMT</pubDate>",
+        "</item>",
+      ].join("")),
+      "</channel></rss>",
+    ].join(""), { status: 200 });
+    const globalItems = [
+      { title: "Iran and Israel say they have halted strikes after truce", link: "https://news.example.test/global-ai-1", source: "BBC World", description: "Iran launched missiles while Israel carried out air strikes." },
+      { title: "Three rescued after Russian drone strike on Ukraine block", link: "https://news.example.test/global-ai-2", source: "Reuters", description: "Emergency teams continued rescue work after the overnight attack." },
+      { title: "Central banks debate inflation path as markets reprice rates", link: "https://news.example.test/global-ai-3", source: "AP News", description: "Bond yields and currencies moved as investors reassessed policy risks." },
+      { title: "Energy shipping risks rise after port disruption", link: "https://news.example.test/global-ai-4", source: "Financial Times", description: "Supply-chain and energy routes remain under pressure." },
+    ];
+    const domesticItems = [
+      { title: "中国消费政策继续释放稳增长信号", link: "https://news.example.test/domestic-ai-1", source: "SCMP", description: "消费、就业和服务业政策成为国内关注点。" },
+      { title: "多地公共服务改革聚焦医疗教育", link: "https://news.example.test/domestic-ai-2", source: "RTHK", description: "医疗、教育和城市治理改革继续推进。" },
+      { title: "中国资本市场改革讨论升温", link: "https://news.example.test/domestic-ai-3", source: "明报", description: "监管政策、流动性和投资者信心受到关注。" },
+      { title: "国内新能源产业政策调整引发关注", link: "https://news.example.test/domestic-ai-4", source: "SCMP", description: "新能源、汽车和供应链政策继续影响产业预期。" },
+    ];
+    const platformItems = [
+      { title: "微博热搜：公共交通票价调整引发讨论", link: "https://news.example.test/platform-ai-1", source: "微博热搜", description: "民生政策成为平台热议话题。" },
+      { title: "抖音热榜：国产芯片发布带动科技讨论", link: "https://news.example.test/platform-ai-2", source: "抖音热榜", description: "科技产业链相关话题热度上升。" },
+      { title: "微博热议：高考服务政策受到关注", link: "https://news.example.test/platform-ai-3", source: "微博热搜", description: "教育民生服务政策进入热搜讨论。" },
+      { title: "头条热榜：暴雨天气影响城市出行", link: "https://news.example.test/platform-ai-4", source: "今日头条热榜", description: "公共安全和城市交通成为讨论焦点。" },
+    ];
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+
+      if (url.startsWith("https://translate.googleapis.com/translate_a/single")) {
+        return new Response(JSON.stringify([[["不应调用逐条翻译"]]]), { status: 200 });
+      }
+      if (url.startsWith("https://www.toutiao.com/hot-event/hot-board/")) {
+        return new Response(JSON.stringify({ data: [] }), { status: 200 });
+      }
+      if (url.startsWith("https://r.inews.qq.com/gw/event/hot_ranking_list")) {
+        return new Response(JSON.stringify({ idlist: [] }), { status: 200 });
+      }
+      if (
+        url.startsWith("https://feeds.bbci.co.uk/news/world/rss.xml")
+        || url.startsWith("https://www.aljazeera.com/xml/rss/all.xml")
+        || url.startsWith("https://rss.nytimes.com/services/xml/rss/nyt/World.xml")
+        || url.startsWith("https://www.france24.com/en/rss")
+      ) {
+        return rss(globalItems);
+      }
+      if (url.startsWith("https://www.rthk.hk/rthk/news/rss/") || url.startsWith("https://www.scmp.com/rss/91/feed")) {
+        return rss(domesticItems);
+      }
+      if (url.startsWith("https://news.google.com/rss/search")) {
+        const query = new URL(url).searchParams.get("q") ?? "";
+        if (/weibo|douyin|热搜|热榜|小红书|知乎/i.test(query)) return rss(platformItems);
+        if (/中国|China policy|site:rthk|site:scmp/i.test(query)) return rss(domesticItems);
+        return rss(globalItems);
+      }
+
+      return new Response("ok", { status: 200 });
+    });
+    const aiRun = vi.fn(async () => ({
+      response: JSON.stringify({
+        items: [
+          { index: 0, title: "伊朗和以色列称停火后已停止打击", summary: "伊朗发射导弹，以色列发动空袭，双方随后表示行动暂停。" },
+          { index: 1, title: "俄无人机袭击乌克兰居民楼后多人获救", summary: "夜间袭击后，应急人员继续开展救援。" },
+          { index: 2, title: "央行讨论通胀路径，市场重新定价利率", summary: "债券收益率和汇率随政策风险预期波动。" },
+          { index: 3, title: "港口扰动后能源航运风险上升", summary: "供应链和能源运输线路仍承压。" },
+        ],
+      }),
+    }));
+    const appEnv: Env = {
+      ...env,
+      APP_KV: createMemoryKV(),
+      AI: { run: aiRun } as unknown as Ai,
+    };
+    const schedule: PulseSchedule = {
+      id: "daily-hot-ai-translation",
+      name: "每日热点 17:00",
+      enabled: true,
+      triggerMode: "cron",
+      skipNonTradingInCron: false,
+      cronExpression: "0 17 * * *",
+      time: "17:00",
+      days: [0, 1, 2, 3, 4, 5, 6],
+      timezone: "Asia/Shanghai",
+      language: "zh",
+      outputFormat: "markdown",
+      reportType: "daily_hot",
+      reportMode: "digest",
+      marketSession: "intraday",
+      focusSymbols: [],
+      positionSymbols: [],
+      moduleSwitches: { news: true },
+      emailRecipientIds: [],
+      targets: ["feishu"],
+      marketCalendar: "everyday",
+      tradingDaySource: "weekday",
+      marketHolidayDates: [],
+      topicQuery: "全球金融市场、宏观经济、地缘政治与国际热点",
+      template: "# Brief\n\n{{itemsMarkdown}}",
+    };
+    vi.stubGlobal("fetch", fetchMock);
+
+    const report = await buildScheduleReport(appEnv, schedule, new Date("2026-06-08T17:24:00Z"));
+    const translateCalls = fetchMock.mock.calls.filter((call) => String(call[0]).startsWith("https://translate.googleapis.com/translate_a/single"));
+
+    expect(report.sourceStatus).toBe("live");
+    expect(aiRun).toHaveBeenCalledTimes(1);
+    expect(translateCalls).toHaveLength(0);
+    expect(report.body).toContain("伊朗和以色列称停火后已停止打击");
+    expect(report.body).toContain("伊朗发射导弹");
+    expect(report.body).not.toContain("Iran and Israel say they have halted strikes");
+  });
+
   it("keeps market cron fetches under the free Worker subrequest budget", async () => {
     const translationSeparator = "1234567890GLOBALPULSE9876543210";
     const rss = () => new Response([

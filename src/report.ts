@@ -15,6 +15,7 @@ interface TranslationOptions {
   maxItems?: number;
   concurrency?: number;
   allowAiFallback?: boolean;
+  preferBatchAi?: boolean;
 }
 
 interface DailyHotItemCache {
@@ -98,6 +99,7 @@ function translationOptionsForSchedule(schedule: PulseSchedule): TranslationOpti
       maxItems: DAILY_HOT_TRANSLATION_LIMIT,
       concurrency: DAILY_HOT_TRANSLATION_CONCURRENCY,
       allowAiFallback: false,
+      preferBatchAi: true,
     };
   }
 
@@ -106,6 +108,7 @@ function translationOptionsForSchedule(schedule: PulseSchedule): TranslationOpti
       maxItems: MARKET_NEWS_TRANSLATION_LIMIT,
       concurrency: MARKET_NEWS_TRANSLATION_CONCURRENCY,
       allowAiFallback: false,
+      preferBatchAi: true,
     };
   }
 
@@ -560,12 +563,44 @@ function hasStaleYearMarker(text: string, currentYear: number): boolean {
 async function maybeTranslateItems(env: Env, items: TopicItem[], language: PulseSchedule["language"], options: TranslationOptions = {}): Promise<TopicItem[]> {
   if (language !== "zh" || items.length === 0) return items;
   const limit = Math.max(0, Math.min(options.maxItems ?? items.length, items.length));
-  const translatedItems = await mapWithConcurrency(items.slice(0, limit), options.concurrency ?? DEFAULT_TRANSLATION_CONCURRENCY, async (item) => {
+  const limitedItems = items.slice(0, limit);
+  const batchTranslations = options.preferBatchAi ? await translateItemsViaAiBatch(env, limitedItems) : new Map<number, TranslationResult>();
+  const translatedItems = await mapWithConcurrency(limitedItems, options.concurrency ?? DEFAULT_TRANSLATION_CONCURRENCY, async (item, itemIndex) => {
     if (!needsTranslation(item.title) && !needsTranslation(item.summary)) return item;
-    const translated = await translateToChinese(env, item.title, item.summary, options);
+    const batchTranslated = batchTranslations.get(itemIndex);
+    const translated = hasUsableTranslation(item, batchTranslated)
+      ? batchTranslated as TranslationResult
+      : await translateToChinese(env, item.title, item.summary, options);
     return withOptionalSummary({ ...item, title: translated.title?.trim() || item.title }, translated.summary?.trim() || item.summary);
   });
   return [...translatedItems, ...items.slice(limit)];
+}
+
+async function translateItemsViaAiBatch(env: Env, items: TopicItem[]): Promise<Map<number, TranslationResult>> {
+  const candidates = items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => needsTranslation(item.title) || needsTranslation(item.summary));
+  if (!candidates.length) return new Map();
+
+  const ai = env.AI;
+  if (!ai || typeof ai !== "object" || !("run" in ai) || typeof ai.run !== "function") return new Map();
+
+  const prompt = [
+    "你是新闻翻译助手。将输入 JSON 中每条新闻的 title 和 summary 翻译成简体中文。",
+    "要求：只输出 JSON；保留国家、机构、公司、人名、数字和时间；不要新增事实；没有 summary 就返回空字符串。",
+    "输出格式必须是：{\"items\":[{\"index\":0,\"title\":\"...\",\"summary\":\"...\"}]}",
+    `输入：${JSON.stringify({ items: candidates.map(({ item, index }) => ({ index, title: item.title, summary: item.summary ?? "" })) })}`,
+  ].join("\n");
+
+  try {
+    const inference = await ai.run("@cf/meta/llama-3.1-8b-instruct", { prompt }) as unknown;
+    const content = extractAiText(inference);
+    if (!content) return new Map();
+    return parseAiBatchTranslationResult(content, items);
+  } catch (error) {
+    console.warn("Workers AI batch translation failed", error);
+    return new Map();
+  }
 }
 
 async function translateToChinese(env: Env, title: string, summary?: string, options: TranslationOptions = {}): Promise<TranslationResult> {
@@ -597,6 +632,45 @@ async function translateToChinese(env: Env, title: string, summary?: string, opt
     console.warn("Workers AI translation failed", error);
     return {};
   }
+}
+
+function parseAiBatchTranslationResult(content: string, originals: TopicItem[]): Map<number, TranslationResult> {
+  const parsed = safeParseJson(extractJson(content));
+  const rawItems = Array.isArray(parsed?.items) ? parsed.items : [];
+  const translations = new Map<number, TranslationResult>();
+
+  for (const rawItem of rawItems) {
+    if (!rawItem || typeof rawItem !== "object") continue;
+    const entry = rawItem as Record<string, unknown>;
+    const index = Number(entry.index);
+    if (!Number.isInteger(index) || index < 0 || index >= originals.length) continue;
+    const original = originals[index];
+    if (!original) continue;
+    const result: TranslationResult = {};
+    if (typeof entry.title === "string" && isUsableTranslatedText(original.title, entry.title)) {
+      result.title = entry.title;
+    }
+    if (typeof entry.summary === "string" && isUsableTranslatedText(original.summary, entry.summary)) {
+      result.summary = entry.summary;
+    }
+    if (result.title || result.summary) translations.set(index, result);
+  }
+
+  return translations;
+}
+
+function hasUsableTranslation(item: TopicItem, translated: TranslationResult | undefined): boolean {
+  if (!translated) return false;
+  const titleOk = !needsTranslation(item.title) || isUsableTranslatedText(item.title, translated.title ?? "");
+  const summaryOk = !needsTranslation(item.summary) || isUsableTranslatedText(item.summary, translated.summary ?? "");
+  return titleOk && summaryOk;
+}
+
+function isUsableTranslatedText(original: string | undefined, translated: string): boolean {
+  const value = translated.trim();
+  if (!value) return false;
+  if (!needsTranslation(original)) return true;
+  return /[\u3400-\u9FFF]/.test(value);
 }
 
 async function translateViaGoogleFree(title: string, summary?: string): Promise<TranslationResult> {
@@ -655,7 +729,7 @@ function splitCombinedTranslation(value: string | undefined): TranslationResult 
   return { ...(title ? { title } : {}), ...(summary ? { summary } : {}) };
 }
 
-async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>): Promise<R[]> {
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper: (item: T, index: number) => Promise<R>): Promise<R[]> {
   const width = Math.max(1, Math.min(Math.floor(concurrency), items.length || 1));
   const results = new Array<R>(items.length);
   let index = 0;
@@ -664,7 +738,7 @@ async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper:
     while (index < items.length) {
       const current = index;
       index += 1;
-      results[current] = await mapper(items[current] as T);
+      results[current] = await mapper(items[current] as T, current);
     }
   }));
 
