@@ -1,5 +1,5 @@
 import type { Env } from "./env";
-import type { PulseSchedule } from "./config";
+import { getSettings, mergeProviderSettings, type PulseSchedule } from "./config";
 import { mergeMarketDataProviderSettings } from "./market-data-settings";
 import { type ProviderName, toPushMessage } from "./messages";
 import { formatMarkdown, formatPlainText } from "./providers/format";
@@ -31,7 +31,9 @@ const providerLabels: Record<ProviderName, string> = {
 };
 
 export async function createSchedulePreview(env: Env, schedule: PulseSchedule, now = new Date()): Promise<SchedulePreview> {
-  const reportEnv = await mergeMarketDataProviderSettings(env);
+  const settings = await getSettings(env);
+  const providerEnv = mergeProviderSettings(env, settings);
+  const reportEnv = await mergeMarketDataProviderSettings(providerEnv);
   const report = await buildScheduleReport(reportEnv, schedule, now);
   const message = toPushMessage({
     target: schedule.targets,

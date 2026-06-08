@@ -1,4 +1,4 @@
-import { appendLog, getRunMarker, getSettings, setRunMarker, type AppSettings, type PulseSchedule } from "./config";
+import { appendLog, getRunMarker, getSettings, mergeProviderSettings, setRunMarker, type AppSettings, type PulseSchedule } from "./config";
 import { sendIncomingMessage } from "./delivery";
 import type { Env } from "./env";
 import { matchCronExpression } from "./cron";
@@ -42,10 +42,11 @@ export async function runSchedule(env: Env, schedule: PulseSchedule, now = new D
   await setRunMarker(env, schedule.id, local.date, markerTime, now.toISOString());
 
   try {
-    const reportEnv = await mergeMarketDataProviderSettings(env);
+    const appSettings = settings ?? await getSettings(env);
+    const providerEnv = mergeProviderSettings(env, appSettings);
+    const reportEnv = await mergeMarketDataProviderSettings(providerEnv);
     const report = await buildScheduleReport(reportEnv, schedule, now);
     // Resolve email recipient IDs → comma-separated addresses
-    const appSettings = settings ?? await getSettings(env);
     const emailToAddresses = schedule.emailRecipientIds
       .map((id: string) => appSettings.emailRecipients.find((r) => r.id === id && r.enabled)?.address)
       .filter(Boolean)
