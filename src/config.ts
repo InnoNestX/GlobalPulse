@@ -126,6 +126,12 @@ export interface DeliveryLog {
   failed: number;
   message: string;
   createdAt: string;
+  results?: Array<{
+    provider: string;
+    ok: boolean;
+    status: number;
+    message: string;
+  }>;
 }
 
 type EnvStringKey = Exclude<{

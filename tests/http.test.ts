@@ -2366,4 +2366,109 @@ describe("handleRequest", () => {
     expect(result).toMatchObject({ checked: 1, executed: 0, skipped: 1 });
     expect(fetchMock).toHaveBeenCalledWith("https://date.nager.at/api/v3/PublicHolidays/2026/US", expect.any(Object));
   });
+
+  it("exposes admin diagnostics, template presets, test-push, and retry", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const appEnv: Env = {
+      ...env,
+      ADMIN_PASSWORD: "admin-pass",
+      API_TOKEN: "test-token",
+      APP_KV: createMemoryKV(),
+      TELEGRAM_BOT_TOKEN: "bot-token",
+      TELEGRAM_CHAT_ID: "12345",
+    };
+
+    await saveSettings(appEnv, {
+      appName: "GlobalPulse",
+      language: "en",
+      timezone: "UTC",
+      defaultTargets: ["telegram"],
+      outputFormat: "markdown",
+      topicFocus: "markets",
+      template: "# Brief\n\n{{itemsMarkdown}}",
+      schedules: [{
+        id: "retry-me",
+        name: "Retry Me",
+        enabled: true,
+        time: "09:00",
+        days: [1, 2, 3, 4, 5],
+        timezone: "UTC",
+        language: "en",
+        outputFormat: "markdown",
+        targets: ["telegram"],
+        marketCalendar: "everyday",
+        tradingDaySource: "weekday",
+        marketHolidayDates: [],
+        topicQuery: "markets",
+        template: "# Brief\n\nhello",
+      }],
+    });
+
+    const auth = { Authorization: "Bearer admin-pass", "Content-Type": "application/json" };
+
+    const adminPage = await handleRequest(new Request("https://worker.example/admin"), appEnv);
+    const adminHtml = await adminPage.text();
+    expect(adminHtml).toContain("setupChecklist");
+    expect(adminHtml).toContain("section-diagnostics");
+    expect(adminHtml).toContain("templatePresets");
+    expect(adminHtml).toContain("/api/admin/test-push");
+
+    const diagnostics = await handleRequest(new Request("https://worker.example/api/admin/diagnostics", {
+      headers: auth,
+    }), appEnv);
+    expect(diagnostics.status).toBe(200);
+    await expect(diagnostics.json()).resolves.toMatchObject({
+      diagnostics: {
+        readyForFirstBriefing: true,
+        schedules: { enabled: 1, total: 1 },
+        checklist: expect.arrayContaining([
+          expect.objectContaining({ id: "provider", ok: true }),
+          expect.objectContaining({ id: "schedule", ok: true }),
+        ]),
+      },
+    });
+
+    const presets = await handleRequest(new Request("https://worker.example/api/admin/template-presets", {
+      headers: auth,
+    }), appEnv);
+    expect(presets.status).toBe(200);
+    const presetBody = await presets.json() as { presets: Array<{ id: string }> };
+    expect(presetBody.presets.map((preset) => preset.id)).toEqual(expect.arrayContaining([
+      "pre_open",
+      "post_close",
+      "crypto_morning",
+      "daily_hot",
+    ]));
+
+    const testPush = await handleRequest(new Request("https://worker.example/api/admin/test-push", {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ target: "telegram" }),
+    }), appEnv);
+    expect(testPush.status).toBe(202);
+    await expect(testPush.json()).resolves.toMatchObject({ ok: true });
+
+    const { appendLog } = await import("../src/config");
+    await appendLog(appEnv, {
+      id: "log-retry-1",
+      scheduleId: "retry-me",
+      scheduleName: "Retry Me",
+      ok: false,
+      delivered: 0,
+      failed: 1,
+      message: "Delivery failed",
+      createdAt: new Date().toISOString(),
+      results: [{ provider: "telegram", ok: false, status: 500, message: "boom" }],
+    });
+
+    const retry = await handleRequest(new Request("https://worker.example/api/admin/retry", {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ logId: "log-retry-1" }),
+    }), appEnv);
+    expect(retry.status).toBe(202);
+    await expect(retry.json()).resolves.toMatchObject({ ok: true });
+  });
 });

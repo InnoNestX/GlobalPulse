@@ -1,13 +1,15 @@
 import type { Env } from "./env";
-import { getLogs, getSettings, mergeProviderSettings, normalizeSettings, saveSettings, type AppSettings } from "./config";
-import { renderAdminUiWithLogEnhancements } from "./admin-logs-enhance";
+import { appendLog, getLogs, getSettings, mergeProviderSettings, normalizeSettings, saveSettings, type AppSettings } from "./config";
+import { renderAdminUiWithOpsEnhancements } from "./admin-ops-enhance";
 import { getMarketDataProviderSettings, saveMarketDataProviderSettings } from "./market-data-settings";
 import { DEFAULT_GLOBALPULSE_LOGO_SRC } from "./providers/email-logo";
 import { createDeliveryEnv, sendIncomingMessage } from "./delivery";
 import { normalizeCloudflareEvent, normalizeGitHubActionsEvent } from "./events";
-import { getProviderStatus } from "./providers";
+import { getProvider, getProviderStatus } from "./providers";
 import { createHealthPayload } from "./health";
-import { HttpError, type IncomingMessageBody, normalizeMessage } from "./messages";
+import { createDiagnosticsPayload } from "./diagnostics";
+import { TEMPLATE_PRESETS } from "./template-presets";
+import { HttpError, coerceProviderName, type IncomingMessageBody, normalizeMessage } from "./messages";
 import { createSchedulePreview } from "./preview";
 import { runSchedule, runScheduleById } from "./scheduler";
 import { getLocalTimeParts } from "./time";
@@ -33,7 +35,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     }
 
     if (request.method === "GET" && url.pathname === "/admin") {
-      return renderAdminUiWithLogEnhancements();
+      return renderAdminUiWithOpsEnhancements();
     }
 
     if (request.method === "GET" && url.pathname === "/market-data-settings") {
@@ -156,7 +158,87 @@ async function handleAdminApi(request: Request, env: Env): Promise<Response> {
 
   if (request.method === "GET" && url.pathname === "/api/admin/logs") {
     const settings = await getSettings(env);
-    return json({ logs: formatLogsForAdmin(await getLogs(env), settings).slice(0, 10) }, env);
+    return json({ logs: formatLogsForAdmin(await getLogs(env), settings).slice(0, 20) }, env);
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/admin/diagnostics") {
+    return json({ diagnostics: await createDiagnosticsPayload(env) }, env);
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/admin/template-presets") {
+    return json({ presets: TEMPLATE_PRESETS }, env);
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/admin/test-push") {
+    const body = await readJson(request);
+    const target = isRecord(body) ? coerceProviderName(body.target) : undefined;
+    if (!target) {
+      throw new HttpError(400, "Field \"target\" must be a valid provider");
+    }
+
+    const settings = await getAdminSettings(env);
+    const deliveryEnv = await createDeliveryEnv(env, settings);
+    const provider = getProvider(target);
+    if (!provider.isConfigured(deliveryEnv)) {
+      throw new HttpError(400, `Provider \"${target}\" is not configured`);
+    }
+
+    const now = new Date();
+    const summary = await sendIncomingMessage({
+      target,
+      title: "GlobalPulse test push",
+      body: [
+        "This is a manual test message from the Admin UI.",
+        `Time: ${now.toISOString()}`,
+        "If you received this, the provider credentials work.",
+      ].join("\n"),
+      level: "info",
+      tags: ["globalpulse", "test-push", target],
+      metadata: {
+        kind: "test_push",
+        provider: target,
+      },
+    }, env, settings);
+
+    await appendLog(env, {
+      id: crypto.randomUUID(),
+      scheduleName: `test:${target}`,
+      ok: summary.ok,
+      delivered: summary.delivered,
+      failed: summary.failed,
+      message: summary.ok
+        ? `Test push delivered to ${target}`
+        : `Test push failed: ${summary.results.filter((result) => !result.ok).map((result) => `${result.provider}: ${result.message}`).join("; ")}`,
+      createdAt: now.toISOString(),
+      results: summary.results.map((result) => ({
+        provider: result.provider,
+        ok: result.ok,
+        status: result.status,
+        message: result.message,
+      })),
+    });
+
+    return json({ ok: summary.ok, summary }, env, summary.ok ? 202 : 502);
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/admin/retry") {
+    const body = await readJson(request);
+    const logId = isRecord(body) && typeof body.logId === "string" ? body.logId : undefined;
+    if (!logId) {
+      throw new HttpError(400, "Field \"logId\" is required");
+    }
+
+    const logs = await getLogs(env);
+    const log = logs.find((entry) => entry.id === logId);
+    if (!log) {
+      throw new HttpError(404, "Log entry not found");
+    }
+    if (!log.scheduleId) {
+      throw new HttpError(400, "This log cannot be retried because it has no scheduleId");
+    }
+
+    const summary = await runScheduleById(env, log.scheduleId);
+    return json({ ok: summary.ok, summary }, env, summary.ok ? 202 : 502);
   }
 
   if (request.method === "POST" && url.pathname === "/api/admin/run") {

@@ -53,7 +53,7 @@ const script = `<script id="globalpulse-logs-enhance">
   function trimLogs(){
     var list=document.getElementById('logs');
     if(!list) return;
-    Array.prototype.slice.call(list.querySelectorAll('.log')).slice(10).forEach(function(node){ node.remove(); });
+    Array.prototype.slice.call(list.querySelectorAll('.log')).slice(20).forEach(function(node){ node.remove(); });
   }
   function bindButton(){
     var button=document.getElementById('loadLogsButton');
@@ -70,7 +70,7 @@ const script = `<script id="globalpulse-logs-enhance">
         trimLogs();
         button.disabled=false;
         button.textContent=oldText;
-        if(status) status.textContent=textZh()?'已刷新，显示最近 10 条':'Refreshed, showing latest 10';
+        if(status) status.textContent=textZh()?'已刷新，显示最近 20 条':'Refreshed, showing latest 20';
       }, 900);
     }, true);
   }

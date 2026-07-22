@@ -86,6 +86,12 @@ export async function runSchedule(env: Env, schedule: PulseSchedule, now = new D
       failed: summary.failed,
       message: summary.ok ? "Delivered" : `Delivery failed: ${summary.results.filter((result) => !result.ok).map((result) => `${result.provider}(${result.status}): ${result.message}`).join("; ")}`,
       createdAt: now.toISOString(),
+      results: summary.results.map((result) => ({
+        provider: result.provider,
+        ok: result.ok,
+        status: result.status,
+        message: result.message,
+      })),
     });
     return summary;
   } catch (error) {
@@ -98,6 +104,7 @@ export async function runSchedule(env: Env, schedule: PulseSchedule, now = new D
       failed: 1,
       message: error instanceof Error ? error.message : "Unknown scheduler error",
       createdAt: now.toISOString(),
+      results: [],
     });
 
     throw error;
