@@ -619,25 +619,6 @@ body::before {
   text-transform: uppercase;
 }
 
-.gp-footer {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 14px;
-  color: var(--vp-c-text-3);
-  font-family: var(--vp-font-family-mono);
-  font-size: 0.74rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.vp-doc div[class*="language-"] {
-  border: 1px solid var(--gp-line);
-  border-radius: 4px;
-  background: rgba(0, 0, 0, 0.28);
-}
-
 .VPFooter {
   border-top: 1px solid var(--gp-line);
   background: rgba(5, 11, 15, 0.9);

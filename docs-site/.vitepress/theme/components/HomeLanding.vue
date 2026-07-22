@@ -29,7 +29,6 @@ const copy = isZh
       ctaAdmin: '管理后台',
       modules: '模块',
       next: '下一步',
-      footer: 'GlobalPulse · 文档',
       features: [
         ['定时简报', 'Workers Cron，支持任务级时区与交易日历。', '/GlobalPulse/zh/config/schedules.html', '打开'],
         ['市场研究', '美股、A股、加密与热点信息流汇入同一管线。', '/GlobalPulse/zh/features.html', '打开'],
@@ -60,7 +59,6 @@ const copy = isZh
       ctaAdmin: 'Admin UI',
       modules: 'Modules',
       next: 'Next commands',
-      footer: 'GlobalPulse · Documentation',
       features: [
         ['Scheduled briefings', 'Cron on Workers with per-task timezones and trading calendars.', '/GlobalPulse/en/config/schedules.html', 'Open'],
         ['Market research', 'US stocks, A-shares, crypto, and hotspot feeds in one pipeline.', '/GlobalPulse/en/features.html', 'Open'],
@@ -140,12 +138,5 @@ const copy = isZh
         </div>
       </div>
     </section>
-
-    <footer class="gp-grid">
-      <div class="gp-cell gp-span-12 gp-footer">
-        <span>{{ copy.footer }}</span>
-        <span>MIT · 2026 InnoNestX</span>
-      </div>
-    </footer>
   </div>
 </template>
