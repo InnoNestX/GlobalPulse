@@ -6,6 +6,8 @@ import type { Provider } from "./types";
 import { wechatClawbotProvider } from "./wechat-ai-agent";
 import { wechatOfficialAccountProvider } from "./wechat-official-account";
 import { emailProvider } from "./email";
+import { discordProvider } from "./discord";
+import { slackProvider } from "./slack";
 
 export const providers = [
   feishuProvider,
@@ -13,6 +15,8 @@ export const providers = [
   wechatClawbotProvider,
   telegramProvider,
   emailProvider,
+  discordProvider,
+  slackProvider,
 ] satisfies Provider[];
 
 export function getProvider(name: ProviderName): Provider {

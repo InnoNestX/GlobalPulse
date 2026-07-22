@@ -1168,13 +1168,15 @@ const adminHtml = `<!doctype html>
   </footer>
 
   <script>
-    const providers = ["feishu", "wechat_official_account", "wechat_clawbot", "telegram", "email"];
+    const providers = ["feishu", "wechat_official_account", "wechat_clawbot", "telegram", "email", "discord", "slack"];
     const providerLabels = {
       feishu: "Feishu",
       wechat_official_account: "WeChat OA",
       wechat_clawbot: "WeChat Bot",
       telegram: "Telegram",
-      email: "Email"
+      email: "Email",
+      discord: "Discord",
+      slack: "Slack"
     };
     const marketOptions = [
       ["everyday", "Every day"],
@@ -1709,6 +1711,18 @@ const adminHtml = `<!doctype html>
           fields: [
             ["telegramBotToken", t("telegramBotToken"), "password"],
             ["telegramChatId", t("telegramChatId"), "text"]
+          ]
+        },
+        discord: {
+          name: "Discord",
+          fields: [
+            ["discordWebhookUrl", "Discord Webhook URL", "text"]
+          ]
+        },
+        slack: {
+          name: "Slack",
+          fields: [
+            ["slackWebhookUrl", "Slack Webhook URL", "text"]
           ]
         },
         email: {

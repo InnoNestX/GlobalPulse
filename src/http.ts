@@ -1,6 +1,6 @@
 import type { Env } from "./env";
 import { appendLog, getLogs, getSettings, mergeProviderSettings, normalizeSettings, saveSettings, type AppSettings } from "./config";
-import { renderAdminUiWithOpsEnhancements } from "./admin-ops-enhance";
+import { renderAdminUiWithIntelEnhancements } from "./admin-intel-enhance";
 import { getMarketDataProviderSettings, saveMarketDataProviderSettings } from "./market-data-settings";
 import { DEFAULT_GLOBALPULSE_LOGO_SRC } from "./providers/email-logo";
 import { createDeliveryEnv, sendIncomingMessage } from "./delivery";
@@ -14,6 +14,9 @@ import { HttpError, coerceProviderName, type IncomingMessageBody, normalizeMessa
 import { createSchedulePreview } from "./preview";
 import { runSchedule, runScheduleById } from "./scheduler";
 import { getLocalTimeParts } from "./time";
+import { getLatestContinuityDelta, getPulseSnapshot } from "./continuity";
+import { createDefaultAutopilotSettings, runAutopilotRadar } from "./autopilot";
+import { listResearchRuns } from "./research/persistence/query";
 
 const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
@@ -36,7 +39,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     }
 
     if (request.method === "GET" && url.pathname === "/admin") {
-      return renderAdminUiWithOpsEnhancements();
+      return renderAdminUiWithIntelEnhancements();
     }
 
     if (request.method === "GET" && url.pathname === "/market-data-settings") {
@@ -172,6 +175,41 @@ async function handleAdminApi(request: Request, env: Env): Promise<Response> {
 
   if (request.method === "GET" && url.pathname === "/api/admin/model-presets") {
     return json({ presets: MODEL_PRESETS }, env);
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/admin/autopilot") {
+    const settings = await getAdminSettings(env);
+    return json({ autopilot: settings.autopilot ?? createDefaultAutopilotSettings() }, env);
+  }
+
+  if (request.method === "PUT" && url.pathname === "/api/admin/autopilot") {
+    const body = await readJson(request);
+    const settings = await getAdminSettings(env);
+    const next = normalizeSettings({
+      ...settings,
+      autopilot: isRecord(body) ? (body.autopilot ?? body) : settings.autopilot,
+    });
+    const saved = await saveSettings(env, next);
+    return json({ autopilot: saved.autopilot }, env);
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/admin/autopilot/scan") {
+    const result = await runAutopilotRadar(env);
+    return json({ ok: true, result }, env, 202);
+  }
+
+  if (request.method === "GET" && url.pathname.startsWith("/api/admin/continuity/")) {
+    const scheduleId = decodeURIComponent(url.pathname.slice("/api/admin/continuity/".length));
+    if (!scheduleId) throw new HttpError(400, "scheduleId is required");
+    return json({
+      snapshot: await getPulseSnapshot(env, scheduleId),
+      delta: await getLatestContinuityDelta(env, scheduleId),
+    }, env);
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/admin/research-runs") {
+    const limit = Number(url.searchParams.get("limit") || 20);
+    return json({ runs: await listResearchRuns(env, limit) }, env);
   }
 
   if (request.method === "POST" && url.pathname === "/api/admin/test-push") {

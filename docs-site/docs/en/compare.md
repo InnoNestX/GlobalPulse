@@ -14,10 +14,12 @@ Looking for a **self-hosted market briefing bot**, **Feishu / Lark scheduled dig
 | Need | GlobalPulse | n8n / Make | Custom Discord/Telegram bot | Generic RSS → Webhook |
 |------|-------------|------------|-----------------------------|------------------------|
 | Market calendars (A-share / US / crypto) | Built-in | DIY | DIY | Usually none |
+| **Pulse Continuity (what changed vs last run)** | Built-in | DIY | Rare | No |
+| **Autopilot event alerts between slots** | Built-in | DIY | DIY | No |
 | Multi-module research reports | Built-in | DIY | DIY | No |
 | Admin UI for schedules & templates | Yes | Partial | Rare | No |
 | Runs on Cloudflare Workers cron | Yes | Usually elsewhere | Usually elsewhere | Depends |
-| Push to Feishu + WeChat + Telegram + Email | Yes | Via plugins | Partial | Partial |
+| Push to Feishu + WeChat + Telegram + Email + Discord + Slack | Yes | Via plugins | Partial | Partial |
 | Self-hosted, MIT license | Yes | Depends | Yes | Yes |
 
 ## Search phrases this project targets

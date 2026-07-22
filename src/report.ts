@@ -6,6 +6,14 @@ import { getLocalTimeParts } from "./time";
 import { buildResearchMarketReport, shouldUseResearchEngine } from "./research";
 import { getStoredJson, putStoredJson } from "./state-store";
 import { resolveGeminiModel, resolveWorkersAiModels } from "./ai-models";
+import {
+  appendContinuitySection,
+  buildDigestSnapshot,
+  diffPulseSnapshots,
+  getPulseSnapshot,
+  type ContinuityDelta,
+  type PulseSnapshot,
+} from "./continuity";
 
 interface TranslationResult {
   title?: string;
@@ -46,6 +54,8 @@ export interface ReportBuildResult {
   sourceMessage: string;
   items: TopicItem[];
   actions: Array<{ label: string; url: string }>;
+  continuitySnapshot?: PulseSnapshot;
+  continuityDelta?: ContinuityDelta;
 }
 
 export async function buildScheduleReport(env: Env, schedule: PulseSchedule, now = new Date()): Promise<ReportBuildResult> {
@@ -64,6 +74,8 @@ export async function buildScheduleReport(env: Env, schedule: PulseSchedule, now
       sourceMessage: fetched.message,
       items: translatedItems,
       actions: buildActions(translatedItems, schedule.language),
+      continuitySnapshot: research.continuitySnapshot,
+      continuityDelta: research.continuityDelta,
     };
   }
 
@@ -82,15 +94,33 @@ export async function buildScheduleReport(env: Env, schedule: PulseSchedule, now
     marketReport: "",
   });
 
+  let body = rendered.body;
+  let continuitySnapshot: PulseSnapshot | undefined;
+  let continuityDelta: ContinuityDelta | undefined;
+  if (schedule.continuityEnabled) {
+    continuitySnapshot = buildDigestSnapshot({
+      scheduleId: schedule.id,
+      asOf: local.label,
+      language: schedule.language,
+      title: rendered.title,
+      items: displayItems,
+    });
+    const previous = await getPulseSnapshot(env, schedule.id);
+    continuityDelta = diffPulseSnapshots(previous, continuitySnapshot);
+    body = appendContinuitySection(body, continuityDelta, schedule.language);
+  }
+
   return {
     title: rendered.title,
-    body: rendered.body,
+    body,
     generatedAt: local.label,
     sourceUrl: fetched.sourceUrl,
     sourceStatus: fetched.status,
     sourceMessage: fetched.message,
     items: displayItems,
     actions: buildActions(displayItems, schedule.language),
+    continuitySnapshot,
+    continuityDelta,
   };
 }
 

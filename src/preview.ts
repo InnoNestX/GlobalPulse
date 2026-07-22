@@ -28,6 +28,8 @@ const providerLabels: Record<ProviderName, string> = {
   wechat_clawbot: "wechat clawbot",
   telegram: "Telegram",
   email: "Email",
+  discord: "Discord",
+  slack: "Slack",
 };
 
 export async function createSchedulePreview(env: Env, schedule: PulseSchedule, now = new Date()): Promise<SchedulePreview> {
@@ -72,5 +74,5 @@ export async function createSchedulePreview(env: Env, schedule: PulseSchedule, n
 }
 
 function getProviderFormat(target: ProviderName): "markdown" | "text" {
-  return target === "wechat_clawbot" ? "markdown" : "text";
+  return target === "wechat_clawbot" || target === "discord" || target === "slack" ? "markdown" : "text";
 }

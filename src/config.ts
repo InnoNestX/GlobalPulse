@@ -1,6 +1,8 @@
 import type { Env } from "./env";
 import { type MarketCalendar, type TradingDaySource, parseHolidayDates, readMarketCalendar, readTradingDaySource } from "./market-calendar";
 import { coerceProviderName, type ProviderName } from "./messages";
+import type { AutopilotSettings } from "./autopilot/types";
+import { createDefaultAutopilotSettings } from "./autopilot/types";
 import { getStoredJson, getStoredText, putStoredJson, putStoredText } from "./state-store";
 import { isCronExpressionFiveMinuteCompatible, validateCronExpression } from "./cron";
 
@@ -63,6 +65,7 @@ export interface PulseSchedule {
   marketCalendar: MarketCalendar;
   tradingDaySource: TradingDaySource;
   marketHolidayDates: string[];
+  continuityEnabled?: boolean;
   topicQuery: string;
   sourceUrl?: string;
   template: string;
@@ -86,6 +89,8 @@ export interface ProviderSettings {
   wechatClawbotWebhookKey?: string;
   telegramBotToken?: string;
   telegramChatId?: string;
+  discordWebhookUrl?: string;
+  slackWebhookUrl?: string;
   brevoApiKey?: string;
   emailFrom?: string;
   /** Optional override of the global EMAIL_FROM for this user */
@@ -115,6 +120,7 @@ export interface AppSettings {
   emailRecipients: EmailRecipient[];
   template: string;
   schedules: PulseSchedule[];
+  autopilot: AutopilotSettings;
 }
 
 export interface DeliveryLog {
@@ -180,6 +186,7 @@ export function createDefaultSettings(): AppSettings {
     providerSettings: {},
     emailRecipients: [],
     template: zhTemplate,
+    autopilot: createDefaultAutopilotSettings(),
     schedules: [
       {
         id: "asia-morning",
@@ -333,6 +340,7 @@ export function normalizeSettings(value: unknown): AppSettings {
     emailRecipients: readEmailRecipients(value.emailRecipients),
     template: readString(value.template, defaults.template).slice(0, 8000),
     schedules: readSchedules(value.schedules, defaults.schedules),
+    autopilot: readAutopilotSettings(value.autopilot, defaults.autopilot),
   };
 
   return settings;
@@ -351,6 +359,8 @@ export function mergeProviderSettings(env: Env, settings: AppSettings): Env {
   assignIfMissing(deliveryEnv, "WECHAT_CLAWBOT_WEBHOOK_KEY", providerSettings.wechatClawbotWebhookKey);
   assignIfMissing(deliveryEnv, "TELEGRAM_BOT_TOKEN", providerSettings.telegramBotToken);
   assignIfMissing(deliveryEnv, "TELEGRAM_CHAT_ID", providerSettings.telegramChatId);
+  assignIfMissing(deliveryEnv, "DISCORD_WEBHOOK_URL", providerSettings.discordWebhookUrl);
+  assignIfMissing(deliveryEnv, "SLACK_WEBHOOK_URL", providerSettings.slackWebhookUrl);
   assignIfMissing(deliveryEnv, "BREVO_API_KEY", providerSettings.brevoApiKey);
   assignIfMissing(deliveryEnv, "EMAIL_FROM", providerSettings.emailFrom);
   assignIfMissing(deliveryEnv, "GEMINI_API_KEY", providerSettings.geminiApiKey);
@@ -421,6 +431,9 @@ function readSchedules(value: unknown, fallback: PulseSchedule[]): PulseSchedule
       marketCalendar: readMarketCalendar(entry.marketCalendar, inferMarketCalendar(entry)),
       tradingDaySource: readTradingDaySource(entry.tradingDaySource, inferTradingDaySource(entry)),
       marketHolidayDates: parseHolidayDates(entry.marketHolidayDates),
+      continuityEnabled: typeof entry.continuityEnabled === "boolean"
+        ? entry.continuityEnabled
+        : (readReportMode(entry.reportMode) === "market"),
       topicQuery: readString(entry.topicQuery, "global finance international news").slice(0, 300),
       template: readString(entry.template, readLanguage(entry.language, "zh") === "zh" ? zhTemplate : enTemplate).slice(0, 8000),
     };
@@ -504,6 +517,8 @@ function readProviderSettings(value: unknown): ProviderSettings {
     ...readOptionalSecret(value.wechatClawbotWebhookKey ?? value.wechatAiAgentWebhookKey, "wechatClawbotWebhookKey", 260),
     ...readOptionalSecret(value.telegramBotToken, "telegramBotToken", 260),
     ...readOptionalSecret(value.telegramChatId, "telegramChatId", 180),
+    ...readOptionalUrlSetting(value.discordWebhookUrl, "discordWebhookUrl"),
+    ...readOptionalUrlSetting(value.slackWebhookUrl, "slackWebhookUrl"),
     ...readOptionalSecret(value.brevoApiKey, "brevoApiKey", 260),
     ...readOptionalSecret(value.emailFrom, "emailFrom", 200),
     ...readOptionalSecret(value.emailFromOverride, "emailFromOverride", 200),
@@ -518,6 +533,40 @@ function readProviderSettings(value: unknown): ProviderSettings {
     ...readOptionalSecret(value.fredApiKey, "fredApiKey", 120),
     ...readOptionalSecret(value.blsApiKey, "blsApiKey", 120),
     ...readOptionalSecret(value.beaApiKey, "beaApiKey", 120),
+  };
+}
+
+function readAutopilotSettings(value: unknown, fallback: AutopilotSettings): AutopilotSettings {
+  if (!isRecord(value)) {
+    return fallback;
+  }
+
+  const defaults = createDefaultAutopilotSettings();
+  const rulesInput = Array.isArray(value.rules) ? value.rules : defaults.rules;
+  const rules = rulesInput.flatMap((entry, index): AutopilotSettings["rules"] => {
+    if (!isRecord(entry)) return [];
+    const kind = entry.kind;
+    if (kind !== "symbol_move" && kind !== "fear_greed_extreme" && kind !== "news_burst" && kind !== "bias_flip") {
+      return [];
+    }
+    const severity = entry.severity === "warning" || entry.severity === "error" || entry.severity === "info"
+      ? entry.severity
+      : "warning";
+    return [{
+      id: sanitizeId(readString(entry.id, `autopilot-${index + 1}`)),
+      enabled: typeof entry.enabled === "boolean" ? entry.enabled : true,
+      name: readString(entry.name, `Rule ${index + 1}`).slice(0, 80),
+      kind,
+      params: isRecord(entry.params) ? entry.params as Record<string, number | string | boolean> : {},
+      cooldownMinutes: Math.max(5, Math.min(24 * 60, Number(entry.cooldownMinutes) || 60)),
+      targets: readTargets(entry.targets, []),
+      severity,
+    }];
+  }).slice(0, 20);
+
+  return {
+    enabled: typeof value.enabled === "boolean" ? value.enabled : fallback.enabled,
+    rules: rules.length ? rules : fallback.rules,
   };
 }
 

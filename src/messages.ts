@@ -1,4 +1,4 @@
-export const providerNames = ["feishu", "wechat_official_account", "wechat_clawbot", "telegram", "email"] as const;
+export const providerNames = ["feishu", "wechat_official_account", "wechat_clawbot", "telegram", "email", "discord", "slack"] as const;
 
 export type ProviderName = (typeof providerNames)[number];
 

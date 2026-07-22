@@ -1,6 +1,7 @@
 import type { Env } from "./env";
 import { handleRequest } from "./http";
 import { runDueSchedules } from "./scheduler";
+import { runAutopilotRadar } from "./autopilot";
 import { saveLastCronState } from "./diagnostics";
 import { AppStateDurableObject } from "./app-state-do";
 
@@ -15,13 +16,17 @@ export default {
       const now = new Date(controller.scheduledTime);
       try {
         const result = await runDueSchedules(env, now);
+        const autopilot = await runAutopilotRadar(env, now).catch((error) => {
+          console.warn("Autopilot radar failed", error);
+          return { checked: 0, triggered: 0, skipped: 0, triggers: [] };
+        });
         await saveLastCronState(env, {
           at: now.toISOString(),
           checked: result.checked,
           executed: result.executed,
           skipped: result.skipped,
           ok: true,
-          message: `checked=${result.checked} executed=${result.executed} skipped=${result.skipped}`,
+          message: `checked=${result.checked} executed=${result.executed} skipped=${result.skipped}; autopilot triggered=${autopilot.triggered}`,
         });
       } catch (error) {
         await saveLastCronState(env, {

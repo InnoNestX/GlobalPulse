@@ -7,6 +7,7 @@ import { mergeMarketDataProviderSettings } from "./market-data-settings";
 import { buildScheduleReport } from "./report";
 import { getLocalTimeParts } from "./time";
 import type { DeliverySummary } from "./delivery";
+import { savePulseSnapshot } from "./continuity";
 
 export interface SchedulerRunResult {
   checked: number;
@@ -76,6 +77,10 @@ export async function runSchedule(env: Env, schedule: PulseSchedule, now = new D
     }
 
     const summary = await sendIncomingMessage(messageBody as unknown as Parameters<typeof sendIncomingMessage>[0], env, appSettings);
+
+    if (summary.ok && report.continuitySnapshot) {
+      await savePulseSnapshot(env, report.continuitySnapshot, report.continuityDelta);
+    }
 
     await appendLog(env, {
       id: crypto.randomUUID(),

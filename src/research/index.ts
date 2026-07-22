@@ -15,12 +15,22 @@ import { capConfidence, hasPrimarySource } from "./scoring/confidence";
 import type { StockPacket } from "./types/packet";
 import type { ResearchReportJson } from "./types/report";
 import { defaultDecisionPolicy } from "./types/common";
+import {
+  appendContinuitySection,
+  buildMarketSnapshot,
+  diffPulseSnapshots,
+  getPulseSnapshot,
+  type ContinuityDelta,
+  type PulseSnapshot,
+} from "../continuity";
 
 export interface ResearchMarketReportResult {
   title: string;
   body: string;
   packet: StockPacket;
   report: ResearchReportJson;
+  continuitySnapshot?: PulseSnapshot;
+  continuityDelta?: ContinuityDelta;
 }
 
 export function shouldUseResearchEngine(schedule: PulseSchedule): boolean {
@@ -91,9 +101,32 @@ export async function buildResearchMarketReport(
 
   const llm = await buildStructuredResearchReport(env, packet);
   const report = enforceConfidenceCaps(packet, llm.report, llm.fallbackUsed);
-  const body = renderResearchMarkdown(packet, report);
+  let body = renderResearchMarkdown(packet, report);
+  let continuitySnapshot: PulseSnapshot | undefined;
+  let continuityDelta: ContinuityDelta | undefined;
+
+  if (schedule.continuityEnabled !== false) {
+    continuitySnapshot = buildMarketSnapshot({
+      scheduleId: schedule.id,
+      asOf: generatedAt,
+      language: schedule.language,
+      title: extractMarkdownTitle(body),
+      report,
+    });
+    const previous = await getPulseSnapshot(env, schedule.id);
+    continuityDelta = diffPulseSnapshots(previous, continuitySnapshot);
+    body = appendContinuitySection(body, continuityDelta, schedule.language);
+  }
+
   await persistResearchRun(env, packet, report, llm, apiUsages);
-  return { title: extractMarkdownTitle(body), body, packet, report };
+  return {
+    title: extractMarkdownTitle(body),
+    body,
+    packet,
+    report,
+    continuitySnapshot,
+    continuityDelta,
+  };
 }
 
 function resolveResearchSymbols(schedule: PulseSchedule): string[] {

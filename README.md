@@ -30,10 +30,12 @@ GlobalPulse is an **open-source, self-hosted finance news and market briefing bo
 ## Features
 
 - Admin UI with first-run checklist, diagnostics, template presets, model presets
+- **Pulse Continuity** — remembers the last briefing and appends “what changed”
+- **Autopilot Radar** — event-driven alerts between schedule slots
+- Discord + Slack webhooks alongside Feishu / WeChat / Telegram / Email
 - Cron every 5 minutes; each schedule uses its own timezone and trading calendar
 - Markets: everyday, A-share, US stock, crypto
 - Research modules: US / A-share / crypto / news / macro / technicals / sentiment
-- Providers: Feishu, WeChat Official Account, WeChat Clawbot, Telegram, Email
 - Preview, test push, delivery logs with per-channel status and retry
 - Settings export / import JSON
 
