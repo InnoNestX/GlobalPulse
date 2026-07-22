@@ -1,23 +1,13 @@
 import DefaultTheme from 'vitepress/theme'
-import { h, nextTick, onMounted, watch } from 'vue'
-import { useRoute } from 'vitepress'
+import type { Theme } from 'vitepress'
 import './custom.css'
-import { mountLandingEffects } from './terminal'
-
-const Layout = {
-  name: 'GlobalPulseLayout',
-  setup() {
-    const route = useRoute()
-    const boot = () => {
-      void nextTick(() => mountLandingEffects())
-    }
-    onMounted(boot)
-    watch(() => route.path, boot)
-    return () => h(DefaultTheme.Layout)
-  },
-}
+import HomeLanding from './components/HomeLanding.vue'
+import HomeTerminal from './components/HomeTerminal.vue'
 
 export default {
   extends: DefaultTheme,
-  Layout,
-}
+  enhanceApp({ app }) {
+    app.component('HomeLanding', HomeLanding)
+    app.component('HomeTerminal', HomeTerminal)
+  },
+} satisfies Theme
