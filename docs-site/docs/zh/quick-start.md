@@ -13,8 +13,8 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/nestjs/globalpulse.git
-cd globalpulse
+git clone https://github.com/InnoNestX/GlobalPulse.git
+cd GlobalPulse
 
 # 安装依赖
 npm install

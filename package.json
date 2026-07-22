@@ -1,10 +1,18 @@
 {
   "name": "globalpulse",
   "version": "0.1.0",
-  "description": "A Cloudflare Workers admin UI and scheduler for finance and global hotspot briefings pushed to Feishu, WeChat, and Telegram.",
+  "description": "Self-hosted scheduled market briefings on Cloudflare Workers. Push finance and hotspot digests to Feishu, WeChat, Telegram, and Email.",
   "type": "module",
   "private": false,
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/InnoNestX/GlobalPulse.git"
+  },
+  "homepage": "https://innonestx.github.io/GlobalPulse/",
+  "bugs": {
+    "url": "https://github.com/InnoNestX/GlobalPulse/issues"
+  },
   "scripts": {
     "build": "node scripts/write-build-info.mjs",
     "dev": "wrangler dev --port 8787",
@@ -15,14 +23,21 @@
   },
   "keywords": [
     "cloudflare-workers",
+    "market-briefing",
     "scheduled-briefings",
     "finance",
     "global-news",
+    "cron",
+    "rss",
+    "a-share",
+    "us-stock",
+    "crypto",
+    "workers-ai",
     "feishu",
     "wechat",
     "wechat-official-account",
-    "wechat-clawbot",
-    "telegram"
+    "telegram",
+    "email"
   ],
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260511.1",

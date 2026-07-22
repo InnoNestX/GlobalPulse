@@ -112,6 +112,6 @@ Per-schedule variables via Admin UI:
 ## Tips
 
 1. **Keep it concise** - Providers have message limits
-2. **Use emojis sparingly** - They render differently across platforms
+2. **Keep formatting simple** - Platforms render Markdown and HTML differently
 3. **Test with Preview** - Always use Preview before enabling
 4. **Timezone awareness** - Include timezone in footer for clarity

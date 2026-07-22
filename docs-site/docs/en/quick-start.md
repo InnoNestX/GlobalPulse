@@ -13,8 +13,8 @@ Get GlobalPulse running in 5 minutes.
 
 ```bash
 # Clone the repository
-git clone https://github.com/nestjs/globalpulse.git
-cd globalpulse
+git clone https://github.com/InnoNestX/GlobalPulse.git
+cd GlobalPulse
 
 # Install dependencies
 npm install

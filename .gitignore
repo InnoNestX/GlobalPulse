@@ -17,6 +17,8 @@ deploy/
 !docs-site/docs/en/deploy/*.md
 !docs-site/docs/zh/deploy/
 !docs-site/docs/zh/deploy/*.md
+docs-site/_site/
+docs-site/.vitepress/cache/
 wrangler.jsonc
 worker-configuration.d.ts
 .dev.vars

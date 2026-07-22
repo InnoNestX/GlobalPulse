@@ -1,34 +1,34 @@
 # Security Policy
 
-## 🚨 Supported Versions
+## Supported Versions
 
 GlobalPulse is deployed as a Cloudflare Workers serverless application. Security updates are deployed continuously — all non-vulnerable versions receive protection.
 
 | Version / Deployment | Supported | Notes |
 | --------------------- | --------- | ----- |
-| Cloudflare Workers (latest) | ✅ | Deployed from `main` branch |
-| Archived releases | ❌ | Please use the latest deployment |
+| Cloudflare Workers (latest) | Yes | Deployed from `main` branch |
+| Archived releases | No | Please use the latest deployment |
 
 > **Note:** Because GlobalPulse runs on Cloudflare Workers, there are no self-hosted versions to patch. Security fixes are pushed directly to the live edge workers on every new deployment.
 
 ---
 
-## � responsible Disclosure
+## Responsible Disclosure
 
-We take security seriously. If you discover a security vulnerability, please follow the process below:
+If you discover a security vulnerability, please follow the process below.
 
 ### How to Report
 
-**Please DO NOT report vulnerabilities through public GitHub Issues.**
+**Do not report vulnerabilities through public GitHub Issues.**
 
-Instead, use one of the following methods:
+Use one of the following methods:
 
 | Method | Contact |
 | ------ | ------- |
 | **GitHub Security Advisories** | [Report a vulnerability privately](https://github.com/InnoNestX/GlobalPulse/security/advisories/new) |
-| **Email** | Send to the maintainers directly via GitHub's private vulnerability reporting |
+| **Email** | Contact maintainers via GitHub private vulnerability reporting |
 
-When reporting, please include as much of the following as possible:
+When reporting, include as much of the following as possible:
 
 - Description of the vulnerability
 - Steps to reproduce the issue
@@ -55,35 +55,34 @@ When reporting, please include as much of the following as possible:
 
 ---
 
-## 🔐 Security Model
+## Security Model
 
 GlobalPulse processes sensitive data through third-party integrations. Key security properties:
 
-- **No persistent storage** — Runs as a stateless Cloudflare Worker; all data is transient
-- **Credentials** — API tokens and webhook secrets are stored in Cloudflare KV (encrypted at rest) and/or Cloudflare Secrets
-- **External requests** — Outbound only; GlobalPulse does not accept unsolicited inbound connections
-- **Secrets in URLs** — Webhook URLs containing secrets are never logged
-- **Authentication** — Admin panel requires a strong password set via `ADMIN_PASSWORD` environment variable
-- **CORS** — Configurable via `CORS_ORIGIN` environment variable; defaults to `*` if unset
+- **No persistent application storage by default** — configuration lives in Cloudflare KV; research history may use D1 when enabled
+- **Credentials** — API tokens and webhook secrets are stored in Cloudflare KV and/or Cloudflare Secrets
+- **Outbound only** — GlobalPulse initiates provider requests; webhook secrets must not be logged
+- **Authentication** — Admin panel requires `ADMIN_PASSWORD`
+- **CORS** — Configurable via `CORS_ORIGIN`; defaults to `*` if unset
 
 ### Environment Variables
 
 | Variable | Required | Description |
 | -------- | -------- | ----------- |
-| `ADMIN_PASSWORD` | ✅ | Password for the admin panel |
-| `API_TOKEN` | ✅ | Token for API authentication |
+| `ADMIN_PASSWORD` | Yes | Password for the admin panel |
+| `API_TOKEN` | Yes | Token for API authentication |
 | `CORS_ORIGIN` | Optional | Allowed CORS origin (defaults to `*`) |
 | `FEISHU_WEBHOOK_URL` | For Feishu | Feishu webhook URL |
 | `FEISHU_SIGNING_SECRET` | For Feishu | Feishu signing secret |
-| `WEIXIN_*` | For WeChat | Various WeChat official account credentials |
+| `WEIXIN_*` | For WeChat | WeChat official account credentials |
 | `TELEGRAM_BOT_TOKEN` | For Telegram | Telegram bot token |
-| `KV_NAMESPACE_ID` | ✅ | Cloudflare KV namespace for configuration storage |
+| `KV_NAMESPACE_ID` | Yes | Cloudflare KV namespace for configuration storage |
 
 ---
 
-## 📋 Scope
+## Scope
 
-The following are **in scope** for security reports:
+**In scope:**
 
 - Cloudflare Worker execution environment
 - Admin panel authentication and session management
@@ -92,9 +91,9 @@ The following are **in scope** for security reports:
 - Configuration storage in Cloudflare KV
 - Template rendering that may expose sensitive data
 
-The following are **out of scope**:
+**Out of scope:**
 
 - Social engineering attacks against maintainers
-- Denial of service attacks that rely on external infrastructure (e.g., flooding third-party APIs)
+- Denial of service attacks that rely on external infrastructure
 - Issues in third-party services not under our control (Cloudflare, GitHub)
 - Attacks requiring pre-existing access to the Cloudflare account

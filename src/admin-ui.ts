@@ -1162,7 +1162,7 @@ const adminHtml = `<!doctype html>
         </section>
       </div>
       <div class="page-footer-bottom">
-        <p class="page-footer-copy" data-i18n="footerCopy">© 2026 InnoNestX · Made with ❤️ for the community</p>
+        <p class="page-footer-copy" data-i18n="footerCopy">© 2026 InnoNestX</p>
       </div>
     </div>
   </footer>
@@ -1352,7 +1352,7 @@ const adminHtml = `<!doctype html>
         footerSponsor: "💖 Sponsor",
         footerCoffee: "☕ Buy Me a Coffee",
         footerDiscuss: "💬 Discussions",
-        footerCopy: "© 2026 InnoNestX · Made with ❤️ for the community",
+        footerCopy: "© 2026 InnoNestX",
         moduleNews: "新闻",
         moduleUsMarket: "美股",
         moduleAShare: "A股",
@@ -1520,7 +1520,7 @@ const adminHtml = `<!doctype html>
         footerSponsor: "💖 Sponsor",
         footerCoffee: "☕ Buy Me a Coffee",
         footerDiscuss: "💬 Discussions",
-        footerCopy: "© 2026 InnoNestX · Made with ❤️ for the community",
+        footerCopy: "© 2026 InnoNestX",
         moduleNews: "News",
         moduleUsMarket: "US Market",
         moduleAShare: "A-Share",
