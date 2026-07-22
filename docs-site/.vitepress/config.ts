@@ -27,7 +27,7 @@ export default defineConfig({
   },
   head: [
     ['link', { rel: 'icon', href: `${base}globalpulse-project-logo.png`, type: 'image/png' }],
-    ['meta', { name: 'theme-color', content: '#0f7a63' }],
+    ['meta', { name: 'theme-color', content: '#050b0f' }],
     ['meta', { name: 'author', content: 'InnoNestX' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:site_name', content: 'GlobalPulse' }],
