@@ -2026,7 +2026,12 @@ const adminHtml = `<!doctype html>
         if (node.dataset.masked === "1") {
           return;
         }
-        state.providerSettings[key] = node.value.trim();
+        const next = node.value.trim();
+        // Do not wipe previously saved secrets with blank inputs.
+        if (!next && state.providerSettings[key]) {
+          return;
+        }
+        state.providerSettings[key] = next;
       });
       state.schedules.forEach((schedule) => {
         const scheduleIndex = state.schedules.indexOf(schedule);

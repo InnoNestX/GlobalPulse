@@ -271,6 +271,33 @@ const style = `
       padding: 6px 10px;
       font-size: 12px;
     }
+    #providerStatus.provider-grid {
+      margin-bottom: 12px;
+      align-items: stretch;
+    }
+    #providerStatus .provider-card {
+      align-items: start;
+      overflow: hidden;
+      min-width: 0;
+    }
+    #providerStatus .provider-card .provider-title {
+      min-width: 0;
+      padding-right: 4px;
+    }
+    #providerStatus .provider-card .badge {
+      white-space: normal;
+      line-height: 1.25;
+      max-width: 7.5rem;
+      text-align: center;
+      flex-shrink: 0;
+      position: static;
+    }
+    #providerSettingsForm,
+    #testPushButton {
+      position: relative;
+      z-index: 1;
+    }
+    #testPushButton { margin-top: 2px; }
     @media (max-width: 900px) {
       .ops-grid { grid-template-columns: 1fr; }
     }`;
