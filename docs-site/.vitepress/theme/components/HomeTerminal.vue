@@ -26,72 +26,82 @@ type Step = {
 const host = 'workers'
 const user = 'xuxu'
 
+const TYPE_CHAR_MS = 62
+const TYPE_SPACE_MS = 110
+const AFTER_ENTER_MS = 420
+const BETWEEN_STEPS_MS = 520
+const LOOP_IDLE_MS = 4800
+const START_PAUSE_MS = 700
+
 const session: Step[] = [
   {
     cwd: '~',
     cmd: 'git clone https://github.com/InnoNestX/GlobalPulse.git',
-    thinkMs: 220,
+    thinkMs: 900,
     output: [
-      { text: "Cloning into 'GlobalPulse'...", tone: 'dim', delay: 120 },
-      { text: 'remote: Enumerating objects: 286, done.', tone: 'dim', delay: 90 },
-      { text: 'remote: Counting objects: 100% (286/286), done.', tone: 'dim', delay: 80 },
-      { text: 'remote: Compressing objects: 100% (142/142), done.', tone: 'dim', delay: 80 },
-      { text: 'Receiving objects: 100% (286/286), 1.84 MiB | 4.2 MiB/s, done.', delay: 140 },
-      { text: 'Resolving deltas: 100% (118/118), done.', delay: 100 },
+      { text: "Cloning into 'GlobalPulse'...", tone: 'dim', delay: 420 },
+      { text: 'remote: Enumerating objects: 286, done.', tone: 'dim', delay: 380 },
+      { text: 'remote: Counting objects: 100% (286/286), done.', tone: 'dim', delay: 360 },
+      { text: 'remote: Compressing objects: 100% (142/142), done.', tone: 'dim', delay: 360 },
+      { text: 'Receiving objects: 100% (286/286), 1.84 MiB | 4.2 MiB/s, done.', delay: 520 },
+      { text: 'Resolving deltas: 100% (118/118), done.', delay: 420 },
     ],
   },
   {
     cwd: '~',
     cmd: 'cd GlobalPulse',
+    thinkMs: 280,
     output: [],
   },
   {
     cwd: '~/GlobalPulse',
     cmd: 'cp .dev.vars.example .dev.vars',
+    thinkMs: 260,
     output: [],
   },
   {
     cwd: '~/GlobalPulse',
     cmd: 'cp wrangler.example.jsonc wrangler.jsonc',
+    thinkMs: 260,
     output: [],
   },
   {
     cwd: '~/GlobalPulse',
     cmd: 'npm install',
-    thinkMs: 280,
+    thinkMs: 1100,
     output: [
-      { text: 'npm warn deprecated inflight@1.0.6: This module is not supported...', tone: 'warn', delay: 60 },
-      { text: '', delay: 40 },
-      { text: 'added 214 packages, and audited 215 packages in 6s', delay: 180 },
-      { text: '', delay: 30 },
-      { text: '32 packages are looking for funding', tone: 'dim', delay: 50 },
-      { text: '  run `npm fund` for details', tone: 'dim', delay: 40 },
-      { text: '', delay: 30 },
-      { text: 'found 0 vulnerabilities', tone: 'ok', delay: 90 },
+      { text: 'npm warn deprecated inflight@1.0.6: This module is not supported...', tone: 'warn', delay: 480 },
+      { text: '', delay: 220 },
+      { text: 'added 214 packages, and audited 215 packages in 6s', delay: 700 },
+      { text: '', delay: 200 },
+      { text: '32 packages are looking for funding', tone: 'dim', delay: 360 },
+      { text: '  run `npm fund` for details', tone: 'dim', delay: 320 },
+      { text: '', delay: 180 },
+      { text: 'found 0 vulnerabilities', tone: 'ok', delay: 480 },
     ],
   },
   {
     cwd: '~/GlobalPulse',
     cmd: 'npm run deploy',
-    thinkMs: 360,
+    thinkMs: 1300,
     output: [
-      { text: '', delay: 40 },
-      { text: '> globalpulse@0.1.0 deploy', tone: 'dim', delay: 50 },
-      { text: '> wrangler deploy', tone: 'dim', delay: 50 },
-      { text: '', delay: 40 },
-      { text: ' ⛅️ wrangler 4.90.1', tone: 'info', delay: 90 },
-      { text: '───────────────────', tone: 'dim', delay: 40 },
-      { text: 'Total Upload: 412.18 KiB / gzip: 98.42 KiB', delay: 140 },
-      { text: 'Worker Startup Time: 18 ms', delay: 80 },
-      { text: 'Uploaded globalpulse (3.21 sec)', tone: 'ok', delay: 160 },
-      { text: 'Deployed globalpulse triggers (1.04 sec)', tone: 'ok', delay: 120 },
-      { text: '  schedule: */5 * * * *', tone: 'info', delay: 90 },
-      { text: '  https://globalpulse.<account>.workers.dev', tone: 'info', delay: 100 },
-      { text: 'Current Version ID: 8f2c1a9b-4d77-4e01-9c3a-12ab34cd56ef', tone: 'dim', delay: 110 },
+      { text: '', delay: 220 },
+      { text: '> globalpulse@0.1.0 deploy', tone: 'dim', delay: 320 },
+      { text: '> wrangler deploy', tone: 'dim', delay: 300 },
+      { text: '', delay: 220 },
+      { text: ' ⛅️ wrangler 4.90.1', tone: 'info', delay: 420 },
+      { text: '───────────────────', tone: 'dim', delay: 260 },
+      { text: 'Total Upload: 412.18 KiB / gzip: 98.42 KiB', delay: 560 },
+      { text: 'Worker Startup Time: 18 ms', delay: 380 },
+      { text: 'Uploaded globalpulse (3.21 sec)', tone: 'ok', delay: 700 },
+      { text: 'Deployed globalpulse triggers (1.04 sec)', tone: 'ok', delay: 560 },
+      { text: '  schedule: */5 * * * *', tone: 'info', delay: 420 },
+      { text: '  https://globalpulse.<account>.workers.dev', tone: 'info', delay: 460 },
+      { text: 'Current Version ID: 8f2c1a9b-4d77-4e01-9c3a-12ab34cd56ef', tone: 'dim', delay: 480 },
       {
-        text: isZh ? 'Admin UI: https://globalpulse.<account>.workers.dev/admin' : 'Admin UI: https://globalpulse.<account>.workers.dev/admin',
+        text: 'Admin UI: https://globalpulse.<account>.workers.dev/admin',
         tone: 'ok',
-        delay: 120,
+        delay: 520,
       },
     ],
   },
@@ -157,17 +167,18 @@ async function typeCommand(cwd: string, cmd: string) {
     rows.value = [...rows.value.slice(0, -1), { ...row }]
     await scrollBottom()
     const ch = cmd[i]
-    await sleep(ch === ' ' ? 18 : 22 + (i % 5 === 0 ? 18 : 0))
+    const jitter = i % 7 === 0 ? 28 : i % 4 === 0 ? 14 : 0
+    await sleep((ch === ' ' ? TYPE_SPACE_MS : TYPE_CHAR_MS) + jitter)
   }
   row.typing = false
   rows.value = [...rows.value.slice(0, -1), { ...row }]
-  await sleep(160)
+  await sleep(AFTER_ENTER_MS)
 }
 
 async function streamOutput(lines: OutLine[]) {
   for (const line of lines) {
     if (aborted) return
-    await sleep(line.delay ?? 70)
+    await sleep(line.delay ?? 320)
     rows.value.push({ kind: 'out', text: line.text, tone: line.tone })
     await scrollBottom()
   }
@@ -177,14 +188,15 @@ async function play() {
   while (!aborted) {
     rows.value = []
     await scrollBottom()
-    await sleep(300)
+    await sleep(START_PAUSE_MS)
 
     for (const step of session) {
       if (aborted) return
       await typeCommand(step.cwd, step.cmd)
-      await sleep(step.thinkMs ?? 90)
+      await sleep(step.thinkMs ?? 320)
       if (step.output.length) await streamOutput(step.output)
-      else await sleep(80)
+      else await sleep(180)
+      await sleep(BETWEEN_STEPS_MS)
     }
 
     if (aborted) return
@@ -196,7 +208,7 @@ async function play() {
       typing: true,
     })
     await scrollBottom()
-    await sleep(2600)
+    await sleep(LOOP_IDLE_MS)
   }
 }
 
