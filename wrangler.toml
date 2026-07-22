@@ -17,6 +17,13 @@ WORKERS_AI_MODEL = "@cf/meta/llama-3.1-8b-instruct"
 [ai]
 binding = "AI"
 
+[triggers]
+crons = ["*/5 * * * *"]
+
+[[kv_namespaces]]
+binding = "APP_KV"
+id = "805990ca198d4a66bcf002487c8e72fa"
+
 [[d1_databases]]
 binding = "RESEARCH_DB"
 database_name = "globalpulse-research"
