@@ -2415,6 +2415,16 @@ describe("handleRequest", () => {
     expect(adminHtml).toContain("templatePresets");
     expect(adminHtml).toContain("/api/admin/test-push");
 
+    const modelPresets = await handleRequest(new Request("https://worker.example/api/admin/model-presets", {
+      headers: auth,
+    }), appEnv);
+    expect(modelPresets.status).toBe(200);
+    await expect(modelPresets.json()).resolves.toMatchObject({
+      presets: expect.arrayContaining([
+        expect.objectContaining({ id: "balanced" }),
+      ]),
+    });
+
     const diagnostics = await handleRequest(new Request("https://worker.example/api/admin/diagnostics", {
       headers: auth,
     }), appEnv);
@@ -2423,6 +2433,10 @@ describe("handleRequest", () => {
       diagnostics: {
         readyForFirstBriefing: true,
         schedules: { enabled: 1, total: 1 },
+        models: {
+          gemini: expect.any(String),
+          workersAi: expect.any(Array),
+        },
         checklist: expect.arrayContaining([
           expect.objectContaining({ id: "provider", ok: true }),
           expect.objectContaining({ id: "schedule", ok: true }),

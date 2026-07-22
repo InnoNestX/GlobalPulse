@@ -74,7 +74,7 @@ GlobalPulse 基于 **Cloudflare Workers** 构建，采用模块化架构：
 1. 多源数据获取 + 降级链路
 2. 宏观数据收集（美联储、CPI、财报）
 3. 新闻证据构建
-4. LLM 分析（Gemini → Workers AI → 确定性降级）
+4. LLM 分析（Gemini `gemini-3.5-flash` → Workers AI `glm-4.7-flash` / Llama fast 回退 → 确定性降级）
 5. 带置信度的股票卡片
 6. D1 持久化历史
 

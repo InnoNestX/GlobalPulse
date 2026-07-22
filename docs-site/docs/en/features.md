@@ -74,7 +74,7 @@ Full research engine with:
 1. Multi-source data fetching with fallback chain
 2. Macro data collection (Fed, CPI, earnings)
 3. Evidence building from news
-4. LLM analysis (Gemini → Workers AI → deterministic)
+4. LLM analysis (Gemini `gemini-3.5-flash` → Workers AI `glm-4.7-flash` / Llama fast fallbacks → deterministic)
 5. Confidence-scored stock cards
 6. D1 persistence for history
 

@@ -35,18 +35,26 @@ function enhanceOps(html: string): string {
       '<div class="logs" id="logs"></div>\n              </div>\n            </details>\n          </div>',
       '<div class="logs" id="logs"></div>\n              </div>\n            </details>\n\n            <details class="collapsible-section" id="section-diagnostics">\n              <summary>\n                <span class="section-title"><span class="emoji">🩺</span> <span data-i18n="diagnostics">系统自检</span></span>\n                <span class="chevron">▾</span>\n              </summary>\n              <div class="section-body stack">\n                <div class="section-head">\n                  <button class="secondary" id="refreshDiagnosticsButton" type="button">刷新自检</button>\n                  <span class="status" id="diagnosticsStatus"></span>\n                </div>\n                <div id="diagnosticsPanel" class="ops-panel"></div>\n              </div>\n            </details>\n          </div>',
     )
+    .replace(
+      '<div class="row"><button class="primary" id="saveButton" data-i18n="save">保存</button>\n                  <button class="secondary" id="refreshButton" data-i18n="refresh">刷新</button>\n                </div>',
+      '<div class="row"><button class="primary" id="saveButton" data-i18n="save">保存</button>\n                  <button class="secondary" id="refreshButton" data-i18n="refresh">刷新</button>\n                  <button class="secondary" id="exportSettingsButton" type="button">导出配置</button>\n                  <button class="secondary" id="importSettingsButton" type="button">导入配置</button>\n                  <input id="importSettingsFile" type="file" accept="application/json,.json" class="hidden">\n                </div>',
+    )
+    .replace(
+      '<div class="provider-form" id="researchSettingsForm"></div>',
+      '<div class="row" id="modelPresets" style="flex-wrap:wrap;gap:8px;margin-bottom:8px"></div><div class="provider-form" id="researchSettingsForm"></div>',
+    )
     .replace(oldLoadLogs, newLoadLogs)
     .replace(
       "await loadLogs();\n      await loadPreview().catch((error) => {\n        $(\"previewStatus\").textContent = error.message || \"Preview failed\";\n      });\n    }",
-      "await loadLogs();\n      await loadDiagnostics().catch(() => {});\n      await loadTemplatePresets().catch(() => {});\n      await loadPreview().catch((error) => {\n        $(\"previewStatus\").textContent = error.message || \"Preview failed\";\n      });\n    }",
+      "await loadLogs();\n      await loadDiagnostics().catch(() => {});\n      await loadTemplatePresets().catch(() => {});\n      await loadModelPresets().catch(() => {});\n      await loadPreview().catch((error) => {\n        $(\"previewStatus\").textContent = error.message || \"Preview failed\";\n      });\n    }",
     )
     .replace(
       'bind("loadLogsButton", "click", loadLogs);\n    bind("addScheduleButton", "click", addSchedule);',
-      'bind("loadLogsButton", "click", loadLogs);\n    bind("refreshDiagnosticsButton", "click", () => loadDiagnostics().catch((error) => {\n      const node = $("diagnosticsStatus");\n      if (node) node.textContent = error.message || "Failed";\n    }));\n    bind("testPushButton", "click", () => testPushActiveProvider().catch((error) => {\n      const node = $("testPushStatus");\n      if (node) node.textContent = error.message || "Failed";\n    }));\n    bind("addScheduleButton", "click", addSchedule);',
+      'bind("loadLogsButton", "click", loadLogs);\n    bind("refreshDiagnosticsButton", "click", () => loadDiagnostics().catch((error) => {\n      const node = $("diagnosticsStatus");\n      if (node) node.textContent = error.message || "Failed";\n    }));\n    bind("testPushButton", "click", () => testPushActiveProvider().catch((error) => {\n      const node = $("testPushStatus");\n      if (node) node.textContent = error.message || "Failed";\n    }));\n    bind("exportSettingsButton", "click", exportSettingsJson);\n    bind("importSettingsButton", "click", () => {\n      const input = $("importSettingsFile");\n      if (input) input.click();\n    });\n    bind("importSettingsFile", "change", importSettingsJson);\n    bind("addScheduleButton", "click", addSchedule);',
     )
     .replace(
       'if (action === "run") {\n        try {\n          await runSchedule(index);\n        } catch (error) {\n          const node = $("scheduleStatus-" + index);\n          if (node) node.textContent = error.message || "Failed";\n        }\n      }\n    });',
-      'if (action === "run") {\n        try {\n          await runSchedule(index);\n        } catch (error) {\n          const node = $("scheduleStatus-" + index);\n          if (node) node.textContent = error.message || "Failed";\n        }\n      }\n      if (action === "retryLog") {\n        const logId = event.target.dataset && event.target.dataset.logId;\n        if (logId) {\n          try {\n            await retryLog(logId);\n          } catch (error) {\n            const node = $("opsStatus");\n            if (node) node.textContent = error.message || "Retry failed";\n          }\n        }\n      }\n      if (action === "applyPreset") {\n        const presetId = event.target.dataset && event.target.dataset.presetId;\n        if (presetId) applyTemplatePreset(presetId);\n      }\n      if (action === "gotoSection") {\n        const section = event.target.dataset && event.target.dataset.section;\n        if (section) {\n          const button = document.querySelector(\'.sidebar-item[data-section="\' + section + \'"]\');\n          if (button) button.click();\n        }\n      }\n    });',
+      'if (action === "run") {\n        try {\n          await runSchedule(index);\n        } catch (error) {\n          const node = $("scheduleStatus-" + index);\n          if (node) node.textContent = error.message || "Failed";\n        }\n      }\n      if (action === "retryLog") {\n        const logId = event.target.dataset && event.target.dataset.logId;\n        if (logId) {\n          try {\n            await retryLog(logId);\n          } catch (error) {\n            const node = $("opsStatus");\n            if (node) node.textContent = error.message || "Retry failed";\n          }\n        }\n      }\n      if (action === "applyPreset") {\n        const presetId = event.target.dataset && event.target.dataset.presetId;\n        if (presetId) applyTemplatePreset(presetId);\n      }\n      if (action === "applyModelPreset") {\n        const presetId = event.target.dataset && event.target.dataset.presetId;\n        if (presetId) applyModelPreset(presetId);\n      }\n      if (action === "gotoSection") {\n        const section = event.target.dataset && event.target.dataset.section;\n        if (section) {\n          const button = document.querySelector(\'.sidebar-item[data-section="\' + section + \'"]\');\n          if (button) button.click();\n        }\n      }\n    });',
     )
     .replace("</body>", `${script}\n</body>`);
 }
@@ -88,6 +96,70 @@ const newLoadLogs = `    async function loadLogs() {
           escapeHtml(uiLanguage === "zh" ? preset.nameZh : preset.nameEn) +
         '</button>'
       ).join("");
+    }
+
+    let modelPresetsCache = [];
+
+    async function loadModelPresets() {
+      const body = await api("/api/admin/model-presets");
+      modelPresetsCache = body.presets || [];
+      const host = $("modelPresets");
+      if (!host) return;
+      host.innerHTML = '<span class="muted">' + (uiLanguage === "zh" ? "模型预设：" : "Model presets:") + '</span>' +
+        modelPresetsCache.map((preset) =>
+          '<button class="secondary small" type="button" data-action="applyModelPreset" data-preset-id="' + escapeAttr(preset.id) + '">' +
+            escapeHtml(uiLanguage === "zh" ? preset.nameZh : preset.nameEn) +
+          '</button>'
+        ).join("");
+    }
+
+    function applyModelPreset(presetId) {
+      const preset = modelPresetsCache.find((entry) => entry.id === presetId);
+      if (!preset) return;
+      state.providerSettings = state.providerSettings || {};
+      state.providerSettings.geminiModel = preset.geminiModel;
+      state.providerSettings.workersAiModel = preset.workersAiModel;
+      renderResearchSettings();
+      if (typeof renderMarketDataSettings === "function") renderMarketDataSettings();
+      const status = $("opsStatus");
+      if (status) {
+        status.textContent = uiLanguage === "zh"
+          ? ("已套用模型预设：" + preset.nameZh + "（请保存）")
+          : ("Applied model preset: " + preset.nameEn + " (save to persist)");
+      }
+    }
+
+    function exportSettingsJson() {
+      collectSettings();
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "globalpulse-settings.json";
+      anchor.click();
+      URL.revokeObjectURL(url);
+      const status = $("saveStatus");
+      if (status) status.textContent = uiLanguage === "zh" ? "已导出配置 JSON" : "Settings JSON exported";
+    }
+
+    async function importSettingsJson(event) {
+      const file = event && event.target && event.target.files && event.target.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        if (!parsed || typeof parsed !== "object") throw new Error("Invalid JSON");
+        state = parsed;
+        state.providerSettings = state.providerSettings || {};
+        render();
+        const status = $("saveStatus");
+        if (status) status.textContent = uiLanguage === "zh" ? "已导入，请检查后保存" : "Imported — review and save";
+      } catch (error) {
+        const status = $("saveStatus");
+        if (status) status.textContent = error.message || "Import failed";
+      } finally {
+        if (event && event.target) event.target.value = "";
+      }
     }
 
     function applyTemplatePreset(presetId) {
@@ -210,6 +282,12 @@ const newLoadLogs = `    async function loadLogs() {
           '<div class="ops-card"><strong>' + (uiLanguage === "zh" ? "任务" : "Schedules") + '</strong><div>' +
             (diagnostics.schedules ? (diagnostics.schedules.enabled + " / " + diagnostics.schedules.total + (uiLanguage === "zh" ? " 已启用" : " enabled")) : "—") +
           '</div></div>' +
+          '<div class="ops-card"><strong>' + (uiLanguage === "zh" ? "分析模型" : "Analysis models") + '</strong>' +
+            '<div class="muted">Gemini: ' + escapeHtml((diagnostics.models && diagnostics.models.gemini) || "—") +
+              ' · ' + ((diagnostics.models && diagnostics.models.geminiConfigured) ? (uiLanguage === "zh" ? "已配置 Key" : "key set") : (uiLanguage === "zh" ? "未配置 Key" : "no key")) + '</div>' +
+            '<div class="muted">Workers AI: ' + escapeHtml(((diagnostics.models && diagnostics.models.workersAi) || []).slice(0, 2).join(" → ") || "—") +
+              ' · ' + ((diagnostics.models && diagnostics.models.workersAiBound) ? (uiLanguage === "zh" ? "已绑定" : "bound") : (uiLanguage === "zh" ? "未绑定" : "unbound")) + '</div>' +
+          '</div>' +
         '</div>' +
         '<div class="ops-card"><strong>' + (uiLanguage === "zh" ? "最近失败" : "Recent failures") + '</strong>' +
           (failures.length

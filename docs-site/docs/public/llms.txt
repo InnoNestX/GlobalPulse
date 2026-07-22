@@ -1,0 +1,20 @@
+# GlobalPulse
+
+> Self-hosted scheduled market briefings on Cloudflare Workers.
+> Finance / A-share / US stock / crypto / hotspot digests pushed to Feishu, WeChat, Telegram, and Email.
+
+## Docs
+
+- https://innonestx.github.io/GlobalPulse/en/
+- https://innonestx.github.io/GlobalPulse/zh/
+- https://innonestx.github.io/GlobalPulse/en/quick-start.html
+- https://innonestx.github.io/GlobalPulse/en/compare.html
+- https://innonestx.github.io/GlobalPulse/en/features.html
+
+## Repo
+
+- https://github.com/InnoNestX/GlobalPulse
+
+## Keywords
+
+self-hosted market briefing, Cloudflare Workers cron, Feishu bot digest, Telegram finance newsletter, A-share morning brief, WeChat work bot, open source market intelligence, scheduled news push

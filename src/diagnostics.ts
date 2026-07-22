@@ -2,6 +2,7 @@ import { getLogs, getSettings, mergeProviderSettings, type DeliveryLog } from ".
 import type { Env } from "./env";
 import { getProviderStatus } from "./providers";
 import { getStoredJson, putStoredJson } from "./state-store";
+import { resolveGeminiModel, resolveWorkersAiModels } from "./ai-models";
 
 const LAST_CRON_KEY = "cron:last:v1";
 
@@ -34,6 +35,12 @@ export interface DiagnosticsPayload {
   recentFailures: DeliveryLog[];
   readyForFirstBriefing: boolean;
   checklist: Array<{ id: string; ok: boolean; label: string }>;
+  models: {
+    gemini: string;
+    workersAi: string[];
+    geminiConfigured: boolean;
+    workersAiBound: boolean;
+  };
 }
 
 export async function createDiagnosticsPayload(env: Env, now = new Date()): Promise<DiagnosticsPayload> {
@@ -110,6 +117,12 @@ export async function createDiagnosticsPayload(env: Env, now = new Date()): Prom
     recentFailures: logs.filter((log) => !log.ok).slice(0, 5),
     readyForFirstBriefing: checklist.every((item) => item.ok),
     checklist,
+    models: {
+      gemini: resolveGeminiModel(deliveryEnv.GEMINI_MODEL),
+      workersAi: resolveWorkersAiModels(deliveryEnv.WORKERS_AI_MODEL),
+      geminiConfigured: Boolean(deliveryEnv.GEMINI_API_KEY?.trim()),
+      workersAiBound: Boolean(env.AI),
+    },
   };
 }
 

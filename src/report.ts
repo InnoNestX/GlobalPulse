@@ -5,6 +5,7 @@ import { renderDigest } from "./template";
 import { getLocalTimeParts } from "./time";
 import { buildResearchMarketReport, shouldUseResearchEngine } from "./research";
 import { getStoredJson, putStoredJson } from "./state-store";
+import { resolveGeminiModel, resolveWorkersAiModels } from "./ai-models";
 
 interface TranslationResult {
   title?: string;
@@ -587,7 +588,7 @@ async function translateItemsViaGeminiBatch(env: Env, items: TopicItem[]): Promi
   if (!candidates.length || !env.GEMINI_API_KEY) return new Map();
 
   const baseUrl = (env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai").replace(/\/$/, "");
-  const model = env.GEMINI_MODEL || "gemini-2.5-flash";
+  const model = resolveGeminiModel(env.GEMINI_MODEL);
   const prompt = buildBatchTranslationPrompt(candidates);
 
   try {
@@ -630,8 +631,7 @@ async function translateItemsViaWorkersAiBatch(env: Env, items: TopicItem[]): Pr
   const prompt = buildBatchTranslationPrompt(candidates);
 
   try {
-    const inference = await ai.run("@cf/meta/llama-3.1-8b-instruct", { prompt }) as unknown;
-    const content = extractAiText(inference);
+    const content = await runWorkersAiPrompt(env, prompt);
     if (!content) return new Map();
     return parseAiBatchTranslationResult(content, items);
   } catch (error) {
@@ -671,8 +671,7 @@ async function translateToChinese(env: Env, title: string, summary?: string, opt
   ].join("\n");
 
   try {
-    const inference = await ai.run("@cf/meta/llama-3.1-8b-instruct", { prompt }) as unknown;
-    const content = extractAiText(inference);
+    const content = await runWorkersAiPrompt(env, prompt);
     if (!content) return {};
     const parsed = safeParseJson(extractJson(content));
     if (!parsed) return {};
@@ -684,6 +683,25 @@ async function translateToChinese(env: Env, title: string, summary?: string, opt
     console.warn("Workers AI translation failed", error);
     return {};
   }
+}
+
+async function runWorkersAiPrompt(env: Env, prompt: string): Promise<string | undefined> {
+  const ai = env.AI;
+  if (!ai || typeof ai !== "object" || !("run" in ai) || typeof ai.run !== "function") {
+    return undefined;
+  }
+
+  for (const model of resolveWorkersAiModels(env.WORKERS_AI_MODEL)) {
+    try {
+      const inference = await ai.run(model, { prompt }) as unknown;
+      const content = extractAiText(inference);
+      if (content) return content;
+    } catch (error) {
+      console.warn("Workers AI model failed", { model, error });
+    }
+  }
+
+  return undefined;
 }
 
 function parseAiBatchTranslationResult(content: string, originals: TopicItem[]): Map<number, TranslationResult> {

@@ -9,6 +9,7 @@ import { getProvider, getProviderStatus } from "./providers";
 import { createHealthPayload } from "./health";
 import { createDiagnosticsPayload } from "./diagnostics";
 import { TEMPLATE_PRESETS } from "./template-presets";
+import { MODEL_PRESETS } from "./ai-models";
 import { HttpError, coerceProviderName, type IncomingMessageBody, normalizeMessage } from "./messages";
 import { createSchedulePreview } from "./preview";
 import { runSchedule, runScheduleById } from "./scheduler";
@@ -167,6 +168,10 @@ async function handleAdminApi(request: Request, env: Env): Promise<Response> {
 
   if (request.method === "GET" && url.pathname === "/api/admin/template-presets") {
     return json({ presets: TEMPLATE_PRESETS }, env);
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/admin/model-presets") {
+    return json({ presets: MODEL_PRESETS }, env);
   }
 
   if (request.method === "POST" && url.pathname === "/api/admin/test-push") {

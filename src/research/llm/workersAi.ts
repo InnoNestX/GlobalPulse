@@ -1,5 +1,6 @@
 import type { Env } from "../../env";
 import type { StockPacket } from "../types/packet";
+import { resolveWorkersAiModels } from "../../ai-models";
 
 export async function callWorkersAiResearchJson(env: Env, packet: StockPacket): Promise<{
   rawOutput: string;
@@ -12,7 +13,6 @@ export async function callWorkersAiResearchJson(env: Env, packet: StockPacket): 
     throw new Error("Workers AI binding is not configured");
   }
 
-  const model = env.WORKERS_AI_MODEL || "@cf/meta/llama-3.1-8b-instruct";
   const prompt = [
     "你是股票研究报告编排器，只基于输入 JSON 工作，不自行补事实。",
     "只输出 JSON，不输出 Markdown。",
@@ -26,18 +26,29 @@ export async function callWorkersAiResearchJson(env: Env, packet: StockPacket): 
     }),
   ].join("\n");
 
-  const result = await ai.run(model, { prompt }) as unknown;
-  const rawOutput = extractAiText(result);
-  if (!rawOutput) {
-    throw new Error("Workers AI returned empty content");
+  const models = resolveWorkersAiModels(env.WORKERS_AI_MODEL);
+  const errors: string[] = [];
+
+  for (const model of models) {
+    try {
+      const result = await ai.run(model, { prompt }) as unknown;
+      const rawOutput = extractAiText(result);
+      if (!rawOutput) {
+        throw new Error("Workers AI returned empty content");
+      }
+
+      return {
+        rawOutput,
+        parsedOutput: JSON.parse(extractJson(rawOutput)),
+        provider: "workers-ai",
+        model,
+      };
+    } catch (error) {
+      errors.push(`${model}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
-  return {
-    rawOutput,
-    parsedOutput: JSON.parse(extractJson(rawOutput)),
-    provider: "workers-ai",
-    model,
-  };
+  throw new Error(errors.join(" | ") || "Workers AI failed");
 }
 
 function extractAiText(result: unknown): string | undefined {
@@ -59,4 +70,3 @@ function extractJson(input: string): string {
   if (start < 0 || end <= start) return input;
   return input.slice(start, end + 1);
 }
-

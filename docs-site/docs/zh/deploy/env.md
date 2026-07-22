@@ -40,6 +40,22 @@ wrangler secret put BREVO_API_KEY
 wrangler secret put RESEND_API_KEY
 ```
 
+## 可选 - LLM 模型
+
+默认值（也可在 Admin 模型预设中切换）：
+
+```bash
+# Gemini 研报/翻译（默认 gemini-3.5-flash）
+# wrangler secret put GEMINI_API_KEY
+# GEMINI_MODEL=gemini-3.5-flash
+
+# Workers AI 回退链起点：
+# WORKERS_AI_MODEL=@cf/zai-org/glm-4.7-flash
+# 然后 llama-3.1-8b-instruct-fast，再 llama-3.3-70b-instruct-fp8-fast
+```
+
+`@cf/meta/llama-3.1-8b-instruct` 已于 2026-05-30 在 Workers AI 弃用，请使用上述默认值。
+
 ## 本地开发 (.dev.vars)
 
 本地开发时，创建 `.dev.vars` 文件（已在 .gitignore 中）：

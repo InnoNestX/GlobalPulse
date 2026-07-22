@@ -1,5 +1,6 @@
 import type { Env } from "../../env";
 import type { StockPacket } from "../types/packet";
+import { resolveGeminiModel } from "../../ai-models";
 
 export async function callGeminiResearchJson(env: Env, packet: StockPacket): Promise<{
   rawOutput: string;
@@ -10,7 +11,7 @@ export async function callGeminiResearchJson(env: Env, packet: StockPacket): Pro
   const apiKey = env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
   const baseUrl = (env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai").replace(/\/$/, "");
-  const model = env.GEMINI_MODEL || "gemini-2.5-flash";
+  const model = resolveGeminiModel(env.GEMINI_MODEL);
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: {

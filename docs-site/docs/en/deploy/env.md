@@ -40,6 +40,23 @@ wrangler secret put BREVO_API_KEY
 wrangler secret put RESEND_API_KEY
 ```
 
+## Optional - LLM models
+
+Defaults (also settable in Admin model presets):
+
+```bash
+# Gemini research / translation (default: gemini-3.5-flash)
+# wrangler secret put GEMINI_API_KEY
+# In wrangler vars:
+# GEMINI_MODEL=gemini-3.5-flash
+
+# Workers AI fallback chain starts at:
+# WORKERS_AI_MODEL=@cf/zai-org/glm-4.7-flash
+# then llama-3.1-8b-instruct-fast, then llama-3.3-70b-instruct-fp8-fast
+```
+
+`@cf/meta/llama-3.1-8b-instruct` was deprecated on Workers AI (May 30, 2026). Prefer the defaults above.
+
 ## Local Development (.dev.vars)
 
 For local development, create a `.dev.vars` file (already in .gitignore):

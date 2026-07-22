@@ -1,33 +1,41 @@
 <p align="center">
-  <img src="docs/assets/globalpulse-project-logo.png" alt="GlobalPulse" width="120" height="120" />
+  <img src="docs/assets/globalpulse-project-logo.png" alt="GlobalPulse — self-hosted market briefing bot on Cloudflare Workers" width="120" height="120" />
 </p>
 
 <h1 align="center">GlobalPulse</h1>
 
 <p align="center">
-  <strong>Scheduled market briefings on Cloudflare Workers</strong><br />
-  Finance and global hotspot digests pushed to Feishu, WeChat, Telegram, and Email.
+  <strong>Self-hosted scheduled market briefings on Cloudflare Workers</strong><br />
+  A-share / US stock / crypto / hotspot digests → Feishu, WeChat, Telegram, Email
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-0f7a63" alt="MIT License" /></a>
   <a href="https://innonestx.github.io/GlobalPulse/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-14967a" alt="Documentation" /></a>
   <a href="https://workers.cloudflare.com/"><img src="https://img.shields.io/badge/runtime-Cloudflare%20Workers-f38020" alt="Cloudflare Workers" /></a>
+  <a href="https://innonestx.github.io/GlobalPulse/en/compare.html"><img src="https://img.shields.io/badge/compare-alternatives-0ea5e9" alt="Compare alternatives" /></a>
 </p>
 
-GlobalPulse is a self-hosted Cloudflare Workers app for **scheduled finance and global hotspot briefings**. Configure schedules in a password-protected Admin UI, generate reports from market data and news sources, and push them to the channels your team already uses.
+GlobalPulse is an **open-source, self-hosted finance news and market briefing bot**. It runs on **Cloudflare Workers cron**, builds digests from market data + news, and pushes to **Feishu (Lark), WeChat, Telegram, and Email** through a password-protected Admin UI.
 
-**Documentation:** [English](https://innonestx.github.io/GlobalPulse/en/) · [中文](https://innonestx.github.io/GlobalPulse/zh/)
+**Docs:** [English](https://innonestx.github.io/GlobalPulse/en/) · [中文](https://innonestx.github.io/GlobalPulse/zh/) · [vs alternatives](https://innonestx.github.io/GlobalPulse/en/compare.html)
+
+## Why teams use it
+
+- Replace ad-hoc n8n / RSS→webhook scripts with market calendars and report modules
+- Run without a VPS: Workers + KV + optional D1 + Workers AI
+- Configure schedules, templates, and providers in `/admin`
+- AI research path: Gemini → Workers AI fallback → deterministic report
 
 ## Features
 
-- Admin UI at `/admin` with KV-backed settings
-- Cron every 5 minutes; each schedule runs in its own timezone
-- Market calendars for everyday, A-share, US stock, and crypto
-- Research modules for US stocks, A-shares, crypto, news, and macro context
-- Push providers: Feishu, WeChat Official Account, WeChat Clawbot, Telegram, Email
-- Message preview per provider before send
-- HTTP API for direct push and event ingestion
+- Admin UI with first-run checklist, diagnostics, template presets, model presets
+- Cron every 5 minutes; each schedule uses its own timezone and trading calendar
+- Markets: everyday, A-share, US stock, crypto
+- Research modules: US / A-share / crypto / news / macro / technicals / sentiment
+- Providers: Feishu, WeChat Official Account, WeChat Clawbot, Telegram, Email
+- Preview, test push, delivery logs with per-channel status and retry
+- Settings export / import JSON
 
 ## Quick Start
 
@@ -44,27 +52,22 @@ Open `http://localhost:8787/admin` and set `ADMIN_PASSWORD` in `.dev.vars`.
 
 ## Required Configuration
 
-Every self-hosted deploy needs:
-
 - `ADMIN_PASSWORD` — Admin UI login
 - `API_TOKEN` — external API calls
 - Cloudflare KV bound as `APP_KV`
 - Domain or `*.workers.dev` route in your local `wrangler.jsonc`
-- At least one push provider secret (Cloudflare secrets or Admin UI)
+- At least one push provider (secrets or Admin UI)
+- Optional: `GEMINI_API_KEY` (default model `gemini-3.5-flash`) and Workers AI binding (default `@cf/zai-org/glm-4.7-flash`)
 
 Do not commit local deployment files or secrets. This repo ships `wrangler.example.jsonc` only.
 
-Full deploy steps: [Cloudflare setup](docs/cloudflare-setup.md) · [Admin guide](docs/admin-guide.md) · [Docs site](https://innonestx.github.io/GlobalPulse/en/) · [Troubleshooting](https://innonestx.github.io/GlobalPulse/en/faq.html)
+Full deploy: [Cloudflare setup](https://innonestx.github.io/GlobalPulse/en/deploy/cloudflare.html) · [Troubleshooting](https://innonestx.github.io/GlobalPulse/en/faq.html)
 
 ## API
 
 - `POST /v1/messages`
 - `POST /v1/events/github-actions`
 - `POST /v1/events/cloudflare`
-
-## Cloudflare Notes
-
-Cloudflare Cron Triggers run on UTC. GlobalPulse uses `*/5 * * * *`, then matches each saved schedule against the user's timezone from KV.
 
 ## License
 

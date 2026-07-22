@@ -8,7 +8,7 @@ const siteUrl = 'https://innonestx.github.io/GlobalPulse/'
 export default defineConfig({
   title: 'GlobalPulse',
   description:
-    'Self-hosted scheduled market briefings on Cloudflare Workers. Push finance and hotspot digests to Feishu, WeChat, Telegram, and Email.',
+    'Self-hosted scheduled market briefings on Cloudflare Workers. A-share, US stock, crypto and hotspot digests pushed to Feishu, WeChat, Telegram, and Email.',
   base,
   srcDir: 'docs',
   outDir: '_site',
@@ -27,30 +27,74 @@ export default defineConfig({
   },
   head: [
     ['link', { rel: 'icon', href: `${base}globalpulse-project-logo.png`, type: 'image/png' }],
+    ['link', { rel: 'canonical', href: siteUrl }],
     ['meta', { name: 'theme-color', content: '#050b0f' }],
     ['meta', { name: 'author', content: 'InnoNestX' }],
+    [
+      'meta',
+      {
+        name: 'keywords',
+        content:
+          'GlobalPulse, Cloudflare Workers, self-hosted market briefing, Feishu bot, Telegram finance newsletter, A-share digest, crypto morning brief, WeChat work bot, scheduled news push, open source market intelligence',
+      },
+    ],
+    ['meta', { name: 'robots', content: 'index,follow' }],
     ['meta', { property: 'og:type', content: 'website' }],
     ['meta', { property: 'og:site_name', content: 'GlobalPulse' }],
-    ['meta', { property: 'og:title', content: 'GlobalPulse — Scheduled Market Briefings' }],
+    ['meta', { property: 'og:title', content: 'GlobalPulse — Self-hosted Market Briefings on Cloudflare Workers' }],
     [
       'meta',
       {
         property: 'og:description',
         content:
-          'Self-hosted finance and hotspot briefings on Cloudflare Workers. Push to Feishu, WeChat, Telegram, and Email.',
+          'Open-source finance and hotspot briefings. Push A-share, US stock, crypto digests to Feishu, WeChat, Telegram, and Email.',
       },
     ],
     ['meta', { property: 'og:url', content: siteUrl }],
     ['meta', { property: 'og:image', content: `${siteUrl}globalpulse-project-logo.png` }],
     ['meta', { name: 'twitter:card', content: 'summary' }],
-    ['meta', { name: 'twitter:title', content: 'GlobalPulse — Scheduled Market Briefings' }],
+    ['meta', { name: 'twitter:title', content: 'GlobalPulse — Self-hosted Market Briefings' }],
     [
       'meta',
       {
         name: 'twitter:description',
         content:
-          'Self-hosted finance and hotspot briefings on Cloudflare Workers. Push to Feishu, WeChat, Telegram, and Email.',
+          'Cloudflare Workers cron briefings for Feishu, WeChat, Telegram, and Email.',
       },
+    ],
+    [
+      'script',
+      { type: 'application/ld+json' },
+      JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'SoftwareApplication',
+        name: 'GlobalPulse',
+        applicationCategory: 'BusinessApplication',
+        operatingSystem: 'Cloudflare Workers',
+        license: 'https://opensource.org/licenses/MIT',
+        url: siteUrl,
+        codeRepository: 'https://github.com/InnoNestX/GlobalPulse',
+        description:
+          'Self-hosted scheduled market briefings on Cloudflare Workers with Feishu, WeChat, Telegram, and Email delivery.',
+        author: {
+          '@type': 'Organization',
+          name: 'InnoNestX',
+          url: 'https://github.com/InnoNestX',
+        },
+        offers: {
+          '@type': 'Offer',
+          price: '0',
+          priceCurrency: 'USD',
+        },
+        keywords: [
+          'market briefing',
+          'Cloudflare Workers',
+          'Feishu bot',
+          'Telegram newsletter',
+          'A-share',
+          'self-hosted',
+        ],
+      }),
     ],
   ],
   themeConfig: {
@@ -72,6 +116,7 @@ export default defineConfig({
             { text: 'What is GlobalPulse', link: '/en/' },
             { text: 'Quick Start', link: '/en/quick-start' },
             { text: 'Features', link: '/en/features' },
+            { text: 'Compare', link: '/en/compare' },
             { text: 'Troubleshooting', link: '/en/faq' },
           ],
         },
@@ -106,6 +151,7 @@ export default defineConfig({
             { text: '什么是 GlobalPulse', link: '/zh/' },
             { text: '快速开始', link: '/zh/quick-start' },
             { text: '功能特性', link: '/zh/features' },
+            { text: '方案对比', link: '/zh/compare' },
             { text: '常见问题', link: '/zh/faq' },
           ],
         },
