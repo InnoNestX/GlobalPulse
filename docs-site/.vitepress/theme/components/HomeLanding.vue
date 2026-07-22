@@ -38,9 +38,9 @@ const copy = isZh
         ['HTTP API', '预览、发送、健康检查与管理接口。', '/GlobalPulse/zh/api.html', '打开'],
       ],
       docsCards: [
-        ['快速开始', '安装依赖、配置 Cloudflare、本地运行。', '/GlobalPulse/zh/quick-start.html', '阅读'],
-        ['Cloudflare 部署', 'KV、D1、Cron、Workers AI、密钥。', '/GlobalPulse/zh/deploy/cloudflare.html', '阅读'],
-        ['环境变量', '管理密码、API Token、渠道凭证。', '/GlobalPulse/zh/deploy/env.html', '阅读'],
+        ['快速开始', '安装依赖、创建 KV/D1、本地运行与首份简报。', '/GlobalPulse/zh/quick-start.html', '阅读'],
+        ['Cloudflare 部署', '绑定资源、Secrets、验证 health 与 Admin。', '/GlobalPulse/zh/deploy/cloudflare.html', '阅读'],
+        ['常见问题', '登录失败、Cron 不推送、预览为空等排查。', '/GlobalPulse/zh/faq.html', '阅读'],
       ],
     }
   : {
@@ -68,9 +68,9 @@ const copy = isZh
         ['HTTP API', 'Preview, send, health, and admin endpoints.', '/GlobalPulse/en/api.html', 'Open'],
       ],
       docsCards: [
-        ['Quick start', 'Install, configure Cloudflare, run the Worker locally.', '/GlobalPulse/en/quick-start.html', 'Read'],
-        ['Cloudflare deploy', 'KV, D1, cron triggers, Workers AI, secrets.', '/GlobalPulse/en/deploy/cloudflare.html', 'Read'],
-        ['Environment', 'Admin password, API token, provider credentials.', '/GlobalPulse/en/deploy/env.html', 'Read'],
+        ['Quick start', 'Install, create KV/D1, run locally, send your first briefing.', '/GlobalPulse/en/quick-start.html', 'Read'],
+        ['Cloudflare deploy', 'Bindings, secrets, health check, and Admin verification.', '/GlobalPulse/en/deploy/cloudflare.html', 'Read'],
+        ['Troubleshooting', 'Login failures, silent cron, empty preview, provider errors.', '/GlobalPulse/en/faq.html', 'Read'],
       ],
     }
 </script>

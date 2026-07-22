@@ -54,7 +54,7 @@ Every self-hosted deploy needs:
 
 Do not commit local deployment files or secrets. This repo ships `wrangler.example.jsonc` only.
 
-Full deploy steps: [Cloudflare setup](docs/cloudflare-setup.md) · [Admin guide](docs/admin-guide.md) · [Data generation](docs/data-generation.md)
+Full deploy steps: [Cloudflare setup](docs/cloudflare-setup.md) · [Admin guide](docs/admin-guide.md) · [Docs site](https://innonestx.github.io/GlobalPulse/en/) · [Troubleshooting](https://innonestx.github.io/GlobalPulse/en/faq.html)
 
 ## API
 

@@ -1,108 +1,95 @@
-# 部署
+# Cloudflare 部署
 
-## Cloudflare 部署
+从本仓库直接部署，不要对已有克隆再执行 `wrangler init`。
 
-### 1. 创建 Cloudflare Workers 项目
-
-```bash
-# 安装 Wrangler CLI
-npm install -g wrangler
-
-# 登录 Cloudflare
-wrangler login
-
-# 创建新 worker
-wrangler init globalpulse
-cd globalpulse
-```
-
-### 2. 配置 wrangler.toml
-
-```toml
-name = "globalpulse"
-main = "src/index.ts"
-compatibility_date = "2026-01-01"
-
-kv_namespaces = [
-  { binding = "APP_KV", id = "your-kv-namespace-id" }
-]
-
-[env.production]
-kv_namespaces = [
-  { binding = "APP_KV", id = "your-production-kv-id" }
-]
-```
-
-### 3. 创建 KV 命名空间
+## 1. 准备仓库
 
 ```bash
-# 创建 KV 命名空间
-wrangler kv:namespace create APP_KV
-
-# 记录返回的 ID，添加到 wrangler.toml
+git clone https://github.com/InnoNestX/GlobalPulse.git
+cd GlobalPulse
+npm install
+cp wrangler.example.jsonc wrangler.jsonc
+cp .dev.vars.example .dev.vars
 ```
 
-### 4. 设置 Secrets
+## 2. 登录
 
 ```bash
-wrangler secret put ADMIN_PASSWORD
-wrangler secret put API_TOKEN
-wrangler secret put GEMINI_API_KEY
-# 按需添加其他 provider secrets
+npx wrangler login
 ```
 
-### 5. 部署
+## 3. 创建绑定资源
 
 ```bash
-# 部署到生产环境
-wrangler deploy
+npx wrangler kv namespace create APP_KV
+npx wrangler d1 create globalpulse-research
+```
 
-# 或使用 npm 脚本
+更新 `wrangler.jsonc`：
+
+```jsonc
+{
+  "name": "globalpulse",
+  "kv_namespaces": [
+    { "binding": "APP_KV", "id": "<kv-id>" }
+  ],
+  "d1_databases": [
+    {
+      "binding": "RESEARCH_DB",
+      "database_name": "globalpulse-research",
+      "database_id": "<d1-id>"
+    }
+  ],
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  }
+}
+```
+
+除非你明确要改，否则保留示例中的 `ai`、`vars`、`compatibility_date`。
+
+## 4. 设置 Secrets
+
+```bash
+npx wrangler secret put ADMIN_PASSWORD
+npx wrangler secret put API_TOKEN
+```
+
+可选：
+
+```bash
+npx wrangler secret put GEMINI_API_KEY
+npx wrangler secret put FEISHU_WEBHOOK_URL
+npx wrangler secret put TELEGRAM_BOT_TOKEN
+npx wrangler secret put TELEGRAM_CHAT_ID
+```
+
+渠道凭证也可以之后在管理后台写入（KV 配置）。
+
+## 5. 部署
+
+```bash
 npm run deploy
 ```
 
-部署后访问 `https://your-worker-name.workers.dev/admin`。
+## 6. 验证
 
-## 环境变量
+1. 访问 `GET https://<worker>.workers.dev/health`
+2. 打开 `https://<worker>.workers.dev/admin` 并登录
+3. 配置一个渠道 + 一个定时任务
+4. 先用推送预览，再依赖 Cron
 
-必需 secrets：
+## 常见失败
 
-| 变量 | 描述 |
-|------|------|
-| `ADMIN_PASSWORD` | 管理后台登录密码 |
-| `API_TOKEN` | API 认证 token |
-| `GEMINI_API_KEY` | LLM 的 Gemini API key |
+| 现象 | 可能原因 |
+|------|----------|
+| 部署因 KV/D1 失败 | `wrangler.jsonc` 仍是占位 ID |
+| 管理后台登录失败 | Secret / `.dev.vars` 密码不一致 |
+| Cron 从不推送 | 时区未命中，或未启用推送目标 |
+| 预览为空 | 未选择时间表，或数据源回退/为空 |
 
-可选数据源 secrets：
+更多见 [常见问题](/zh/faq)。
 
-| 变量 | 数据源 |
-|------|--------|
-| `ALPHA_VANTAGE_API_KEY` | Alpha Vantage |
-| `FINNHUB_API_KEY` | Finnhub |
-| `COINGECKO_API_KEY` | CoinGecko |
+## 自定义域名（可选）
 
-可选渠道 secrets：
-
-| 变量 | 渠道 |
-|------|------|
-| `FEISHU_WEBHOOK_URL` | 飞书 webhook |
-| `FEISHU_SIGNING_SECRET` | 飞书 HMAC secret |
-| `TELEGRAM_BOT_TOKEN` | Telegram bot token |
-| `BREVO_API_KEY` | Brevo email |
-| `RESEND_API_KEY` | Resend email |
-
-## 域名绑定（可选）
-
-将 Cloudflare 域名指向 worker：
-
-```bash
-wrangler route create "https://pulse.yourdomain.com/*"
-```
-
-## 验证部署
-
-部署后检查：
-
-1. 访问 `https://your-worker.workers.dev/health` - 应返回 OK
-2. 访问 `https://your-worker.workers.dev/admin` - 应显示登录页
-3. 登录并配置第一个任务
+在 Cloudflare 控制台绑定路由，或在本地 `wrangler.jsonc` 配置 routes。密钥与绑定 ID 不要提交到 git。

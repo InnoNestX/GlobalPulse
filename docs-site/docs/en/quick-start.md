@@ -1,71 +1,90 @@
 # Quick Start
 
-Get GlobalPulse running in 5 minutes.
+Get a local Admin UI in a few minutes, then create Cloudflare resources before production deploy.
 
 ## Prerequisites
 
 - Node.js 18+
-- npm or pnpm
-- Cloudflare account (free tier works)
+- npm
+- A Cloudflare account (free tier works)
 - Git
 
-## Installation
+## 1. Install
 
 ```bash
-# Clone the repository
 git clone https://github.com/InnoNestX/GlobalPulse.git
 cd GlobalPulse
-
-# Install dependencies
 npm install
-
-# Copy environment config
 cp .dev.vars.example .dev.vars
 cp wrangler.example.jsonc wrangler.jsonc
 ```
 
-## Configuration
+## 2. Local secrets
 
-Edit `.dev.vars` with your settings:
+Edit `.dev.vars`:
 
 ```bash
 ADMIN_PASSWORD=your-secure-password
 API_TOKEN=your-api-token
 ```
 
-Edit `wrangler.jsonc` with your Cloudflare namespace ID:
+Use long random values. Do not commit `.dev.vars`.
 
-```json
-{
-  "name": "your-worker-name",
-  "kv_namespaces": [
-    { "id": "your-kv-namespace-id", "binding": "APP_KV" }
-  ]
-}
-```
-
-## Run Locally
+## 3. Run locally
 
 ```bash
 npm run dev
 ```
 
-Open `http://localhost:8787/admin` and login with your `ADMIN_PASSWORD`.
+Open `http://localhost:8787/admin` and sign in with `ADMIN_PASSWORD`.
 
-## Deploy to Cloudflare
+Local Wrangler can use preview bindings for KV/D1. You can explore the Admin UI before creating production resources.
+
+## 4. First briefing checklist
+
+In `/admin`:
+
+1. Add at least one push provider (Feishu / Telegram / WeChat / Email)
+2. Create one schedule with a timezone and push time
+3. Open **Push preview** and confirm the payload
+4. Save, then wait for the next cron window or trigger a manual run if available
+
+If preview is empty, you usually still need a schedule and an enabled target.
+
+## 5. Create Cloudflare resources (before production)
 
 ```bash
-# Login to Cloudflare
 npx wrangler login
 
-# Deploy
+# KV for settings
+npx wrangler kv namespace create APP_KV
+
+# D1 for research history (recommended)
+npx wrangler d1 create globalpulse-research
+```
+
+Paste the returned IDs into `wrangler.jsonc`:
+
+- `kv_namespaces[0].id`
+- `d1_databases[0].database_id`
+
+## 6. Production secrets and deploy
+
+```bash
+npx wrangler secret put ADMIN_PASSWORD
+npx wrangler secret put API_TOKEN
+# Optional LLM / market data keys:
+# npx wrangler secret put GEMINI_API_KEY
+
 npm run deploy
 ```
 
-Your GlobalPulse instance will be live at `https://your-worker-name.workers.dev/admin`.
+Open `https://<your-worker>.workers.dev/admin`.
 
-## Next Steps
+## Next steps
 
-- [Configure Schedules](/en/config/schedules)
-- [Set up Push Providers](/en/config/providers)
-- [Customize Templates](/en/config/templates)
+- [Cloudflare deploy details](/en/deploy/cloudflare)
+- [Environment variables](/en/deploy/env)
+- [Schedules](/en/config/schedules)
+- [Providers](/en/config/providers)
+- [Troubleshooting](/en/faq)

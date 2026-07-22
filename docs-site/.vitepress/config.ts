@@ -72,6 +72,7 @@ export default defineConfig({
             { text: 'What is GlobalPulse', link: '/en/' },
             { text: 'Quick Start', link: '/en/quick-start' },
             { text: 'Features', link: '/en/features' },
+            { text: 'Troubleshooting', link: '/en/faq' },
           ],
         },
         {
@@ -105,6 +106,7 @@ export default defineConfig({
             { text: '什么是 GlobalPulse', link: '/zh/' },
             { text: '快速开始', link: '/zh/quick-start' },
             { text: '功能特性', link: '/zh/features' },
+            { text: '常见问题', link: '/zh/faq' },
           ],
         },
         {

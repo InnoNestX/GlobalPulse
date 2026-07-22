@@ -1,100 +1,95 @@
-# Deployment
+# Cloudflare Deploy
 
-## Cloudflare Setup
+Deploy GlobalPulse from this repository. Do not run `wrangler init` for an existing clone.
 
-### 1. Create a Cloudflare Workers Project
-
-```bash
-# Install Wrangler CLI
-npm install -g wrangler
-
-# Login to Cloudflare
-wrangler login
-
-# Create new worker
-wrangler init globalpulse
-cd globalpulse
-```
-
-### 2. Configure wrangler.toml
-
-```toml
-name = "globalpulse"
-main = "src/index.ts"
-compatibility_date = "2026-01-01"
-
-kv_namespaces = [
-  { binding = "APP_KV", id = "your-kv-namespace-id" }
-]
-
-[env.production]
-kv_namespaces = [
-  { binding = "APP_KV", id = "your-production-kv-id" }
-]
-```
-
-### 3. Create KV Namespace
+## 1. Prepare the repo
 
 ```bash
-# Create KV namespace
-wrangler kv:namespace create APP_KV
-
-# Note the ID and add to wrangler.toml
+git clone https://github.com/InnoNestX/GlobalPulse.git
+cd GlobalPulse
+npm install
+cp wrangler.example.jsonc wrangler.jsonc
+cp .dev.vars.example .dev.vars
 ```
 
-### 4. Set Secrets
+## 2. Login
 
 ```bash
-wrangler secret put ADMIN_PASSWORD
-wrangler secret put API_TOKEN
-wrangler secret put GEMINI_API_KEY
-# Add other provider secrets as needed
+npx wrangler login
 ```
 
-### 5. Deploy
+## 3. Create bindings
 
 ```bash
-# Deploy to production
-wrangler deploy
+npx wrangler kv namespace create APP_KV
+npx wrangler d1 create globalpulse-research
+```
 
-# Or use the npm script
+Update `wrangler.jsonc`:
+
+```jsonc
+{
+  "name": "globalpulse",
+  "kv_namespaces": [
+    { "binding": "APP_KV", "id": "<kv-id>" }
+  ],
+  "d1_databases": [
+    {
+      "binding": "RESEARCH_DB",
+      "database_name": "globalpulse-research",
+      "database_id": "<d1-id>"
+    }
+  ],
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  }
+}
+```
+
+Keep the example fields for `ai`, `vars`, and `compatibility_date` unless you know you need to change them.
+
+## 4. Set secrets
+
+```bash
+npx wrangler secret put ADMIN_PASSWORD
+npx wrangler secret put API_TOKEN
+```
+
+Optional:
+
+```bash
+npx wrangler secret put GEMINI_API_KEY
+npx wrangler secret put FEISHU_WEBHOOK_URL
+npx wrangler secret put TELEGRAM_BOT_TOKEN
+npx wrangler secret put TELEGRAM_CHAT_ID
+```
+
+Provider credentials can also be stored later in the Admin UI (KV-backed settings).
+
+## 5. Deploy
+
+```bash
 npm run deploy
 ```
 
-## Environment Variables
+## 6. Verify
 
-Required secrets:
+1. `GET https://<worker>.workers.dev/health`
+2. Open `https://<worker>.workers.dev/admin` and log in
+3. Configure one provider + one schedule
+4. Use push preview before relying on cron
 
-| Variable | Description |
-|----------|-------------|
-| `ADMIN_PASSWORD` | Admin UI login password |
-| `API_TOKEN` | API authentication token |
-| `GEMINI_API_KEY` | Gemini API key for LLM |
+## Common failures
 
-Optional provider secrets:
+| Symptom | Likely cause |
+|---------|--------------|
+| Deploy fails on KV/D1 | Placeholder IDs still in `wrangler.jsonc` |
+| Admin login rejected | Secret / `.dev.vars` password mismatch |
+| Cron never sends | No schedule match in the selected timezone, or no enabled targets |
+| Preview empty | No schedule selected, or sources returned fallback/empty |
 
-| Variable | Provider |
-|----------|----------|
-| `FEISHU_WEBHOOK_URL` | Feishu webhook |
-| `FEISHU_SIGNING_SECRET` | Feishu HMAC secret |
-| `TELEGRAM_BOT_TOKEN` | Telegram bot token |
-| `BREVO_API_KEY` | Brevo email API key |
-| `RESEND_API_KEY` | Resend email API key |
-| `ALPHA_VANTAGE_API_KEY` | Alpha Vantage data |
-| `FINNHUB_API_KEY` | Finnhub data |
+See [Troubleshooting](/en/faq) for more.
 
-## Domain Binding (Optional)
+## Custom domain (optional)
 
-Point a Cloudflare zone to your worker:
-
-```bash
-wrangler route create "https://pulse.yourdomain.com/*"
-```
-
-## Verifying Deployment
-
-After deployment:
-
-1. Visit `https://your-worker.workers.dev/health` - should return OK
-2. Visit `https://your-worker.workers.dev/admin` - should show login
-3. Login and configure your first schedule
+Attach a route in the Cloudflare dashboard, or configure routes in your local `wrangler.jsonc`. Keep secrets and binding IDs out of git.
