@@ -138,7 +138,9 @@ function sleep(ms: number) {
 
 async function scrollBottom() {
   await nextTick()
-  if (bodyEl.value) bodyEl.value.scrollTop = bodyEl.value.scrollHeight
+  const el = bodyEl.value
+  if (!el) return
+  el.scrollTop = el.scrollHeight
 }
 
 function promptPrefix(cwd: string) {
