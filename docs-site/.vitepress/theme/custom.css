@@ -406,11 +406,45 @@ body::before {
 }
 
 .gp-term-prompt {
+  color: var(--gp-accent);
+}
+
+.gp-term-user {
   color: var(--gp-accent-2);
+  font-weight: 650;
 }
 
 .gp-term-text {
-  color: #d7fff2;
+  color: #e8fff7;
+}
+
+.gp-term-out {
+  color: rgba(232, 255, 247, 0.86);
+  white-space: pre-wrap;
+}
+
+.gp-term-out.is-dim {
+  color: rgba(220, 255, 245, 0.42);
+}
+
+.gp-term-out.is-info {
+  color: #7dd7ff;
+}
+
+.gp-term-out.is-ok {
+  color: var(--gp-accent);
+}
+
+.gp-term-out.is-warn {
+  color: #ffd166;
+}
+
+.gp-term-out.is-err {
+  color: var(--gp-danger);
+}
+
+.gp-term-line.is-blank {
+  min-height: 0.7em;
 }
 
 .gp-term-text.is-comment {
