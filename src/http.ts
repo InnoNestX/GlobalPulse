@@ -17,7 +17,7 @@ import { getLocalTimeParts } from "./time";
 import { getLatestContinuityDelta, getPulseSnapshot } from "./continuity";
 import { createDefaultAutopilotSettings, runAutopilotRadar } from "./autopilot";
 import { listResearchRuns } from "./research/persistence/query";
-import { bootstrapTelegramBot, handleTelegramWebhook } from "./telegram";
+import { bootstrapTelegramBot, handleTelegramWebhook, verifyTelegramCommands } from "./telegram";
 
 const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
@@ -220,6 +220,16 @@ async function handleAdminApi(request: Request, env: Env): Promise<Response> {
   if (request.method === "POST" && url.pathname === "/api/admin/telegram/bootstrap") {
     const result = await bootstrapTelegramBot(env, new URL(request.url).origin);
     return json({ ok: result.commands && result.webhook, ...result }, env, result.commands && result.webhook ? 200 : 502);
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/admin/telegram/verify-commands") {
+    const boot = await bootstrapTelegramBot(env, new URL(request.url).origin);
+    const verify = await verifyTelegramCommands(env);
+    return json({
+      ok: boot.commands && boot.webhook && verify.ok,
+      bootstrap: boot,
+      verify,
+    }, env, boot.commands && boot.webhook && verify.ok ? 200 : 502);
   }
 
   if (request.method === "POST" && url.pathname === "/api/admin/test-push") {

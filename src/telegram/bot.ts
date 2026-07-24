@@ -5,7 +5,9 @@ import { buildScheduleReport } from "../report";
 import { getLocalTimeParts } from "../time";
 import {
   answerCallbackQuery,
+  buildCommandInlineKeyboard,
   extractCommand,
+  getTelegramWebhookInfo,
   isChatAllowed,
   registerTelegramCommands,
   sendTelegramHtml,
@@ -15,7 +17,7 @@ import {
 import { classifyTelegramIntent, type BotIntent } from "./openrouter";
 
 const HELP_BODY = [
-  "可用命令（也可点输入框旁菜单）：",
+  "可用命令（也可点下方按钮 / 输入框旁菜单）：",
   "",
   "• /brief — 立即生成一份简报",
   "• /ashare — A股简报",
@@ -44,7 +46,7 @@ export async function handleTelegramWebhook(
     return json({ ok: false, error: "Telegram bot not configured" }, 503);
   }
 
-  const secret = deliveryEnv.TELEGRAM_WEBHOOK_SECRET?.trim() || env.TELEGRAM_WEBHOOK_SECRET?.trim();
+  const secret = env.TELEGRAM_WEBHOOK_SECRET?.trim();
   if (secret) {
     const header = request.headers.get("X-Telegram-Bot-Api-Secret-Token") || "";
     if (header !== secret) {
@@ -59,7 +61,17 @@ export async function handleTelegramWebhook(
     return json({ ok: false, error: "Invalid JSON" }, 400);
   }
 
-  const work = processTelegramUpdate(deliveryEnv, update);
+  // Keep bindings from original env; overlay telegram credentials from settings.
+  const runtimeEnv: Env = {
+    ...env,
+    TELEGRAM_BOT_TOKEN: deliveryEnv.TELEGRAM_BOT_TOKEN,
+    TELEGRAM_CHAT_ID: deliveryEnv.TELEGRAM_CHAT_ID,
+    OPENROUTER_API_KEY: env.OPENROUTER_API_KEY || deliveryEnv.OPENROUTER_API_KEY,
+    OPENROUTER_BASE_URL: env.OPENROUTER_BASE_URL || deliveryEnv.OPENROUTER_BASE_URL,
+    OPENROUTER_MODEL: env.OPENROUTER_MODEL || deliveryEnv.OPENROUTER_MODEL,
+  };
+
+  const work = processTelegramUpdate(runtimeEnv, update);
   if (ctx?.waitUntil) {
     ctx.waitUntil(work.catch((error) => console.error("Telegram update failed", error)));
     return json({ ok: true });
@@ -73,30 +85,92 @@ export async function bootstrapTelegramBot(env: Env, origin: string): Promise<{
   commands: boolean;
   webhook: boolean;
   webhookUrl: string;
+  webhookInfo: Record<string, unknown> | null;
 }> {
   const settings = await getSettings(env).catch(() => undefined);
   const deliveryEnv = settings ? mergeProviderSettings(env, settings) : env;
+  const runtimeEnv: Env = {
+    ...env,
+    TELEGRAM_BOT_TOKEN: deliveryEnv.TELEGRAM_BOT_TOKEN,
+    TELEGRAM_CHAT_ID: deliveryEnv.TELEGRAM_CHAT_ID,
+  };
   const webhookUrl = `${origin.replace(/\/$/, "")}/api/telegram/webhook`;
-  const commands = await registerTelegramCommands(deliveryEnv);
-  const webhook = await setTelegramWebhook(
-    deliveryEnv,
-    webhookUrl,
-    deliveryEnv.TELEGRAM_WEBHOOK_SECRET || env.TELEGRAM_WEBHOOK_SECRET,
-  );
-  return { commands, webhook, webhookUrl };
+  const commands = await registerTelegramCommands(runtimeEnv);
+  const webhook = await setTelegramWebhook(runtimeEnv, webhookUrl, env.TELEGRAM_WEBHOOK_SECRET);
+  const webhookInfo = await getTelegramWebhookInfo(runtimeEnv);
+  return { commands, webhook, webhookUrl, webhookInfo };
+}
+
+/** Smoke-test slash/menu intents by pushing real replies to the configured chat. */
+export async function verifyTelegramCommands(env: Env): Promise<{
+  ok: boolean;
+  chatId?: string;
+  results: Array<{ command: string; ok: boolean; message: string }>;
+}> {
+  const settings = await getSettings(env);
+  const deliveryEnv = mergeProviderSettings(env, settings);
+  const runtimeEnv: Env = {
+    ...env,
+    TELEGRAM_BOT_TOKEN: deliveryEnv.TELEGRAM_BOT_TOKEN,
+    TELEGRAM_CHAT_ID: deliveryEnv.TELEGRAM_CHAT_ID,
+  };
+  const chatId = String(runtimeEnv.TELEGRAM_CHAT_ID || "").split(",")[0]?.trim();
+  if (!runtimeEnv.TELEGRAM_BOT_TOKEN || !chatId) {
+    return { ok: false, results: [{ command: "*", ok: false, message: "Telegram 未配置" }] };
+  }
+
+  const results: Array<{ command: string; ok: boolean; message: string }> = [];
+
+  // Lightweight commands first.
+  for (const command of ["help", "status"] as const) {
+    try {
+      await handleIntent(runtimeEnv, Number(chatId), command);
+      results.push({ command: `/${command}`, ok: true, message: "ok" });
+    } catch (error) {
+      results.push({
+        command: `/${command}`,
+        ok: false,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  // One real brief push to prove end-to-end generation + delivery.
+  try {
+    await handleIntent(runtimeEnv, Number(chatId), "brief");
+    results.push({ command: "/brief", ok: true, message: "ok" });
+  } catch (error) {
+    results.push({
+      command: "/brief",
+      ok: false,
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  return {
+    ok: results.every((entry) => entry.ok),
+    chatId,
+    results,
+  };
 }
 
 async function processTelegramUpdate(env: Env, update: TelegramUpdate): Promise<void> {
   if (update.callback_query) {
     const chatId = update.callback_query.message?.chat.id;
     const data = update.callback_query.data || "";
-    await answerCallbackQuery(env, update.callback_query.id);
+    await answerCallbackQuery(env, update.callback_query.id, "收到，正在处理…");
     if (chatId == null) return;
     if (!isChatAllowed(env, chatId)) {
       await sendTelegramHtml(env, chatId, "⚠️ 未授权", "此聊天未绑定 GlobalPulse。请在管理后台配置 Telegram Chat ID。");
       return;
     }
     const intent = callbackToIntent(data);
+    if (intent === "unknown") {
+      await sendTelegramHtml(env, chatId, "📖 命令帮助", HELP_BODY, {
+        replyMarkup: buildCommandInlineKeyboard(),
+      });
+      return;
+    }
     await handleIntent(env, chatId, intent);
     return;
   }
@@ -117,7 +191,14 @@ async function processTelegramUpdate(env: Env, update: TelegramUpdate): Promise<
 
   const parsed = extractCommand(message.text);
   if (parsed) {
-    await handleIntent(env, chatId, commandToIntent(parsed.command));
+    const intent = commandToIntent(parsed.command);
+    if (intent === "unknown") {
+      await sendTelegramHtml(env, chatId, "📖 命令帮助", HELP_BODY, {
+        replyMarkup: buildCommandInlineKeyboard(),
+      });
+      return;
+    }
+    await handleIntent(env, chatId, intent);
     return;
   }
 
@@ -127,7 +208,8 @@ async function processTelegramUpdate(env: Env, update: TelegramUpdate): Promise<
       env,
       chatId,
       "🤖 GlobalPulse",
-      classified.reply || "我没太听懂。发送 /help 或点输入框旁的命令菜单。",
+      classified.reply || "我没太听懂。可点下方按钮，或发送 /help。",
+      { replyMarkup: buildCommandInlineKeyboard() },
     );
     return;
   }
@@ -136,19 +218,19 @@ async function processTelegramUpdate(env: Env, update: TelegramUpdate): Promise<
 }
 
 async function handleIntent(env: Env, chatId: number, intent: BotIntent): Promise<void> {
+  const keyboard = buildCommandInlineKeyboard();
   switch (intent) {
     case "start":
       await sendTelegramHtml(env, chatId, "👋 欢迎使用 GlobalPulse", [
         "我是财经与热点简报机器人。",
         "",
-        "点输入框左侧 **菜单** 可展开命令列表；",
-        "也可以直接发文字，例如「美股简报」。",
+        "点输入框左侧 **菜单**，或直接点下方按钮：",
         "",
         HELP_BODY,
-      ].join("\n"));
+      ].join("\n"), { replyMarkup: keyboard });
       return;
     case "help":
-      await sendTelegramHtml(env, chatId, "📖 命令帮助", HELP_BODY);
+      await sendTelegramHtml(env, chatId, "📖 命令帮助", HELP_BODY, { replyMarkup: keyboard });
       return;
     case "status":
       await replyStatus(env, chatId);
@@ -169,7 +251,9 @@ async function handleIntent(env: Env, chatId: number, intent: BotIntent): Promis
       await replyBrief(env, chatId, "daily_hot");
       return;
     default:
-      await sendTelegramHtml(env, chatId, "🤖 GlobalPulse", "发送 /help 查看可用命令。");
+      await sendTelegramHtml(env, chatId, "🤖 GlobalPulse", "发送 /help 查看可用命令。", {
+        replyMarkup: keyboard,
+      });
   }
 }
 
@@ -191,8 +275,8 @@ async function replyStatus(env: Env, chatId: number): Promise<void> {
     "",
     lines.length ? lines.join("\n\n") : "_暂无启用中的推送任务_",
     "",
-    "> 定时推送仍由 Cron 触发；这里可手动拉取。",
-  ].join("\n"));
+    "> 定时推送仍由 Cron 触发；点下方按钮可立即拉取。",
+  ].join("\n"), { replyMarkup: buildCommandInlineKeyboard() });
 }
 
 async function replyBrief(env: Env, chatId: number, reportType: ReportType | undefined): Promise<void> {
@@ -204,16 +288,26 @@ async function replyBrief(env: Env, chatId: number, reportType: ReportType | und
     if (!schedule) {
       await sendTelegramHtml(env, chatId, "📭 暂无任务", reportType
         ? `没有找到启用中的 **${reportType}** 推送任务。请先在管理后台配置。`
-        : "没有启用中的推送任务。请先在管理后台配置时间表。");
+        : "没有启用中的推送任务。请先在管理后台配置时间表。", {
+        replyMarkup: buildCommandInlineKeyboard(),
+      });
       return;
     }
 
     const providerEnv = mergeProviderSettings(env, settings);
     const reportEnv = await mergeMarketDataProviderSettings(providerEnv);
+    // Keep telegram credentials for the reply chat path.
+    reportEnv.TELEGRAM_BOT_TOKEN = env.TELEGRAM_BOT_TOKEN || reportEnv.TELEGRAM_BOT_TOKEN;
+    reportEnv.TELEGRAM_CHAT_ID = env.TELEGRAM_CHAT_ID || reportEnv.TELEGRAM_CHAT_ID;
+
     const report = await buildScheduleReport(reportEnv, schedule, new Date());
-    const result = await sendTelegramHtml(env, chatId, report.title, report.body);
+    const result = await sendTelegramHtml(env, chatId, report.title, report.body, {
+      replyMarkup: buildCommandInlineKeyboard(),
+    });
     if (!result.ok) {
-      await sendTelegramHtml(env, chatId, "❌ 发送失败", result.message);
+      await sendTelegramHtml(env, chatId, "❌ 发送失败", result.message, {
+        replyMarkup: buildCommandInlineKeyboard(),
+      });
     }
   } catch (error) {
     await sendTelegramHtml(
@@ -221,6 +315,7 @@ async function replyBrief(env: Env, chatId: number, reportType: ReportType | und
       chatId,
       "❌ 生成失败",
       error instanceof Error ? error.message : "简报生成失败，请稍后重试。",
+      { replyMarkup: buildCommandInlineKeyboard() },
     );
   }
 }
@@ -235,10 +330,11 @@ function pickSchedule(settings: AppSettings, reportType?: ReportType): PulseSche
 
   const preferredOrder: ReportType[] = ["daily_hot", "a_share", "us_stock", "crypto", "custom"];
   for (const type of preferredOrder) {
-    const hit = enabled.find((schedule) => schedule.reportType === type);
+    const hit = enabled.find((schedule) => schedule.reportType === type && schedule.targets.includes("telegram"))
+      || enabled.find((schedule) => schedule.reportType === type);
     if (hit) return hit;
   }
-  return enabled[0];
+  return enabled.find((schedule) => schedule.targets.includes("telegram")) || enabled[0];
 }
 
 function commandToIntent(command: string): BotIntent {

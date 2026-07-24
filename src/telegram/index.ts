@@ -1,2 +1,2 @@
-export { handleTelegramWebhook, bootstrapTelegramBot } from "./bot";
-export { registerTelegramCommands, setTelegramWebhook } from "./api";
+export { handleTelegramWebhook, bootstrapTelegramBot, verifyTelegramCommands } from "./bot";
+export { registerTelegramCommands, setTelegramWebhook, buildCommandInlineKeyboard } from "./api";

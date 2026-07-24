@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractCommand, isChatAllowed } from "../src/telegram/api";
+import { buildCommandInlineKeyboard, extractCommand, isChatAllowed, TELEGRAM_COMMAND_MENU } from "../src/telegram/api";
 import {
   heuristicIntent,
   resolveOpenRouterModel,
@@ -10,7 +10,19 @@ describe("telegram bot helpers", () => {
   it("parses slash commands with bot mention", () => {
     expect(extractCommand("/help@GlobalPulseBot")).toEqual({ command: "help", args: "" });
     expect(extractCommand("/us 详情")).toEqual({ command: "us", args: "详情" });
+    expect(extractCommand("／ashare")).toEqual({ command: "ashare", args: "" });
     expect(extractCommand("给我看美股")).toBeNull();
+  });
+
+  it("exposes menu commands and inline shortcuts", () => {
+    expect(TELEGRAM_COMMAND_MENU.map((entry) => entry.command)).toEqual([
+      "start", "help", "brief", "ashare", "us", "crypto", "hot", "status",
+    ]);
+    const keyboard = buildCommandInlineKeyboard();
+    const callbacks = keyboard.inline_keyboard.flat().map((button) => button.callback_data);
+    expect(callbacks).toContain("cmd:ashare");
+    expect(callbacks).toContain("cmd:us");
+    expect(callbacks).toContain("cmd:brief");
   });
 
   it("allows configured chat ids", () => {
