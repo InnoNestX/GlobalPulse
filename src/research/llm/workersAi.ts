@@ -16,6 +16,7 @@ export async function callWorkersAiResearchJson(env: Env, packet: StockPacket): 
   const prompt = [
     "你是股票研究报告编排器，只基于输入 JSON 工作，不自行补事实。",
     "只输出 JSON，不输出 Markdown。",
+    "所有可读文字字段必须使用简体中文（ticker/symbol 除外）。",
     "输出字段必须包含 executive_summary、market_view、stock_cards、news_review、risk_actions。",
     "C级来源只能进入新闻复核，不能单独形成交易动作。",
     "没有证据数量、止损规则、失效条件时，不能给高置信度交易结论。",

@@ -1553,7 +1553,7 @@ const adminHtml = `<!doctype html>
     let providerStatus = [];
     let activeProvider = null;
     let password = localStorage.getItem("globalpulse_admin_password") || "";
-    let uiLanguage = localStorage.getItem("globalpulse_ui_language") || "en";
+    let uiLanguage = localStorage.getItem("globalpulse_ui_language") || "zh";
     let theme = "";
 
     const $ = (id) => {
@@ -2184,7 +2184,7 @@ const adminHtml = `<!doctype html>
     function addSchedule() {
       state.schedules.push({
         id: "schedule-" + Date.now(),
-        name: "New Pulse",
+        name: uiLanguage === "zh" ? "新建推送" : "New Pulse",
         enabled: true,
         triggerMode: "slots",
         skipNonTradingInCron: false,
@@ -2192,7 +2192,7 @@ const adminHtml = `<!doctype html>
         time: "09:00",
         days: [1, 2, 3, 4, 5],
         timezone: state.timezone,
-        language: state.language,
+        language: state.language || "zh",
         outputFormat: state.outputFormat,
         reportType: "a_share",
         reportMode: "market",

@@ -28,6 +28,7 @@ export async function callGeminiResearchJson(env: Env, packet: StockPacket): Pro
           content: [
             "你是股票研究报告编排器，只基于输入 JSON 工作，不自行补事实。",
             "只输出 JSON，不输出 Markdown。",
+            "所有可读文字字段必须使用简体中文（ticker/symbol 除外）。",
             "C级来源只能进入新闻复核，不能单独形成交易动作。",
             "所有观点必须包含证据数量、最高信源等级、时间框架、风险提示、入场规则、止损规则、失效条件。",
           ].join("\n"),

@@ -19,7 +19,7 @@ export async function evaluateAutopilotRule(
     case "symbol_move":
       return evaluateSymbolMove(env, settings, rule);
     case "fear_greed_extreme":
-      return evaluateFearGreed(env, rule);
+      return evaluateFearGreed(env, settings, rule);
     case "news_burst":
       return evaluateNewsBurst(env, settings, rule, now);
     case "bias_flip":
@@ -27,6 +27,10 @@ export async function evaluateAutopilotRule(
     default:
       return null;
   }
+}
+
+function useZh(settings: AppSettings): boolean {
+  return (settings.language || "zh") !== "en";
 }
 
 async function evaluateSymbolMove(env: Env, settings: AppSettings, rule: AutopilotRule): Promise<AutopilotTrigger | null> {
@@ -43,41 +47,62 @@ async function evaluateSymbolMove(env: Env, settings: AppSettings, rule: Autopil
     .slice(0, 6)
     .map((row) => `- ${row.symbol}: ${row.changePct > 0 ? "+" : ""}${row.changePct.toFixed(2)}%`);
 
+  const zh = useZh(settings);
   return {
     rule,
-    title: `Autopilot · ${rule.name}`,
+    title: zh ? `自动雷达 · ${rule.name}` : `Autopilot · ${rule.name}`,
     reason: `symbol_move>=${threshold}%`,
-    body: [
-      `# ${rule.name}`,
-      "",
-      `Threshold: ±${threshold}%`,
-      "",
-      ...lines,
-      "",
-      "> GlobalPulse Autopilot Radar",
-    ].join("\n"),
+    body: zh
+      ? [
+          `# ${rule.name}`,
+          "",
+          `触发阈值：±${threshold}%`,
+          "",
+          ...lines,
+          "",
+          "> GlobalPulse 自动雷达",
+        ].join("\n")
+      : [
+          `# ${rule.name}`,
+          "",
+          `Threshold: ±${threshold}%`,
+          "",
+          ...lines,
+          "",
+          "> GlobalPulse Autopilot Radar",
+        ].join("\n"),
   };
 }
 
-async function evaluateFearGreed(env: Env, rule: AutopilotRule): Promise<AutopilotTrigger | null> {
+async function evaluateFearGreed(env: Env, settings: AppSettings, rule: AutopilotRule): Promise<AutopilotTrigger | null> {
   const low = Number(rule.params.low ?? 20);
   const high = Number(rule.params.high ?? 80);
   const value = await fetchFearGreedIndex();
   if (value === null) return null;
   if (value > low && value < high) return null;
 
+  const zh = useZh(settings);
   return {
     rule,
-    title: `Autopilot · ${rule.name}`,
+    title: zh ? `自动雷达 · ${rule.name}` : `Autopilot · ${rule.name}`,
     reason: `fear_greed=${value}`,
-    body: [
-      `# ${rule.name}`,
-      "",
-      `Fear & Greed Index: **${value}**`,
-      value <= low ? `Below extreme-fear threshold (${low}).` : `Above extreme-greed threshold (${high}).`,
-      "",
-      "> Source: alternative.me · GlobalPulse Autopilot",
-    ].join("\n"),
+    body: zh
+      ? [
+          `# ${rule.name}`,
+          "",
+          `恐慌贪婪指数：**${value}**`,
+          value <= low ? `已低于极度恐慌阈值（${low}）。` : `已高于极度贪婪阈值（${high}）。`,
+          "",
+          "> 来源：alternative.me · GlobalPulse 自动雷达",
+        ].join("\n")
+      : [
+          `# ${rule.name}`,
+          "",
+          `Fear & Greed Index: **${value}**`,
+          value <= low ? `Below extreme-fear threshold (${low}).` : `Above extreme-greed threshold (${high}).`,
+          "",
+          "> Source: alternative.me · GlobalPulse Autopilot",
+        ].join("\n"),
   };
 }
 
@@ -89,7 +114,7 @@ async function evaluateNewsBurst(
 ): Promise<AutopilotTrigger | null> {
   const minItems = Number(rule.params.minItems ?? 5);
   const windowMinutes = Number(rule.params.windowMinutes ?? 90);
-  const query = settings.topicFocus || "markets OR finance OR geopolitics";
+  const query = settings.topicFocus || (useZh(settings) ? "市场 金融 地缘政治" : "markets OR finance OR geopolitics");
   const topic = await fetchTopicItems(query, settings.language, undefined, { mode: "daily_hot", newsApiKey: env.NEWSAPI_API_KEY });
   const cutoff = now.getTime() - windowMinutes * 60 * 1000;
   const recent = topic.items.filter((item) => {
@@ -99,19 +124,30 @@ async function evaluateNewsBurst(
   });
   if (recent.length < minItems) return null;
 
+  const zh = useZh(settings);
   return {
     rule,
-    title: `Autopilot · ${rule.name}`,
+    title: zh ? `自动雷达 · ${rule.name}` : `Autopilot · ${rule.name}`,
     reason: `news_burst=${recent.length}`,
-    body: [
-      `# ${rule.name}`,
-      "",
-      `${recent.length} headlines in ~${windowMinutes}m window`,
-      "",
-      ...recent.slice(0, 6).map((item) => `- ${item.title}`),
-      "",
-      "> GlobalPulse Autopilot Radar",
-    ].join("\n"),
+    body: zh
+      ? [
+          `# ${rule.name}`,
+          "",
+          `约 ${windowMinutes} 分钟内出现 ${recent.length} 条相关新闻`,
+          "",
+          ...recent.slice(0, 6).map((item) => `- ${item.title}`),
+          "",
+          "> GlobalPulse 自动雷达",
+        ].join("\n")
+      : [
+          `# ${rule.name}`,
+          "",
+          `${recent.length} headlines in ~${windowMinutes}m window`,
+          "",
+          ...recent.slice(0, 6).map((item) => `- ${item.title}`),
+          "",
+          "> GlobalPulse Autopilot Radar",
+        ].join("\n"),
   };
 }
 
@@ -123,18 +159,28 @@ async function evaluateBiasFlip(env: Env, settings: AppSettings, rule: Autopilot
   const expected = String(rule.params.expectBias || "").trim();
   if (!expected || snapshot.bias === expected) return null;
 
+  const zh = useZh(settings);
   return {
     rule,
-    title: `Autopilot · ${rule.name}`,
+    title: zh ? `自动雷达 · ${rule.name}` : `Autopilot · ${rule.name}`,
     reason: `bias=${snapshot.bias}`,
-    body: [
-      `# ${rule.name}`,
-      "",
-      `Latest continuity bias is **${snapshot.bias}** (watch threshold: ${expected}).`,
-      `Schedule: ${schedule.name}`,
-      "",
-      "> GlobalPulse Autopilot Radar",
-    ].join("\n"),
+    body: zh
+      ? [
+          `# ${rule.name}`,
+          "",
+          `最新连续性偏向为 **${snapshot.bias}**（观察阈值：${expected}）。`,
+          `时间表：${schedule.name}`,
+          "",
+          "> GlobalPulse 自动雷达",
+        ].join("\n")
+      : [
+          `# ${rule.name}`,
+          "",
+          `Latest continuity bias is **${snapshot.bias}** (watch threshold: ${expected}).`,
+          `Schedule: ${schedule.name}`,
+          "",
+          "> GlobalPulse Autopilot Radar",
+        ].join("\n"),
   };
 }
 

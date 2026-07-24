@@ -227,14 +227,21 @@ async function handleAdminApi(request: Request, env: Env): Promise<Response> {
     }
 
     const now = new Date();
+    const zh = (settings.language || "zh") !== "en";
     const summary = await sendIncomingMessage({
       target,
-      title: "GlobalPulse test push",
-      body: [
-        "This is a manual test message from the Admin UI.",
-        `Time: ${now.toISOString()}`,
-        "If you received this, the provider credentials work.",
-      ].join("\n"),
+      title: zh ? "GlobalPulse 测试推送" : "GlobalPulse test push",
+      body: zh
+        ? [
+            "这是来自管理后台的手动测试消息。",
+            `时间：${now.toISOString()}`,
+            "如果收到这条消息，说明渠道凭证配置正确。",
+          ].join("\n")
+        : [
+            "This is a manual test message from the Admin UI.",
+            `Time: ${now.toISOString()}`,
+            "If you received this, the provider credentials work.",
+          ].join("\n"),
       level: "info",
       tags: ["globalpulse", "test-push", target],
       metadata: {
@@ -250,8 +257,10 @@ async function handleAdminApi(request: Request, env: Env): Promise<Response> {
       delivered: summary.delivered,
       failed: summary.failed,
       message: summary.ok
-        ? `Test push delivered to ${target}`
-        : `Test push failed: ${summary.results.filter((result) => !result.ok).map((result) => `${result.provider}: ${result.message}`).join("; ")}`,
+        ? (zh ? `测试推送已送达 ${target}` : `Test push delivered to ${target}`)
+        : (zh
+          ? `测试推送失败：${summary.results.filter((result) => !result.ok).map((result) => `${result.provider}: ${result.message}`).join("; ")}`
+          : `Test push failed: ${summary.results.filter((result) => !result.ok).map((result) => `${result.provider}: ${result.message}`).join("; ")}`),
       createdAt: now.toISOString(),
       results: summary.results.map((result) => ({
         provider: result.provider,

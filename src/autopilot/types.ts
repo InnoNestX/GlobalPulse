@@ -39,7 +39,7 @@ export function createDefaultAutopilotSettings(): AutopilotSettings {
       {
         id: "position-move-3pct",
         enabled: true,
-        name: "Position move ±3%",
+        name: "持仓异动 ±3%",
         kind: "symbol_move",
         params: { thresholdPct: 3, usePositions: true },
         cooldownMinutes: 60,
@@ -49,7 +49,7 @@ export function createDefaultAutopilotSettings(): AutopilotSettings {
       {
         id: "fear-greed-extreme",
         enabled: true,
-        name: "Fear & Greed extreme",
+        name: "恐慌贪婪极端值",
         kind: "fear_greed_extreme",
         params: { low: 20, high: 80 },
         cooldownMinutes: 180,
@@ -59,7 +59,7 @@ export function createDefaultAutopilotSettings(): AutopilotSettings {
       {
         id: "news-burst",
         enabled: true,
-        name: "News burst",
+        name: "新闻爆发",
         kind: "news_burst",
         params: { minItems: 5, windowMinutes: 90 },
         cooldownMinutes: 120,
