@@ -1,8 +1,9 @@
 import type { Provider } from "./types";
-import { formatPlainText } from "./format";
+import { isLockedResearchReportBody } from "./format";
 import { jsonApiResponseToResult, providerNotConfigured } from "./shared";
 
 const TELEGRAM_TEXT_LIMIT = 4096;
+const TITLE_SEPARATOR = "────────";
 
 export const telegramProvider: Provider = {
   name: "telegram",
@@ -14,7 +15,7 @@ export const telegramProvider: Provider = {
       return providerNotConfigured("telegram");
     }
     const actions = normalizeActions(message.actions);
-    const body = formatTelegramText(message.title, message.body);
+    const body = formatTelegramMessage(message.title, message.body);
 
     const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: "POST",
@@ -40,8 +41,19 @@ export const telegramProvider: Provider = {
   },
 };
 
+/** Exported for preview / tests. */
+export function formatTelegramMessage(title: string, body: string): string {
+  const cleanedBody = stripNoise(body);
+  const htmlBody = markdownToTelegramHtml(cleanedBody);
+  const titleHtml = title.trim()
+    ? `<b>${escapeTelegramHtml(stripMarkdownDecorations(title.trim()))}</b>\n${TITLE_SEPARATOR}\n`
+    : "";
+
+  return `${titleHtml}${htmlBody}`.replace(/\n{3,}/g, "\n\n").trim();
+}
+
 function toInlineKeyboard(actions: Array<{ label: string; url: string }>): Array<Array<{ text: string; url: string }>> {
-  const rows: Array<Array<{ text: string; url: string }>> = [];
+  const rows: Array<{ text: string; url: string }[]> = [];
   const sliced = actions.slice(0, 6);
 
   for (let index = 0; index < sliced.length; index += 2) {
@@ -55,33 +67,178 @@ function toInlineKeyboard(actions: Array<{ label: string; url: string }>): Array
   return rows;
 }
 
-function formatTelegramText(title: string, body: string): string {
-  const text = formatPlainText({
-    title,
-    body,
-    level: "info",
-    tags: [],
-    actions: [],
-    metadata: {},
-  });
-
-  return formatTelegramHtml(stripLeadingLogLine(text)
-    .replace(/Sources:\s*.*$/gim, "")
-    .replace(/Tags:\s*.*$/gim, "")
+function stripNoise(value: string): string {
+  return value
+    .replace(/^\s*\[(?:info|success|warning|error)\]\s*/i, "")
+    .replace(/^Sources:\s*.*$/gim, "")
+    .replace(/^Tags:\s*.*$/gim, "")
+    .replace(/^Level:\s*.*$/gim, "")
     .replace(/\n{3,}/g, "\n\n")
-    .trim());
+    .trim();
 }
 
-function stripLeadingLogLine(value: string): string {
-  return value.replace(/^\s*\[(?:info|success|warning|error)\]\s*/i, "");
+function stripMarkdownDecorations(value: string): string {
+  return value
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .trim();
 }
 
-function formatTelegramHtml(value: string): string {
-  const withoutHeadingMarkers = value.replace(/^#{1,6}\s+/gm, "");
-  const withLinks = replaceMarkdownLinks(withoutHeadingMarkers);
+function markdownToTelegramHtml(value: string): string {
+  if (!value) return "";
+
+  // Research reports already start with emoji + bold markdown title; keep converting.
+  const withoutTables = convertMarkdownTables(value);
+  const lines = withoutTables.split("\n");
+  const output: string[] = [];
+  let inBlockquote = false;
+  let blockquoteLines: string[] = [];
+
+  const flushBlockquote = () => {
+    if (!inBlockquote) return;
+    const inner = blockquoteLines.join("\n").trim();
+    if (inner) {
+      output.push(`<blockquote>${inner}</blockquote>`);
+    }
+    blockquoteLines = [];
+    inBlockquote = false;
+  };
+
+  for (const rawLine of lines) {
+    const line = rawLine.replace(/\s+$/g, "");
+
+    if (/^>\s?/.test(line)) {
+      inBlockquote = true;
+      blockquoteLines.push(formatInlineMarkdown(line.replace(/^>\s?/, "")));
+      continue;
+    }
+
+    flushBlockquote();
+
+    if (!line.trim()) {
+      output.push("");
+      continue;
+    }
+
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
+      output.push(TITLE_SEPARATOR);
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
+      const level = heading[1]?.length ?? 2;
+      const text = formatInlineMarkdown(heading[2] ?? "");
+      if (level <= 2) {
+        output.push("", `<b>${text}</b>`, TITLE_SEPARATOR);
+      } else {
+        output.push("", `<b>${text}</b>`);
+      }
+      continue;
+    }
+
+    // List items keep their bullets; bold labels inside.
+    if (/^\s*([-*+]|\d+\.)\s+/.test(line)) {
+      output.push(formatInlineMarkdown(line));
+      continue;
+    }
+
+    output.push(formatInlineMarkdown(line));
+  }
+
+  flushBlockquote();
+
+  // Research locked bodies already contain a bold title line; avoid double separators at top.
+  const joined = output.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  if (isLockedResearchReportBody(value)) {
+    return joined.replace(new RegExp(`^${escapeRegExp(TITLE_SEPARATOR)}\\n+`), "");
+  }
+  return joined;
+}
+
+function convertMarkdownTables(value: string): string {
+  const lines = value.split("\n");
+  const output: string[] = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const headerLine = lines[index] ?? "";
+    const separatorLine = lines[index + 1] ?? "";
+
+    if (isTableRow(headerLine) && isTableSeparator(separatorLine)) {
+      const headers = splitTableRow(headerLine);
+      index += 2;
+      const rows: string[][] = [];
+      while (index < lines.length && isTableRow(lines[index] ?? "")) {
+        rows.push(splitTableRow(lines[index] ?? ""));
+        index += 1;
+      }
+
+      for (const row of rows) {
+        const pairs = headers
+          .map((header, headerIndex) => {
+            const cell = (row[headerIndex] ?? "").trim();
+            if (!cell || cell === "-" || cell === "—") return "";
+            const label = header.trim();
+            if (!label) return cell;
+            // First column is usually the asset name — emphasize it.
+            if (headerIndex === 0) return `• **${cell}**`;
+            return `${label} ${cell}`;
+          })
+          .filter(Boolean);
+
+        if (pairs.length > 0) {
+          const [first, ...rest] = pairs;
+          output.push(rest.length ? `${first}  ·  ${rest.join("  ·  ")}` : first ?? "");
+        }
+      }
+      output.push("");
+      continue;
+    }
+
+    output.push(headerLine);
+    index += 1;
+  }
+
+  return output.join("\n");
+}
+
+function isTableRow(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.startsWith("|") && trimmed.endsWith("|") && trimmed.includes("|");
+}
+
+function isTableSeparator(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed.startsWith("|")) return false;
+  return /^[\s|:\-]+$/.test(trimmed) && trimmed.includes("-");
+}
+
+function splitTableRow(line: string): string[] {
+  return line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+function formatInlineMarkdown(value: string): string {
+  // Protect links first so escaping does not break them.
+  const withLinks = replaceMarkdownLinks(value);
   return withLinks
     .split(/(<a href="https?:\/\/[^"]+">[\s\S]*?<\/a>)/g)
-    .map((part) => part.startsWith("<a href=") ? part : escapeTelegramHtml(part).replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>").replace(/`([^`\n]+)`/g, "$1"))
+    .map((part) => {
+      if (part.startsWith("<a href=")) return part;
+      return escapeTelegramHtml(part)
+        .replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>")
+        .replace(/__([^_\n]+)__/g, "<b>$1</b>")
+        .replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, "<i>$1</i>")
+        .replace(/(?<!_)_([^_\n]+)_(?!_)/g, "<i>$1</i>")
+        .replace(/`([^`\n]+)`/g, "<code>$1</code>");
+    })
     .join("");
 }
 
@@ -104,6 +261,10 @@ function escapeTelegramHtml(value: string): string {
 
 function escapeTelegramAttribute(value: string): string {
   return escapeTelegramHtml(value).replace(/"/g, "&quot;");
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function truncateTelegramHtml(value: string, limit = TELEGRAM_TEXT_LIMIT): string {
@@ -179,11 +340,20 @@ function updateClosingTags(current: string[], tag: string): string[] {
   const next = [...current];
   const lower = tag.toLowerCase();
 
-  if (lower === "<b>") {
-    next.push("</b>");
-  } else if (lower.startsWith("<a ")) {
+  const openMap: Record<string, string> = {
+    "<b>": "</b>",
+    "<i>": "</i>",
+    "<u>": "</u>",
+    "<code>": "</code>",
+    "<pre>": "</pre>",
+    "<blockquote>": "</blockquote>",
+  };
+
+  if (lower.startsWith("<a ")) {
     next.push("</a>");
-  } else if (lower === "</b>" || lower === "</a>") {
+  } else if (openMap[lower]) {
+    next.push(openMap[lower]);
+  } else if (lower === "</b>" || lower === "</i>" || lower === "</u>" || lower === "</code>" || lower === "</pre>" || lower === "</blockquote>" || lower === "</a>") {
     const index = next.lastIndexOf(lower);
     if (index >= 0) next.splice(index, 1);
   }

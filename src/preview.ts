@@ -3,12 +3,13 @@ import { getSettings, mergeProviderSettings, type PulseSchedule } from "./config
 import { mergeMarketDataProviderSettings } from "./market-data-settings";
 import { type ProviderName, toPushMessage } from "./messages";
 import { formatMarkdown, formatPlainText } from "./providers/format";
+import { formatTelegramMessage } from "./providers/telegram";
 import { buildScheduleReport } from "./report";
 
 export interface ProviderPreview {
   target: ProviderName;
   label: string;
-  format: "markdown" | "text";
+  format: "markdown" | "text" | "html";
   content: string;
 }
 
@@ -62,17 +63,23 @@ export async function createSchedulePreview(env: Env, schedule: PulseSchedule, n
     sourceMessage: report.sourceMessage,
     deliveries: schedule.targets.map((target) => {
       const format = getProviderFormat(target);
+      const content = format === "html"
+        ? formatTelegramMessage(message.title, message.body)
+        : format === "markdown"
+          ? formatMarkdown(message)
+          : formatPlainText(message);
 
       return {
         target,
         label: providerLabels[target],
         format,
-        content: format === "markdown" ? formatMarkdown(message) : formatPlainText(message),
+        content,
       };
     }),
   };
 }
 
-function getProviderFormat(target: ProviderName): "markdown" | "text" {
+function getProviderFormat(target: ProviderName): "markdown" | "text" | "html" {
+  if (target === "telegram") return "html";
   return target === "wechat_clawbot" || target === "discord" || target === "slack" ? "markdown" : "text";
 }

@@ -601,9 +601,10 @@ describe("handleRequest", () => {
     const telegramPreview = body.preview.deliveries[0];
     const clawbotPreview = body.preview.deliveries[1];
 
-    expect(telegramPreview).toMatchObject({ label: "Telegram", format: "text" });
+    expect(telegramPreview).toMatchObject({ label: "Telegram", format: "html" });
     expect(clawbotPreview).toMatchObject({ label: "wechat clawbot", format: "markdown" });
     expect(telegramPreview?.content).toContain("🔗");
+    expect(telegramPreview?.content).toContain("<b>");
   });
 
   it("renders daily hot preview as 4 international, 4 domestic, 3 hot-search, and 1 top topic", async () => {

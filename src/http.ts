@@ -230,17 +230,21 @@ async function handleAdminApi(request: Request, env: Env): Promise<Response> {
     const zh = (settings.language || "zh") !== "en";
     const summary = await sendIncomingMessage({
       target,
-      title: zh ? "GlobalPulse 测试推送" : "GlobalPulse test push",
+      title: zh ? "📡 GlobalPulse 测试推送" : "📡 GlobalPulse test push",
       body: zh
         ? [
-            "这是来自管理后台的手动测试消息。",
-            `时间：${now.toISOString()}`,
-            "如果收到这条消息，说明渠道凭证配置正确。",
+            "这是来自管理后台的 **手动测试消息**。",
+            "",
+            `🕒 时间：\`${now.toISOString()}\``,
+            "",
+            "> 如果收到这条消息，说明渠道凭证配置正确。",
           ].join("\n")
         : [
-            "This is a manual test message from the Admin UI.",
-            `Time: ${now.toISOString()}`,
-            "If you received this, the provider credentials work.",
+            "This is a **manual test message** from the Admin UI.",
+            "",
+            `🕒 Time: \`${now.toISOString()}\``,
+            "",
+            "> If you received this, the provider credentials work.",
           ].join("\n"),
       level: "info",
       tags: ["globalpulse", "test-push", target],
