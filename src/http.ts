@@ -17,12 +17,13 @@ import { getLocalTimeParts } from "./time";
 import { getLatestContinuityDelta, getPulseSnapshot } from "./continuity";
 import { createDefaultAutopilotSettings, runAutopilotRadar } from "./autopilot";
 import { listResearchRuns } from "./research/persistence/query";
+import { bootstrapTelegramBot, handleTelegramWebhook } from "./telegram";
 
 const jsonHeaders = {
   "Content-Type": "application/json; charset=utf-8",
 };
 
-export async function handleRequest(request: Request, env: Env): Promise<Response> {
+export async function handleRequest(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
 
   if (request.method === "OPTIONS") {
@@ -48,6 +49,10 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
 
     if (request.method === "GET" && url.pathname === "/health") {
       return json(createHealthPayload(env), env);
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/telegram/webhook") {
+      return handleTelegramWebhook(request, env, ctx);
     }
 
     if (url.pathname.startsWith("/api/admin/")) {
@@ -210,6 +215,11 @@ async function handleAdminApi(request: Request, env: Env): Promise<Response> {
   if (request.method === "GET" && url.pathname === "/api/admin/research-runs") {
     const limit = Number(url.searchParams.get("limit") || 20);
     return json({ runs: await listResearchRuns(env, limit) }, env);
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/admin/telegram/bootstrap") {
+    const result = await bootstrapTelegramBot(env, new URL(request.url).origin);
+    return json({ ok: result.commands && result.webhook, ...result }, env, result.commands && result.webhook ? 200 : 502);
   }
 
   if (request.method === "POST" && url.pathname === "/api/admin/test-push") {
