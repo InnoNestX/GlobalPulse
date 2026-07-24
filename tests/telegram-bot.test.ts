@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildCommandInlineKeyboard, extractCommand, isChatAllowed, TELEGRAM_COMMAND_MENU } from "../src/telegram/api";
 import {
   heuristicIntent,
+  matchHeuristicIntent,
   resolveOpenRouterModel,
   resolveOpenRouterModelCandidates,
 } from "../src/telegram/openrouter";
@@ -52,5 +53,11 @@ describe("telegram bot helpers", () => {
     expect(heuristicIntent("今天有什么热点")).toBe("hot");
     expect(heuristicIntent("发一份简报")).toBe("brief");
     expect(heuristicIntent("下次什么时候推送")).toBe("status");
+  });
+
+  it("marks vague phrases as low-confidence so AI can refine them", () => {
+    expect(matchHeuristicIntent("给我看美股")).toMatchObject({ intent: "us", confidence: "high" });
+    expect(matchHeuristicIntent("帮我看看盘")).toMatchObject({ intent: "brief", confidence: "low" });
+    expect(matchHeuristicIntent("午饭吃什么")).toMatchObject({ intent: "unknown", confidence: "none" });
   });
 });

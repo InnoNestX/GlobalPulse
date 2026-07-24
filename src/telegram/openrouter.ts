@@ -31,10 +31,21 @@ export type BotIntent =
   | "status"
   | "unknown";
 
+export type IntentConfidence = "high" | "low" | "none";
+
 export interface IntentResult {
   intent: BotIntent;
   reply?: string;
   model?: string;
+  /** How the intent was resolved. */
+  source?: "heuristic" | "heuristic-fallback" | "openrouter" | "none";
+  /** True when free AI models were consulted. */
+  usedAi?: boolean;
+}
+
+export interface HeuristicMatch {
+  intent: BotIntent;
+  confidence: IntentConfidence;
 }
 
 interface FreeModelCache {
@@ -60,40 +71,82 @@ export function resolveOpenRouterModelCandidates(envModel?: string, liveFreeMode
   return Array.from(new Set([preferred, ...freeOnly]));
 }
 
+/**
+ * Auto intent classification:
+ * 1) high-confidence local keywords → instant
+ * 2) otherwise call OpenRouter free models with automatic failover
+ * 3) if AI fails, fall back to low-confidence heuristic when available
+ */
 export async function classifyTelegramIntent(env: Env, text: string): Promise<IntentResult> {
   const cleaned = text.trim();
   if (!cleaned) {
-    return { intent: "unknown", reply: "请发送内容，或点菜单选择命令。" };
+    return {
+      intent: "unknown",
+      reply: "请发送内容，或点菜单选择命令。",
+      source: "none",
+      usedAi: false,
+    };
   }
 
-  // Fast path: Chinese/English keyword matching — no LLM needed.
-  const heuristic = heuristicIntent(cleaned);
-  if (heuristic !== "unknown") {
-    return { intent: heuristic };
+  const heuristic = matchHeuristicIntent(cleaned);
+  if (heuristic.confidence === "high") {
+    return { intent: heuristic.intent, source: "heuristic", usedAi: false };
   }
 
   const apiKey = env.OPENROUTER_API_KEY?.trim();
   if (!apiKey) {
+    if (heuristic.confidence === "low") {
+      return { intent: heuristic.intent, source: "heuristic-fallback", usedAi: false };
+    }
     return {
       intent: "unknown",
       reply: "可以说「给我看美股」「A股怎么样」「今天热点」，或发送 /help。",
+      source: "none",
+      usedAi: false,
     };
   }
 
+  const ai = await classifyWithFreeModels(env, apiKey, cleaned);
+  if (ai.intent !== "unknown") {
+    return { ...ai, source: "openrouter", usedAi: true };
+  }
+
+  // AI did not understand — keep a useful Chinese hint, or use weak local guess.
+  if (heuristic.confidence === "low") {
+    return {
+      intent: heuristic.intent,
+      source: "heuristic-fallback",
+      usedAi: true,
+      model: ai.model,
+    };
+  }
+
+  return {
+    intent: "unknown",
+    reply: ai.reply || "我没太听懂。可以直接说「给我看美股」「A股怎么样」「加密行情」「今日热点」，或点菜单。",
+    source: "openrouter",
+    usedAi: true,
+    model: ai.model,
+  };
+}
+
+async function classifyWithFreeModels(env: Env, apiKey: string, text: string): Promise<IntentResult> {
   const liveFree = await listOpenRouterFreeModels(env, apiKey);
   const models = resolveOpenRouterModelCandidates(env.OPENROUTER_MODEL, liveFree);
   const errors: string[] = [];
+  let lastUnknown: IntentResult | undefined;
 
   for (const model of models.slice(0, 8)) {
     try {
-      const content = await callOpenRouterChat(env, apiKey, model, cleaned);
+      const content = await callOpenRouterChat(env, apiKey, model, text);
       if (!content) {
         errors.push(`${model}: empty`);
         continue;
       }
-      const parsed = parseIntentJson(content);
-      if (parsed.intent === "unknown" && !parsed.reply) {
-        // Model answered but poorly — try next free model.
+      const parsed = parseIntentResult(content);
+      if (parsed.intent === "unknown") {
+        lastUnknown = { ...parsed, model };
+        // Keep trying other free models — one may understand better.
         errors.push(`${model}: unknown`);
         continue;
       }
@@ -104,9 +157,9 @@ export async function classifyTelegramIntent(env: Env, text: string): Promise<In
   }
 
   console.warn("OpenRouter free-model failover exhausted", errors.slice(0, 6).join(" | "));
-  return {
+  return lastUnknown || {
     intent: "unknown",
-    reply: "我没太听懂。可以直接说「给我看美股」「A股怎么样」「加密行情」「今日热点」，或点菜单。",
+    reply: "暂时无法理解这句话。请换个说法，或点菜单选择命令。",
   };
 }
 
@@ -132,7 +185,6 @@ export async function listOpenRouterFreeModels(env: Env, apiKey: string): Promis
       .filter((id) => id && isFreePricingModel(id, payload.data?.find((entry) => entry.id === id)?.pricing))
       .filter((id) => isUsableFreeChatModel(id));
 
-    // Prefer the free router and general chat models first.
     models.sort((a, b) => freeModelRank(a) - freeModelRank(b));
     freeModelCache = { at: Date.now(), models };
     return models;
@@ -154,24 +206,28 @@ async function callOpenRouterChat(env: Env, apiKey: string, model: string, text:
     body: JSON.stringify({
       model,
       temperature: 0,
-      // Many free models reject response_format; ask for JSON in the prompt instead.
       messages: [
         {
           role: "system",
           content: [
-            "你是 GlobalPulse 财经简报机器人的意图分类器。",
-            "用户会用中文口语提问，例如：给我看美股、A股怎么样、加密行情如何、今天有什么热点。",
+            "你是 GlobalPulse 财经简报机器人的意图分析器。",
+            "用户可能说得很口语、省略、打错字，请尽量理解真实需求。",
             "只输出一行 JSON，不要 Markdown，不要解释：",
             '{"intent":"ashare|us|crypto|hot|brief|status|help|start|unknown","reply":"可选中文短回复"}',
-            "映射规则：",
-            "- A股/沪深/上证/深证/创业板 → ashare",
-            "- 美股/纳指/标普/道指/美盘 → us",
-            "- 加密/比特币/BTC/ETH/币圈 → crypto",
-            "- 热点/热搜/新闻/头条 → hot",
-            "- 简报/行情/盘前/盘后/给我看看（未指市场） → brief",
-            "- 状态/下次推送 → status",
-            "- 帮助/怎么用 → help",
-            "无法判断时 intent=unknown，reply 用中文引导用户换一种说法。",
+            "intent 含义：",
+            "- ashare: 要 A股 / 沪深 / 上证 / 深证 / 创业板 相关简报",
+            "- us: 要美股 / 纳指 / 标普 / 道指 / 美盘 相关简报",
+            "- crypto: 要加密货币 / BTC / ETH / 币圈 相关简报",
+            "- hot: 要热点 / 热搜 / 新闻 / 头条",
+            "- brief: 只要一份通用简报，未指定市场",
+            "- status: 问推送状态 / 下次什么时候发",
+            "- help: 问怎么用 / 有哪些命令",
+            "- start: 打招呼开场",
+            "- unknown: 确实无法判断",
+            "示例：",
+            "「美股咋样了」→ {\"intent\":\"us\"}",
+            "「帮我看看盘」→ {\"intent\":\"brief\"}",
+            "「午饭吃什么」→ {\"intent\":\"unknown\",\"reply\":\"我只能帮你看财经简报，试试 /us 或 /ashare\"}",
           ].join("\n"),
         },
         { role: "user", content: text.slice(0, 500) },
@@ -194,38 +250,43 @@ async function callOpenRouterChat(env: Env, apiKey: string, model: string, text:
   return payload.choices?.[0]?.message?.content?.trim() || "";
 }
 
+/** Backward-compatible helper used by tests. */
 export function heuristicIntent(text: string): BotIntent {
-  const normalized = text.trim().toLowerCase().replace(/\s+/g, "");
-  if (!normalized) return "unknown";
+  return matchHeuristicIntent(text).intent;
+}
 
-  // Help / status first — avoid being swallowed by generic "看".
+export function matchHeuristicIntent(text: string): HeuristicMatch {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, "");
+  if (!normalized) return { intent: "unknown", confidence: "none" };
+
+  // High confidence: clear help / status.
   if (/^(帮助|求助|怎么用|如何使用|命令|菜单|help)$/i.test(normalized) || /帮助|怎么用|命令列表|有哪些命令/.test(normalized)) {
-    return "help";
+    return { intent: "help", confidence: "high" };
   }
   if (/状态|下次推送|什么时候推|何时推|推送时间|schedule|status/.test(normalized)) {
-    return "status";
+    return { intent: "status", confidence: "high" };
   }
 
-  // Market-specific phrases (more specific before generic).
+  // High confidence: explicit market.
   if (/a股|沪深|上证|深证|创业板|科创板|a\s*share|china\s*stock/.test(normalized)) {
-    return "ashare";
+    return { intent: "ashare", confidence: "high" };
   }
   if (/美股|美盘|纳斯达克|纳指|标普|道琼斯|道指|标普500|spy|qqq|nasdaq|s&p|us\s*stock/.test(normalized)) {
-    return "us";
+    return { intent: "us", confidence: "high" };
   }
   if (/加密|比特币|以太坊|币圈|数字货币|btc|eth|crypto|solana|sol\b/.test(normalized)) {
-    return "crypto";
+    return { intent: "crypto", confidence: "high" };
   }
   if (/热点|热搜|头条|要闻|国际新闻|今日新闻|今天新闻|daily\s*hot/.test(normalized)) {
-    return "hot";
+    return { intent: "hot", confidence: "high" };
   }
 
-  // Generic briefing asks.
-  if (/简报|报告|行情|盘前|盘后|复盘|给我看|发一份|发一下|看一下|看看|怎么样|如何|拉一下|来一份|更新一下/.test(normalized)) {
-    return "brief";
+  // Low confidence: vague briefing verbs — prefer AI confirmation.
+  if (/简报|报告|行情|盘前|盘后|复盘|给我看|发一份|发一下|看一下|看看|怎么样|如何|拉一下|来一份|更新一下|看看盘|帮我看/.test(normalized)) {
+    return { intent: "brief", confidence: "low" };
   }
 
-  return "unknown";
+  return { intent: "unknown", confidence: "none" };
 }
 
 function isFreePricingModel(
@@ -242,7 +303,6 @@ function isFreePricingModel(
 function isUsableFreeChatModel(id: string): boolean {
   const lower = id.toLowerCase();
   if (!lower) return false;
-  // Skip non-chat / specialized free endpoints.
   if (/(content-safety|lyria|tts|whisper|embed|moderation|image|video)/i.test(lower)) return false;
   if (lower.includes("-vl:") || lower.endsWith("-vl") || lower.includes("vision")) return false;
   return lower === "openrouter/free" || lower.endsWith(":free") || lower.includes("/");
@@ -258,22 +318,33 @@ function freeModelRank(id: string): number {
   return 10;
 }
 
-function parseIntentJson(content: string): IntentResult {
+function parseIntentResult(content: string): IntentResult {
   try {
     const start = content.indexOf("{");
     const end = content.lastIndexOf("}");
     const raw = start >= 0 && end > start ? content.slice(start, end + 1) : content;
     const parsed = JSON.parse(raw) as { intent?: string; reply?: string };
-    const intent = normalizeIntent(parsed.intent);
     return {
-      intent,
+      intent: normalizeIntent(parsed.intent),
       reply: typeof parsed.reply === "string" ? parsed.reply.slice(0, 300) : undefined,
     };
   } catch {
-    // Model returned prose — try heuristic on the model text itself.
-    const fallback = heuristicIntent(content);
-    if (fallback !== "unknown") return { intent: fallback };
-    return { intent: "unknown", reply: "我没太听懂。可以说「给我看美股」或发送 /help。" };
+    // Free models sometimes reply in prose: "intent: us" / "美股".
+    const prose = content.toLowerCase();
+    const fromProse =
+      prose.match(/\bintent["'\s:=]+(ashare|us|crypto|hot|brief|status|help|start|unknown)\b/)?.[1]
+      || undefined;
+    if (fromProse) {
+      return { intent: normalizeIntent(fromProse) };
+    }
+    const fallback = matchHeuristicIntent(content);
+    if (fallback.confidence !== "none") {
+      return { intent: fallback.intent };
+    }
+    return {
+      intent: "unknown",
+      reply: "我没太听懂。可以说「给我看美股」或发送 /help。",
+    };
   }
 }
 

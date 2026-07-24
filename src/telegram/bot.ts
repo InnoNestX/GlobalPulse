@@ -14,7 +14,7 @@ import {
   setTelegramWebhook,
   type TelegramUpdate,
 } from "./api";
-import { classifyTelegramIntent, type BotIntent } from "./openrouter";
+import { classifyTelegramIntent, matchHeuristicIntent, type BotIntent } from "./openrouter";
 
 const HELP_BODY = [
   "可用命令（也可点下方按钮 / 输入框旁菜单）：",
@@ -200,6 +200,12 @@ async function processTelegramUpdate(env: Env, update: TelegramUpdate): Promise<
     }
     await handleIntent(env, chatId, intent);
     return;
+  }
+
+  // Natural language: clear keywords first; otherwise ask free AI models.
+  const localGuess = matchHeuristicIntent(message.text);
+  if (localGuess.confidence !== "high") {
+    await sendTelegramHtml(env, chatId, "🧠 正在理解", "这句话我先用免费 AI 模型分析一下…");
   }
 
   const classified = await classifyTelegramIntent(env, message.text);
