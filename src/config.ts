@@ -555,7 +555,7 @@ function readAutopilotSettings(value: unknown, fallback: AutopilotSettings): Aut
     return [{
       id: sanitizeId(readString(entry.id, `autopilot-${index + 1}`)),
       enabled: typeof entry.enabled === "boolean" ? entry.enabled : true,
-      name: readString(entry.name, `Rule ${index + 1}`).slice(0, 80),
+      name: localizeStoredAutopilotRuleName(kind, readString(entry.name, `Rule ${index + 1}`)).slice(0, 80),
       kind,
       params: isRecord(entry.params) ? entry.params as Record<string, number | string | boolean> : {},
       cooldownMinutes: Math.max(5, Math.min(24 * 60, Number(entry.cooldownMinutes) || 60)),
@@ -568,6 +568,24 @@ function readAutopilotSettings(value: unknown, fallback: AutopilotSettings): Aut
     enabled: typeof value.enabled === "boolean" ? value.enabled : fallback.enabled,
     rules: rules.length ? rules : fallback.rules,
   };
+}
+
+function localizeStoredAutopilotRuleName(kind: AutopilotSettings["rules"][number]["kind"], name: string): string {
+  const legacy: Record<string, string> = {
+    "News burst": "新闻爆发",
+    "Position move ±3%": "持仓异动 ±3%",
+    "Fear & Greed extreme": "恐慌贪婪极端值",
+    "Bias flip": "情绪翻转",
+  };
+  if (legacy[name]) return legacy[name];
+  if (!/[A-Za-z]{3,}/.test(name)) return name;
+  const byKind: Record<AutopilotSettings["rules"][number]["kind"], string> = {
+    symbol_move: "持仓异动 ±3%",
+    fear_greed_extreme: "恐慌贪婪极端值",
+    news_burst: "新闻爆发",
+    bias_flip: "情绪翻转",
+  };
+  return byKind[kind] || name;
 }
 
 function assignIfMissing(env: Env, key: EnvStringKey, value: string | undefined): void {

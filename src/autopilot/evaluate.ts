@@ -1,13 +1,28 @@
 import type { Env } from "../env";
 import type { AppSettings } from "../config";
-import { fetchTopicItems } from "../sources";
+import { fetchTopicItems, type TopicItem } from "../sources";
 import { getPulseSnapshot } from "../continuity";
-import type { AutopilotRule, AutopilotTrigger } from "./types";
+import { ensureChineseTopicItems } from "../report";
+import type { AutopilotRule, AutopilotRuleKind, AutopilotTrigger } from "./types";
 
 interface QuoteRow {
   symbol: string;
   changePct: number;
 }
+
+const RULE_NAME_ZH: Record<AutopilotRuleKind, string> = {
+  symbol_move: "持仓异动",
+  fear_greed_extreme: "恐慌贪婪极端值",
+  news_burst: "新闻爆发",
+  bias_flip: "情绪翻转",
+};
+
+const LEGACY_NAME_ZH: Record<string, string> = {
+  "News burst": "新闻爆发",
+  "Position move ±3%": "持仓异动 ±3%",
+  "Fear & Greed extreme": "恐慌贪婪极端值",
+  "Bias flip": "情绪翻转",
+};
 
 export async function evaluateAutopilotRule(
   env: Env,
@@ -29,8 +44,24 @@ export async function evaluateAutopilotRule(
   }
 }
 
+/** Autopilot pushes are Chinese unless content language is explicitly English. */
 function useZh(settings: AppSettings): boolean {
   return (settings.language || "zh") !== "en";
+}
+
+export function localizeAutopilotRuleName(rule: AutopilotRule, zh = true): string {
+  if (!zh) return rule.name;
+  if (LEGACY_NAME_ZH[rule.name]) return LEGACY_NAME_ZH[rule.name]!;
+  const kindName = RULE_NAME_ZH[rule.kind];
+  if (/[A-Za-z]{3,}/.test(rule.name) && kindName) {
+    // Keep numeric suffix like ±3% when present on Chinese default.
+    if (rule.kind === "symbol_move" && /±\s*\d/.test(rule.name)) {
+      const match = rule.name.match(/±\s*\d+(?:\.\d+)?%?/);
+      return match ? `持仓异动 ${match[0].replace(/\s+/g, "")}` : kindName;
+    }
+    return kindName;
+  }
+  return rule.name || kindName || "自动雷达";
 }
 
 async function evaluateSymbolMove(env: Env, settings: AppSettings, rule: AutopilotRule): Promise<AutopilotTrigger | null> {
@@ -48,13 +79,14 @@ async function evaluateSymbolMove(env: Env, settings: AppSettings, rule: Autopil
     .map((row) => `- ${row.symbol}: ${row.changePct > 0 ? "+" : ""}${row.changePct.toFixed(2)}%`);
 
   const zh = useZh(settings);
+  const name = localizeAutopilotRuleName(rule, zh);
   return {
     rule,
-    title: zh ? `自动雷达 · ${rule.name}` : `Autopilot · ${rule.name}`,
+    title: zh ? `自动雷达 · ${name}` : `Autopilot · ${rule.name}`,
     reason: `symbol_move>=${threshold}%`,
     body: zh
       ? [
-          `# ${rule.name}`,
+          `# ${name}`,
           "",
           `触发阈值：±${threshold}%`,
           "",
@@ -82,13 +114,14 @@ async function evaluateFearGreed(env: Env, settings: AppSettings, rule: Autopilo
   if (value > low && value < high) return null;
 
   const zh = useZh(settings);
+  const name = localizeAutopilotRuleName(rule, zh);
   return {
     rule,
-    title: zh ? `自动雷达 · ${rule.name}` : `Autopilot · ${rule.name}`,
+    title: zh ? `自动雷达 · ${name}` : `Autopilot · ${rule.name}`,
     reason: `fear_greed=${value}`,
     body: zh
       ? [
-          `# ${rule.name}`,
+          `# ${name}`,
           "",
           `恐慌贪婪指数：**${value}**`,
           value <= low ? `已低于极度恐慌阈值（${low}）。` : `已高于极度贪婪阈值（${high}）。`,
@@ -114,8 +147,10 @@ async function evaluateNewsBurst(
 ): Promise<AutopilotTrigger | null> {
   const minItems = Number(rule.params.minItems ?? 5);
   const windowMinutes = Number(rule.params.windowMinutes ?? 90);
-  const query = settings.topicFocus || (useZh(settings) ? "市场 金融 地缘政治" : "markets OR finance OR geopolitics");
-  const topic = await fetchTopicItems(query, settings.language, undefined, { mode: "daily_hot", newsApiKey: env.NEWSAPI_API_KEY });
+  const zh = useZh(settings);
+  const language = zh ? "zh" : "en";
+  const query = settings.topicFocus || (zh ? "市场 金融 地缘政治" : "markets OR finance OR geopolitics");
+  const topic = await fetchTopicItems(query, language, undefined, { mode: "daily_hot", newsApiKey: env.NEWSAPI_API_KEY });
   const cutoff = now.getTime() - windowMinutes * 60 * 1000;
   const recent = topic.items.filter((item) => {
     if (!item.publishedAt) return true;
@@ -124,18 +159,23 @@ async function evaluateNewsBurst(
   });
   if (recent.length < minItems) return null;
 
-  const zh = useZh(settings);
+  const topItems = recent.slice(0, 6);
+  const displayItems = zh
+    ? await ensureChineseTopicItems(env, topItems, { maxItems: 6, preferBatchAi: true, concurrency: 3 })
+    : topItems;
+
+  const name = localizeAutopilotRuleName(rule, zh);
   return {
     rule,
-    title: zh ? `自动雷达 · ${rule.name}` : `Autopilot · ${rule.name}`,
+    title: zh ? `自动雷达 · ${name}` : `Autopilot · ${rule.name}`,
     reason: `news_burst=${recent.length}`,
     body: zh
       ? [
-          `# ${rule.name}`,
+          `# ${name}`,
           "",
           `约 ${windowMinutes} 分钟内出现 ${recent.length} 条相关新闻`,
           "",
-          ...recent.slice(0, 6).map((item) => `- ${item.title}`),
+          ...displayItems.map((item) => formatNewsLine(item)),
           "",
           "> GlobalPulse 自动雷达",
         ].join("\n")
@@ -144,7 +184,7 @@ async function evaluateNewsBurst(
           "",
           `${recent.length} headlines in ~${windowMinutes}m window`,
           "",
-          ...recent.slice(0, 6).map((item) => `- ${item.title}`),
+          ...displayItems.map((item) => `- ${item.title}`),
           "",
           "> GlobalPulse Autopilot Radar",
         ].join("\n"),
@@ -160,13 +200,14 @@ async function evaluateBiasFlip(env: Env, settings: AppSettings, rule: Autopilot
   if (!expected || snapshot.bias === expected) return null;
 
   const zh = useZh(settings);
+  const name = localizeAutopilotRuleName(rule, zh);
   return {
     rule,
-    title: zh ? `自动雷达 · ${rule.name}` : `Autopilot · ${rule.name}`,
+    title: zh ? `自动雷达 · ${name}` : `Autopilot · ${rule.name}`,
     reason: `bias=${snapshot.bias}`,
     body: zh
       ? [
-          `# ${rule.name}`,
+          `# ${name}`,
           "",
           `最新连续性偏向为 **${snapshot.bias}**（观察阈值：${expected}）。`,
           `时间表：${schedule.name}`,
@@ -182,6 +223,11 @@ async function evaluateBiasFlip(env: Env, settings: AppSettings, rule: Autopilot
           "> GlobalPulse Autopilot Radar",
         ].join("\n"),
   };
+}
+
+function formatNewsLine(item: TopicItem): string {
+  const title = item.title.trim();
+  return item.url ? `- [${title}](${item.url})` : `- ${title}`;
 }
 
 function collectWatchSymbols(settings: AppSettings, usePositions: boolean): string[] {

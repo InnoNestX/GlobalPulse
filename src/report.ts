@@ -607,10 +607,21 @@ async function maybeTranslateItems(env: Env, items: TopicItem[], language: Pulse
   return [...translatedItems, ...items.slice(limit)];
 }
 
+/** Translate topic titles/summaries to Simplified Chinese when needed. */
+export async function ensureChineseTopicItems(
+  env: Env,
+  items: TopicItem[],
+  options: TranslationOptions = {},
+): Promise<TopicItem[]> {
+  return maybeTranslateItems(env, items, "zh", options);
+}
+
 async function translateItemsViaBatchProviders(env: Env, items: TopicItem[]): Promise<Map<number, TranslationResult>> {
   const geminiTranslations = await translateItemsViaGeminiBatch(env, items);
   if (geminiTranslations.size > 0) return geminiTranslations;
-  return translateItemsViaWorkersAiBatch(env, items);
+  const workersTranslations = await translateItemsViaWorkersAiBatch(env, items);
+  if (workersTranslations.size > 0) return workersTranslations;
+  return translateItemsViaOpenRouterBatch(env, items);
 }
 
 async function translateItemsViaGeminiBatch(env: Env, items: TopicItem[]): Promise<Map<number, TranslationResult>> {
@@ -668,6 +679,54 @@ async function translateItemsViaWorkersAiBatch(env: Env, items: TopicItem[]): Pr
     console.warn("Workers AI batch translation failed", error);
     return new Map();
   }
+}
+
+async function translateItemsViaOpenRouterBatch(env: Env, items: TopicItem[]): Promise<Map<number, TranslationResult>> {
+  const candidates = buildTranslationCandidates(items);
+  const apiKey = env.OPENROUTER_API_KEY?.trim();
+  if (!candidates.length || !apiKey) return new Map();
+
+  const baseUrl = (env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1").replace(/\/$/, "");
+  const models = Array.from(new Set([
+    env.OPENROUTER_MODEL?.trim() || "openrouter/free",
+    "openrouter/free",
+    "google/gemma-4-31b-it:free",
+    "openai/gpt-oss-20b:free",
+    "inclusionai/ling-3.0-flash:free",
+  ]));
+  const prompt = buildBatchTranslationPrompt(candidates);
+
+  for (const model of models.slice(0, 4)) {
+    try {
+      const response = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://globalpulse.xuxuclassmate.workers.dev",
+          "X-Title": "GlobalPulse Translation",
+        },
+        body: JSON.stringify({
+          model,
+          temperature: 0,
+          messages: [
+            { role: "system", content: "你是新闻翻译助手，只输出 JSON，不要输出解释。" },
+            { role: "user", content: prompt },
+          ],
+        }),
+      });
+      if (!response.ok) continue;
+      const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+      const content = payload.choices?.[0]?.message?.content;
+      if (!content) continue;
+      const parsed = parseAiBatchTranslationResult(content, items);
+      if (parsed.size > 0) return parsed;
+    } catch (error) {
+      console.warn("OpenRouter batch translation failed", { model, error });
+    }
+  }
+
+  return new Map();
 }
 
 function buildTranslationCandidates(items: TopicItem[]): Array<{ item: TopicItem; index: number }> {

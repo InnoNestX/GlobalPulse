@@ -55,8 +55,10 @@ export async function runAutopilotRadar(env: Env, now = new Date()): Promise<Aut
       delivered: summary.delivered,
       failed: summary.failed,
       message: summary.ok
-        ? `Autopilot triggered: ${hit.reason}`
-        : `Autopilot delivery failed: ${summary.results.filter((result) => !result.ok).map((result) => result.message).join("; ")}`,
+        ? ((settings.language || "zh") === "en" ? `Autopilot triggered: ${hit.reason}` : `自动雷达已触发：${hit.reason}`)
+        : ((settings.language || "zh") === "en"
+          ? `Autopilot delivery failed: ${summary.results.filter((result) => !result.ok).map((result) => result.message).join("; ")}`
+          : `自动雷达推送失败：${summary.results.filter((result) => !result.ok).map((result) => result.message).join("; ")}`),
       createdAt: now.toISOString(),
       results: summary.results.map((result) => ({
         provider: result.provider,
