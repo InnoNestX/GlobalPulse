@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { extractCommand, isChatAllowed } from "../src/telegram/api";
-import { resolveOpenRouterModel } from "../src/telegram/openrouter";
+import {
+  heuristicIntent,
+  resolveOpenRouterModel,
+  resolveOpenRouterModelCandidates,
+} from "../src/telegram/openrouter";
 
 describe("telegram bot helpers", () => {
   it("parses slash commands with bot mention", () => {
@@ -16,8 +20,25 @@ describe("telegram bot helpers", () => {
     expect(isChatAllowed(env as never, 999)).toBe(false);
   });
 
-  it("defaults openrouter free model", () => {
+  it("defaults openrouter free model and builds failover list", () => {
     expect(resolveOpenRouterModel()).toBe("openrouter/free");
-    expect(resolveOpenRouterModel(" meta-llama/llama-3.3-70b-instruct:free ")).toBe("meta-llama/llama-3.3-70b-instruct:free");
+    const candidates = resolveOpenRouterModelCandidates(undefined, [
+      "google/gemma-4-31b-it:free",
+      "nvidia/nemotron-nano-12b-v2-vl:free",
+      "google/lyria-3-pro-preview",
+    ]);
+    expect(candidates[0]).toBe("openrouter/free");
+    expect(candidates).toContain("google/gemma-4-31b-it:free");
+    expect(candidates.some((model) => model.includes("lyria"))).toBe(false);
+    expect(candidates.some((model) => model.includes("-vl"))).toBe(false);
+  });
+
+  it("understands Chinese natural-language market asks", () => {
+    expect(heuristicIntent("给我看美股")).toBe("us");
+    expect(heuristicIntent("A股怎么样")).toBe("ashare");
+    expect(heuristicIntent("加密行情如何")).toBe("crypto");
+    expect(heuristicIntent("今天有什么热点")).toBe("hot");
+    expect(heuristicIntent("发一份简报")).toBe("brief");
+    expect(heuristicIntent("下次什么时候推送")).toBe("status");
   });
 });

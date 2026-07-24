@@ -25,7 +25,11 @@ const HELP_BODY = [
   "• /status — 查看推送状态",
   "• /help — 显示本说明",
   "",
-  "也可以直接说：「给我看美股」「A股怎么样」「今天热点」",
+  "也可以直接说：",
+  "• 「给我看美股」",
+  "• 「A股怎么样」",
+  "• 「加密行情」",
+  "• 「今天有什么热点」",
 ].join("\n");
 
 export async function handleTelegramWebhook(
