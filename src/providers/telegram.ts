@@ -70,9 +70,10 @@ function toInlineKeyboard(actions: Array<{ label: string; url: string }>): Array
 function stripNoise(value: string): string {
   return value
     .replace(/^\s*\[(?:info|success|warning|error)\]\s*/i, "")
-    .replace(/^Sources:\s*.*$/gim, "")
-    .replace(/^Tags:\s*.*$/gim, "")
-    .replace(/^Level:\s*.*$/gim, "")
+    // Avoid `\s*.*` (overlapping quantifiers) — CodeQL js/polynomial-redos.
+    .replace(/^Sources:.*$/gim, "")
+    .replace(/^Tags:.*$/gim, "")
+    .replace(/^Level:.*$/gim, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
@@ -107,7 +108,7 @@ function markdownToTelegramHtml(value: string): string {
   };
 
   for (const rawLine of lines) {
-    const line = rawLine.replace(/\s+$/g, "");
+    const line = rawLine.trimEnd();
 
     if (/^>\s?/.test(line)) {
       inBlockquote = true;
