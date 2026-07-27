@@ -3,6 +3,7 @@ import type { Env } from "./env";
 import { getProvider } from "./providers";
 import type { ProviderResult } from "./providers/types";
 import { type IncomingMessageBody, normalizeTargets, parseDefaultTargets, toPushMessage } from "./messages";
+import { ensureChineseBrief } from "./report";
 
 export interface DeliverySummary {
   ok: boolean;
@@ -14,7 +15,14 @@ export interface DeliverySummary {
 export async function sendIncomingMessage(incomingMessage: IncomingMessageBody, env: Env, settings?: AppSettings): Promise<DeliverySummary> {
   const deliveryEnv = await createDeliveryEnv(env, settings, incomingMessage.emailRecipientOverride);
   const targets = normalizeTargets(incomingMessage.target, parseDefaultTargets(deliveryEnv.DEFAULT_TARGETS));
-  const message = toPushMessage(incomingMessage);
+  let message = toPushMessage(incomingMessage);
+
+  // Telegram pushes for this deployment must stay Simplified Chinese.
+  if (targets.includes("telegram")) {
+    const polished = await ensureChineseBrief(deliveryEnv, message.title, message.body);
+    message = { ...message, title: polished.title, body: polished.body };
+  }
+
   const results = await Promise.all(targets.map((target) => getProvider(target).send(message, deliveryEnv)));
   const delivered = results.filter((result) => result.ok).length;
   const failed = results.length - delivered;

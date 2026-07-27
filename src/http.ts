@@ -1,5 +1,6 @@
 import type { Env } from "./env";
 import { appendLog, getLogs, getSettings, mergeProviderSettings, normalizeSettings, saveSettings, type AppSettings } from "./config";
+import { forceChineseSettings } from "./i18n-force-zh";
 import { renderAdminUiWithIntelEnhancements } from "./admin-intel-enhance";
 import { getMarketDataProviderSettings, saveMarketDataProviderSettings } from "./market-data-settings";
 import { DEFAULT_GLOBALPULSE_LOGO_SRC } from "./providers/email-logo";
@@ -230,6 +231,17 @@ async function handleAdminApi(request: Request, env: Env): Promise<Response> {
       bootstrap: boot,
       verify,
     }, env, boot.commands && boot.webhook && verify.ok ? 200 : 502);
+  }
+
+  if (request.method === "POST" && url.pathname === "/api/admin/force-zh") {
+    const current = await getAdminSettings(env);
+    const next = forceChineseSettings(current);
+    const settings = await saveSettings(env, next);
+    return json({
+      ok: true,
+      language: settings.language,
+      schedules: settings.schedules.map((s) => ({ id: s.id, name: s.name, language: s.language, targets: s.targets })),
+    }, env);
   }
 
   if (request.method === "POST" && url.pathname === "/api/admin/test-push") {

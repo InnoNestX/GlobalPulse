@@ -100,7 +100,10 @@ export async function buildResearchMarketReport(
   };
 
   const llm = await buildStructuredResearchReport(env, packet);
-  const report = enforceConfidenceCaps(packet, llm.report, llm.fallbackUsed);
+  let report = enforceConfidenceCaps(packet, llm.report, llm.fallbackUsed);
+  if (schedule.language === "zh") {
+    report = await localizeResearchReportChinese(env, report);
+  }
   let body = renderResearchMarkdown(packet, report);
   let continuitySnapshot: PulseSnapshot | undefined;
   let continuityDelta: ContinuityDelta | undefined;
@@ -180,4 +183,103 @@ function enforceConfidenceCaps(packet: StockPacket, report: ResearchReportJson, 
     };
   });
   return { ...report, stock_cards: cappedCards };
+}
+
+/** Translate leftover English prose in research reports before rendering. */
+async function localizeResearchReportChinese(env: Env, report: ResearchReportJson): Promise<ResearchReportJson> {
+  // Dynamic import avoids a circular dependency with report.ts → research.
+  const { ensureChineseTopicItems } = await import("../report");
+
+  const newsItems = report.news_review.map((item) => ({
+    title: item.title,
+    summary: item.why || "",
+    url: "",
+    source: item.source,
+  }));
+  const proseItems = [
+    { title: report.executive_summary, summary: report.market_view.drivers.join("；"), url: "", source: "summary" },
+    { title: report.market_view.macro_risks.join("；"), summary: report.risk_actions.positioning, url: "", source: "macro" },
+    { title: report.risk_actions.hedge_note, summary: report.risk_actions.watch_items_next_session.join("；"), url: "", source: "risk" },
+    ...report.stock_cards.flatMap((card) => ([
+      { title: card.valuation_note, summary: card.technical_note, url: "", source: card.ticker },
+      { title: card.news_note, summary: card.risk_note, url: "", source: card.ticker },
+      { title: card.entry_rule, summary: card.stop_rule, url: "", source: card.ticker },
+      { title: card.invalidation_rule, summary: card.key_drivers.join("；"), url: "", source: card.ticker },
+    ])),
+  ];
+
+  const [translatedNews, translatedProse] = await Promise.all([
+    newsItems.length
+      ? ensureChineseTopicItems(env, newsItems, {
+        maxItems: newsItems.length,
+        preferBatchAi: true,
+        allowAiFallback: true,
+        concurrency: 3,
+      })
+      : Promise.resolve([]),
+    ensureChineseTopicItems(env, proseItems, {
+      maxItems: proseItems.length,
+      preferBatchAi: true,
+      allowAiFallback: true,
+      concurrency: 3,
+    }),
+  ]);
+
+  const prose = translatedProse;
+  let proseIndex = 0;
+  const nextProse = () => prose[proseIndex++] || { title: "", summary: "" };
+
+  const summaryBlock = nextProse();
+  const macroBlock = nextProse();
+  const riskBlock = nextProse();
+
+  const stock_cards = report.stock_cards.map((card) => {
+    const valuation = nextProse();
+    const news = nextProse();
+    const entry = nextProse();
+    const invalidation = nextProse();
+    return {
+      ...card,
+      valuation_note: valuation.title || card.valuation_note,
+      technical_note: valuation.summary || card.technical_note,
+      news_note: news.title || card.news_note,
+      risk_note: news.summary || card.risk_note,
+      entry_rule: entry.title || card.entry_rule,
+      stop_rule: entry.summary || card.stop_rule,
+      invalidation_rule: invalidation.title || card.invalidation_rule,
+      key_drivers: splitChineseList(invalidation.summary || card.key_drivers.join("；"), card.key_drivers),
+    };
+  });
+
+  return {
+    ...report,
+    executive_summary: summaryBlock.title || report.executive_summary,
+    market_view: {
+      ...report.market_view,
+      drivers: splitChineseList(summaryBlock.summary || report.market_view.drivers.join("；"), report.market_view.drivers),
+      macro_risks: splitChineseList(macroBlock.title || report.market_view.macro_risks.join("；"), report.market_view.macro_risks),
+    },
+    risk_actions: {
+      positioning: macroBlock.summary || report.risk_actions.positioning,
+      hedge_note: riskBlock.title || report.risk_actions.hedge_note,
+      watch_items_next_session: splitChineseList(
+        riskBlock.summary || report.risk_actions.watch_items_next_session.join("；"),
+        report.risk_actions.watch_items_next_session,
+      ),
+    },
+    stock_cards,
+    news_review: report.news_review.map((item, index) => ({
+      ...item,
+      title: translatedNews[index]?.title || item.title,
+      why: translatedNews[index]?.summary || item.why,
+    })),
+  };
+}
+
+function splitChineseList(value: string, fallback: string[]): string[] {
+  const parts = value
+    .split(/[；;|]\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return parts.length ? parts : fallback;
 }

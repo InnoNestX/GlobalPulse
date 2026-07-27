@@ -95,6 +95,7 @@ export async function buildScheduleReport(env: Env, schedule: PulseSchedule, now
   });
 
   let body = rendered.body;
+  let title = rendered.title;
   let continuitySnapshot: PulseSnapshot | undefined;
   let continuityDelta: ContinuityDelta | undefined;
   if (schedule.continuityEnabled) {
@@ -110,8 +111,14 @@ export async function buildScheduleReport(env: Env, schedule: PulseSchedule, now
     body = appendContinuitySection(body, continuityDelta, schedule.language);
   }
 
+  if (schedule.language === "zh") {
+    const polished = await ensureChineseBrief(env, title, body);
+    title = polished.title;
+    body = polished.body;
+  }
+
   return {
-    title: rendered.title,
+    title,
     body,
     generatedAt: local.label,
     sourceUrl: fetched.sourceUrl,
@@ -129,7 +136,7 @@ function translationOptionsForSchedule(schedule: PulseSchedule): TranslationOpti
     return {
       maxItems: DAILY_HOT_TRANSLATION_LIMIT,
       concurrency: DAILY_HOT_TRANSLATION_CONCURRENCY,
-      allowAiFallback: false,
+      allowAiFallback: true,
       preferBatchAi: true,
     };
   }
@@ -138,12 +145,12 @@ function translationOptionsForSchedule(schedule: PulseSchedule): TranslationOpti
     return {
       maxItems: MARKET_NEWS_TRANSLATION_LIMIT,
       concurrency: MARKET_NEWS_TRANSLATION_CONCURRENCY,
-      allowAiFallback: false,
+      allowAiFallback: true,
       preferBatchAi: true,
     };
   }
 
-  return { concurrency: DEFAULT_TRANSLATION_CONCURRENCY };
+  return { concurrency: DEFAULT_TRANSLATION_CONCURRENCY, allowAiFallback: true, preferBatchAi: true };
 }
 
 async function fetchItemsWithFallback(env: Env, schedule: PulseSchedule, now = new Date()): Promise<{
@@ -614,6 +621,61 @@ export async function ensureChineseTopicItems(
   options: TranslationOptions = {},
 ): Promise<TopicItem[]> {
   return maybeTranslateItems(env, items, "zh", options);
+}
+
+/** Final pass: translate leftover English lines in a finished brief. */
+export async function ensureChineseBrief(
+  env: Env,
+  title: string,
+  body: string,
+): Promise<{ title: string; body: string }> {
+  const lines = body.split("\n");
+  const candidates: Array<{ index: number; text: string }> = [];
+  if (needsTranslation(title)) {
+    candidates.push({ index: -1, text: title });
+  }
+  lines.forEach((line, index) => {
+    const plain = line
+      .replace(/^\s*[-*>#\d.、]+\s*/, "")
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, "$1")
+      .replace(/[`*_]/g, "")
+      .trim();
+    // Skip tables / tickers / pure URLs.
+    if (!plain || plain.startsWith("|") || /^https?:\/\//i.test(plain)) return;
+    if (!needsTranslation(plain)) return;
+    // Ignore lines that are mostly ticker symbols / numbers.
+    if ((plain.match(/[A-Za-z]{2,}/g) || []).every((token) => /^[A-Z0-9.]{1,6}$/.test(token))) return;
+    candidates.push({ index, text: plain.slice(0, 280) });
+  });
+
+  if (!candidates.length) {
+    return { title, body };
+  }
+
+  const translated = await ensureChineseTopicItems(
+    env,
+    candidates.map((entry) => ({ title: entry.text, summary: "", url: "", source: "brief" })),
+    {
+      maxItems: Math.min(24, candidates.length),
+      preferBatchAi: true,
+      allowAiFallback: true,
+      concurrency: 3,
+    },
+  );
+
+  let nextTitle = title;
+  const nextLines = [...lines];
+  candidates.forEach((entry, index) => {
+    const zh = translated[index]?.title?.trim();
+    if (!zh || zh === entry.text) return;
+    if (entry.index < 0) {
+      nextTitle = title.replace(entry.text, zh);
+      return;
+    }
+    nextLines[entry.index] = lines[entry.index]!.replace(entry.text, zh);
+  });
+
+  return { title: nextTitle, body: nextLines.join("\n") };
 }
 
 async function translateItemsViaBatchProviders(env: Env, items: TopicItem[]): Promise<Map<number, TranslationResult>> {

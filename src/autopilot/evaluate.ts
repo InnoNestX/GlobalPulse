@@ -45,8 +45,9 @@ export async function evaluateAutopilotRule(
 }
 
 /** Autopilot pushes are Chinese unless content language is explicitly English. */
-function useZh(settings: AppSettings): boolean {
-  return (settings.language || "zh") !== "en";
+function useZh(_settings: AppSettings): boolean {
+  // Autopilot alerts for this deployment are always Simplified Chinese.
+  return true;
 }
 
 export function localizeAutopilotRuleName(rule: AutopilotRule, zh = true): string {

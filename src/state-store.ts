@@ -38,6 +38,64 @@ export async function putStoredText(env: Env, key: string, value: string, ttlSec
   }
 }
 
+/**
+ * Atomically claim a key (put-if-absent). Returns true only for the first claimant.
+ * Prefers Durable Object for correctness under concurrent cron ticks.
+ */
+export async function claimStoredText(env: Env, key: string, value: string, ttlSeconds?: number): Promise<boolean> {
+  const doClaimed = await claimInDurableObject(env, key, value, ttlSeconds);
+  if (doClaimed !== null) {
+    if (doClaimed) {
+      await writeToKv(env, key, value, ttlSeconds).catch(() => undefined);
+    }
+    return doClaimed;
+  }
+
+  // No durable storage available — cannot dedupe safely, so allow the operation.
+  if (!env.APP_KV) {
+    return true;
+  }
+
+  // Best-effort fallback when Durable Object is unavailable.
+  const existing = await readFromKv(env, key);
+  if (existing !== null) {
+    return false;
+  }
+  const written = await writeToKv(env, key, value, ttlSeconds);
+  return written;
+}
+
+export async function deleteStoredText(env: Env, key: string): Promise<void> {
+  await deleteFromKv(env, key);
+  await deleteFromDurableObject(env, key);
+}
+
+async function claimInDurableObject(
+  env: Env,
+  key: string,
+  value: string,
+  ttlSeconds?: number,
+): Promise<boolean | null> {
+  if (!env.APP_STATE_DO) {
+    return null;
+  }
+
+  try {
+    const response = await fetchFromStateObject(env, "/claim", { key, value, ttlSeconds });
+    if (!response.ok) {
+      return null;
+    }
+    const body = await response.json().catch(() => undefined) as unknown;
+    if (!isRecord(body) || typeof body.claimed !== "boolean") {
+      return null;
+    }
+    return body.claimed;
+  } catch (error) {
+    console.warn("Durable Object claim failed", { key, error: normalizeError(error) });
+    return null;
+  }
+}
+
 export async function getStoredJson<T>(env: Env, key: string): Promise<T | undefined> {
   const text = await getStoredText(env, key);
 
@@ -84,6 +142,20 @@ async function writeToKv(env: Env, key: string, value: string, ttlSeconds?: numb
   }
 }
 
+async function deleteFromKv(env: Env, key: string): Promise<boolean> {
+  if (!env.APP_KV) {
+    return false;
+  }
+
+  try {
+    await env.APP_KV.delete(key);
+    return true;
+  } catch (error) {
+    console.warn("KV delete failed", { key, error: normalizeError(error) });
+    return false;
+  }
+}
+
 async function readFromDurableObject(env: Env, key: string): Promise<string | null> {
   if (!env.APP_STATE_DO) {
     return null;
@@ -120,6 +192,20 @@ async function writeToDurableObject(env: Env, key: string, value: string, ttlSec
     return true;
   } catch (error) {
     console.warn("Durable Object put failed", { key, error: normalizeError(error) });
+    return false;
+  }
+}
+
+async function deleteFromDurableObject(env: Env, key: string): Promise<boolean> {
+  if (!env.APP_STATE_DO) {
+    return false;
+  }
+
+  try {
+    await fetchFromStateObject(env, "/delete", { key });
+    return true;
+  } catch (error) {
+    console.warn("Durable Object delete failed", { key, error: normalizeError(error) });
     return false;
   }
 }

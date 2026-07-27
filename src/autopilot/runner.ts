@@ -55,10 +55,8 @@ export async function runAutopilotRadar(env: Env, now = new Date()): Promise<Aut
       delivered: summary.delivered,
       failed: summary.failed,
       message: summary.ok
-        ? ((settings.language || "zh") === "en" ? `Autopilot triggered: ${hit.reason}` : `自动雷达已触发：${hit.reason}`)
-        : ((settings.language || "zh") === "en"
-          ? `Autopilot delivery failed: ${summary.results.filter((result) => !result.ok).map((result) => result.message).join("; ")}`
-          : `自动雷达推送失败：${summary.results.filter((result) => !result.ok).map((result) => result.message).join("; ")}`),
+        ? `自动雷达已触发：${hit.reason}`
+        : `自动雷达推送失败：${summary.results.filter((result) => !result.ok).map((result) => result.message).join("; ")}`,
       createdAt: now.toISOString(),
       results: summary.results.map((result) => ({
         provider: result.provider,
@@ -94,8 +92,10 @@ async function isCoolingDown(env: Env, ruleId: string, now: Date): Promise<boole
 }
 
 async function setCooldown(env: Env, ruleId: string, cooldownMinutes: number, now: Date): Promise<void> {
-  const until = new Date(now.getTime() + Math.max(5, cooldownMinutes) * 60 * 1000).toISOString();
-  await putStoredText(env, `autopilot:cooldown:${ruleId}`, until, Math.max(5, cooldownMinutes) * 60);
+  // Floor again at runtime so older KV settings cannot spam Telegram.
+  const minutes = Math.max(120, cooldownMinutes);
+  const until = new Date(now.getTime() + minutes * 60 * 1000).toISOString();
+  await putStoredText(env, `autopilot:cooldown:${ruleId}`, until, minutes * 60);
 }
 
 async function recordAutopilotEvent(env: Env, ruleId: string, reason: string, now: Date): Promise<void> {

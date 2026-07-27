@@ -1,45 +1,96 @@
 import type { Provider } from "./types";
 import { isLockedResearchReportBody } from "./format";
 import { jsonApiResponseToResult, providerNotConfigured } from "./shared";
+import { claimStoredText, deleteStoredText } from "../state-store";
 
 const TELEGRAM_TEXT_LIMIT = 4096;
 const TITLE_SEPARATOR = "────────";
+/** Skip identical Telegram payloads to the same chat within this window. */
+const TELEGRAM_DEDUPE_TTL_SECONDS = 45 * 60;
 
 export const telegramProvider: Provider = {
   name: "telegram",
   isConfigured(env) {
-    return Boolean(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID);
+    return Boolean(env.TELEGRAM_BOT_TOKEN && parseTelegramChatIds(env.TELEGRAM_CHAT_ID).length > 0);
   },
   async send(message, env) {
-    if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) {
+    if (!env.TELEGRAM_BOT_TOKEN) {
       return providerNotConfigured("telegram");
     }
+    const chatIds = parseTelegramChatIds(env.TELEGRAM_CHAT_ID);
+    if (!chatIds.length) {
+      return providerNotConfigured("telegram");
+    }
+
     const actions = normalizeActions(message.actions);
     const body = formatTelegramMessage(message.title, message.body);
+    const text = truncateTelegramHtml(body);
+    const replyMarkup = actions.length > 0
+      ? { inline_keyboard: toInlineKeyboard(actions) }
+      : undefined;
 
-    const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        chat_id: env.TELEGRAM_CHAT_ID,
-        text: truncateTelegramHtml(body),
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-        ...(actions.length > 0
-          ? {
-              reply_markup: {
-                inline_keyboard: toInlineKeyboard(actions),
-              },
-            }
-          : {}),
-      }),
-    });
+    const results = [];
+    for (const chatId of chatIds) {
+      const fingerprint = await telegramContentFingerprint(chatId, message.title, message.body);
+      const dedupeKey = `tg:dedupe:v1:${fingerprint}`;
+      const alreadySent = await claimStoredText(env, dedupeKey, "pending", TELEGRAM_DEDUPE_TTL_SECONDS);
+      if (!alreadySent) {
+        results.push({
+          provider: "telegram" as const,
+          ok: true,
+          status: 200,
+          message: "Skipped duplicate Telegram payload",
+        });
+        continue;
+      }
 
-    return jsonApiResponseToResult("telegram", response, (responseBody) => responseBody.ok === true);
+      const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text,
+          parse_mode: "HTML",
+          disable_web_page_preview: true,
+          ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+        }),
+      });
+      const result = await jsonApiResponseToResult("telegram", response, (responseBody) => responseBody.ok === true);
+      if (!result.ok) {
+        // Release claim so a later retry can deliver.
+        await deleteStoredText(env, dedupeKey).catch(() => undefined);
+      }
+      results.push(result);
+    }
+
+    const failed = results.filter((result) => !result.ok);
+    if (results.length === 1) {
+      return results[0]!;
+    }
+    return {
+      provider: "telegram",
+      ok: failed.length === 0,
+      status: failed[0]?.status ?? 200,
+      message: failed.length === 0
+        ? `Delivered to ${results.length} chats`
+        : failed.map((result) => result.message).join("; "),
+    };
   },
 };
+
+/** Unique, trimmed Telegram chat IDs from comma-separated config. */
+export function parseTelegramChatIds(raw: string | undefined): string[] {
+  if (!raw?.trim()) return [];
+  return [...new Set(raw.split(",").map((part) => part.trim()).filter(Boolean))];
+}
+
+async function telegramContentFingerprint(chatId: string, title: string, body: string): Promise<string> {
+  const payload = `${chatId}\n${title.trim()}\n${body.trim()}`;
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(payload));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("").slice(0, 40);
+}
 
 /** Exported for preview / tests. */
 export function formatTelegramMessage(title: string, body: string): string {

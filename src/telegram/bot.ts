@@ -1,5 +1,6 @@
 import type { Env } from "../env";
 import { getSettings, mergeProviderSettings, type AppSettings, type PulseSchedule, type ReportType } from "../config";
+import { forceChineseSchedule } from "../i18n-force-zh";
 import { mergeMarketDataProviderSettings } from "../market-data-settings";
 import { buildScheduleReport } from "../report";
 import { getLocalTimeParts } from "../time";
@@ -135,13 +136,13 @@ export async function verifyTelegramCommands(env: Env): Promise<{
     }
   }
 
-  // One real brief push to prove end-to-end generation + delivery.
+  // One real brief push to prove end-to-end generation + delivery (热点更快).
   try {
-    await handleIntent(runtimeEnv, Number(chatId), "brief");
-    results.push({ command: "/brief", ok: true, message: "ok" });
+    await handleIntent(runtimeEnv, Number(chatId), "hot");
+    results.push({ command: "/hot", ok: true, message: "ok" });
   } catch (error) {
     results.push({
-      command: "/brief",
+      command: "/hot",
       ok: false,
       message: error instanceof Error ? error.message : String(error),
     });
@@ -276,7 +277,7 @@ async function replyStatus(env: Env, chatId: number): Promise<void> {
 
   await sendTelegramHtml(env, chatId, "📊 推送状态", [
     `应用：${settings.appName}`,
-    `内容语言：${settings.language === "en" ? "English" : "中文"}`,
+    `内容语言：中文`,
     `启用任务：${settings.schedules.filter((s) => s.enabled).length} / ${settings.schedules.length}`,
     "",
     lines.length ? lines.join("\n\n") : "_暂无启用中的推送任务_",
@@ -306,7 +307,8 @@ async function replyBrief(env: Env, chatId: number, reportType: ReportType | und
     reportEnv.TELEGRAM_BOT_TOKEN = env.TELEGRAM_BOT_TOKEN || reportEnv.TELEGRAM_BOT_TOKEN;
     reportEnv.TELEGRAM_CHAT_ID = env.TELEGRAM_CHAT_ID || reportEnv.TELEGRAM_CHAT_ID;
 
-    const report = await buildScheduleReport(reportEnv, schedule, new Date());
+    // Interactive Telegram briefs are always Simplified Chinese.
+    const report = await buildScheduleReport(reportEnv, forceChineseSchedule(schedule), new Date());
     const result = await sendTelegramHtml(env, chatId, report.title, report.body, {
       replyMarkup: buildCommandInlineKeyboard(),
     });

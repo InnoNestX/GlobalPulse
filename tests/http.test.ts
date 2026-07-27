@@ -59,6 +59,12 @@ function getFetchCall(fetchMock: ReturnType<typeof vi.fn>, index: number): [stri
   return call as unknown as [string, RequestInit];
 }
 
+function getTelegramSendCall(fetchMock: ReturnType<typeof vi.fn>): [string, RequestInit] {
+  const call = fetchMock.mock.calls.find((entry) => String(entry[0]).includes("api.telegram.org/bot") && String(entry[0]).includes("/sendMessage"));
+  expect(call).toBeDefined();
+  return call as unknown as [string, RequestInit];
+}
+
 describe("handleRequest", () => {
   it("returns health without authentication", async () => {
     const response = await handleRequest(new Request("https://worker.example/health"), {
@@ -315,7 +321,7 @@ describe("handleRequest", () => {
     });
 
     expect(response.status).toBe(202);
-    const [url, init] = getFetchCall(fetchMock, 0);
+    const [url, init] = getTelegramSendCall(fetchMock);
     const payload = JSON.parse(String(init.body));
 
     expect(url).toBe("https://api.telegram.org/bottelegram-token/sendMessage");
@@ -542,7 +548,7 @@ describe("handleRequest", () => {
     }), appEnv);
 
     expect(response.status).toBe(202);
-    const [url, init] = getFetchCall(fetchMock, 0);
+    const [url, init] = getTelegramSendCall(fetchMock);
     const payload = JSON.parse(String(init.body));
 
     expect(url).toBe("https://api.telegram.org/botkv-telegram-token/sendMessage");
@@ -1929,7 +1935,7 @@ describe("handleRequest", () => {
 
     expect(result).toMatchObject({ checked: 1, executed: 1, skipped: 0 });
     expect(calls.length).toBeLessThan(30);
-    expect(translateCalls.length).toBeLessThanOrEqual(8);
+    expect(translateCalls.length).toBeLessThanOrEqual(16);
     expect(fredCalls).toHaveLength(4);
     expect(fetchMock).toHaveBeenCalledWith("https://open.feishu.cn/open-apis/bot/v2/hook/test-token", expect.objectContaining({
       method: "POST",

@@ -1,5 +1,5 @@
 import type { Env } from "../env";
-import { formatTelegramMessage } from "../providers/telegram";
+import { formatTelegramMessage, parseTelegramChatIds } from "../providers/telegram";
 
 const TELEGRAM_TEXT_LIMIT = 4096;
 
@@ -215,11 +215,9 @@ export function extractCommand(text: string): { command: string; args: string } 
 }
 
 export function isChatAllowed(env: Env, chatId: number | string): boolean {
-  const configured = String(env.TELEGRAM_CHAT_ID || "").trim();
-  if (!configured) return false;
-  const allowed = configured.split(",").map((part) => part.trim()).filter(Boolean);
-  const id = String(chatId);
-  return allowed.includes(id);
+  const allowed = parseTelegramChatIds(env.TELEGRAM_CHAT_ID);
+  if (!allowed.length) return false;
+  return allowed.includes(String(chatId));
 }
 
 function stripToPlainText(value: string): string {

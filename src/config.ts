@@ -3,7 +3,7 @@ import { type MarketCalendar, type TradingDaySource, parseHolidayDates, readMark
 import { coerceProviderName, type ProviderName } from "./messages";
 import type { AutopilotSettings } from "./autopilot/types";
 import { createDefaultAutopilotSettings } from "./autopilot/types";
-import { getStoredJson, getStoredText, putStoredJson, putStoredText } from "./state-store";
+import { claimStoredText, getStoredJson, getStoredText, putStoredJson, putStoredText } from "./state-store";
 import { isCronExpressionFiveMinuteCompatible, validateCronExpression } from "./cron";
 
 export type AppLanguage = "zh" | "en";
@@ -314,6 +314,17 @@ export async function setRunMarker(
   await putStoredText(env, getRunMarkerKey(scheduleId, localDate, localTime), value, 60 * 60 * 36);
 }
 
+/** Atomically claim a schedule slot. Only the first concurrent cron tick wins. */
+export async function claimRunMarker(
+  env: Env,
+  scheduleId: string,
+  localDate: string,
+  localTime: string,
+  value: string,
+): Promise<boolean> {
+  return claimStoredText(env, getRunMarkerKey(scheduleId, localDate, localTime), value, 60 * 60 * 36);
+}
+
 export function requireKV(env: Env): KVNamespace {
   if (!env.APP_KV) {
     throw new Error("APP_KV KV namespace is not configured");
@@ -557,8 +568,11 @@ function readAutopilotSettings(value: unknown, fallback: AutopilotSettings): Aut
       enabled: typeof entry.enabled === "boolean" ? entry.enabled : true,
       name: localizeStoredAutopilotRuleName(kind, readString(entry.name, `Rule ${index + 1}`)).slice(0, 80),
       kind,
-      params: isRecord(entry.params) ? entry.params as Record<string, number | string | boolean> : {},
-      cooldownMinutes: Math.max(5, Math.min(24 * 60, Number(entry.cooldownMinutes) || 60)),
+      params: normalizeAutopilotParams(kind, isRecord(entry.params) ? entry.params as Record<string, number | string | boolean> : {}),
+      cooldownMinutes: Math.max(
+        autopilotMinCooldown(kind, sanitizeId(readString(entry.id, `autopilot-${index + 1}`))),
+        Math.min(24 * 60, Number(entry.cooldownMinutes) || 60),
+      ),
       targets: readTargets(entry.targets, []),
       severity,
     }];
@@ -586,6 +600,30 @@ function localizeStoredAutopilotRuleName(kind: AutopilotSettings["rules"][number
     bias_flip: "情绪翻转",
   };
   return byKind[kind] || name;
+}
+
+/** Floor cooldowns so existing KV settings also quiet down Telegram spam. */
+function autopilotMinCooldown(kind: AutopilotSettings["rules"][number]["kind"], ruleId: string): number {
+  if (ruleId === "news-burst" || kind === "news_burst") return 360;
+  if (ruleId === "fear-greed-extreme" || kind === "fear_greed_extreme") return 480;
+  if (ruleId === "position-move-3pct" || kind === "symbol_move") return 180;
+  if (kind === "bias_flip") return 360;
+  return 120;
+}
+
+function normalizeAutopilotParams(
+  kind: AutopilotSettings["rules"][number]["kind"],
+  params: Record<string, number | string | boolean>,
+): Record<string, number | string | boolean> {
+  if (kind !== "news_burst") return params;
+  const minItems = Number(params.minItems ?? 5);
+  const windowMinutes = Number(params.windowMinutes ?? 90);
+  return {
+    ...params,
+    // Harder to trigger: need more headlines in a tighter burst window.
+    minItems: Math.max(8, Number.isFinite(minItems) ? minItems : 8),
+    windowMinutes: Math.min(60, Math.max(30, Number.isFinite(windowMinutes) ? windowMinutes : 60)),
+  };
 }
 
 function assignIfMissing(env: Env, key: EnvStringKey, value: string | undefined): void {

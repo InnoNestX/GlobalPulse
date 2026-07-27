@@ -1,4 +1,4 @@
-import { appendLog, getRunMarker, getSettings, mergeProviderSettings, setRunMarker, type AppSettings, type PulseSchedule } from "./config";
+import { appendLog, claimRunMarker, getSettings, mergeProviderSettings, setRunMarker, type AppSettings, type PulseSchedule } from "./config";
 import { sendIncomingMessage } from "./delivery";
 import type { Env } from "./env";
 import { matchCronExpression } from "./cron";
@@ -8,6 +8,7 @@ import { buildScheduleReport } from "./report";
 import { getLocalTimeParts } from "./time";
 import type { DeliverySummary } from "./delivery";
 import { savePulseSnapshot } from "./continuity";
+import { forceChineseSchedule } from "./i18n-force-zh";
 
 export interface SchedulerRunResult {
   checked: number;
@@ -38,37 +39,39 @@ export async function runDueSchedules(env: Env, now = new Date()): Promise<Sched
 }
 
 export async function runSchedule(env: Env, schedule: PulseSchedule, now = new Date(), settings?: AppSettings): Promise<DeliverySummary> {
-  const local = getLocalTimeParts(now, schedule.timezone, schedule.language);
-  const markerTime = schedule.triggerMode === "cron" ? local.time : schedule.time;
-  await setRunMarker(env, schedule.id, local.date, markerTime, now.toISOString());
+  // All schedules emit Simplified Chinese for this deployment.
+  const effectiveSchedule = forceChineseSchedule(schedule);
+  const local = getLocalTimeParts(now, effectiveSchedule.timezone, effectiveSchedule.language);
+  const markerTime = effectiveSchedule.triggerMode === "cron" ? local.time : effectiveSchedule.time;
+  await setRunMarker(env, effectiveSchedule.id, local.date, markerTime, now.toISOString());
 
   try {
     const appSettings = settings ?? await getSettings(env);
     const providerEnv = mergeProviderSettings(env, appSettings);
     const reportEnv = await mergeMarketDataProviderSettings(providerEnv);
-    const report = await buildScheduleReport(reportEnv, schedule, now);
+    const report = await buildScheduleReport(reportEnv, effectiveSchedule, now);
     // Resolve email recipient IDs → comma-separated addresses
-    const emailToAddresses = schedule.emailRecipientIds
+    const emailToAddresses = effectiveSchedule.emailRecipientIds
       .map((id: string) => appSettings.emailRecipients.find((r) => r.id === id && r.enabled)?.address)
       .filter(Boolean)
       .join(",") || undefined;
 
     const messageBody: Record<string, unknown> = {
-      target: schedule.targets,
+      target: effectiveSchedule.targets,
       title: report.title,
       body: report.body,
       actions: report.actions,
       level: summaryLevel(report.items.length),
-      tags: ["globalpulse", "scheduled", schedule.id],
+      tags: ["globalpulse", "scheduled", effectiveSchedule.id],
       metadata: {
-        schedule_id: schedule.id,
-        schedule_name: schedule.name,
-        report_type: schedule.reportType,
+        schedule_id: effectiveSchedule.id,
+        schedule_name: effectiveSchedule.name,
+        report_type: effectiveSchedule.reportType,
         source_status: report.sourceStatus,
         source_message: report.sourceMessage,
-        market_calendar: schedule.marketCalendar,
-        trading_day_source: schedule.tradingDaySource,
-        timezone: schedule.timezone,
+        market_calendar: effectiveSchedule.marketCalendar,
+        trading_day_source: effectiveSchedule.tradingDaySource,
+        timezone: effectiveSchedule.timezone,
         topic_count: report.items.length,
       },
     };
@@ -154,9 +157,9 @@ async function shouldRunSchedule(env: Env, schedule: PulseSchedule, now: Date): 
     return false;
   }
 
-  const existingMarker = await getRunMarker(env, schedule.id, local.date, markerTime);
+  const existingMarker = await claimRunMarker(env, schedule.id, local.date, markerTime, now.toISOString());
 
-  return existingMarker === null;
+  return existingMarker;
 }
 
 function summaryLevel(itemCount: number) {

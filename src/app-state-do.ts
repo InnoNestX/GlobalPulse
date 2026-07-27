@@ -19,6 +19,12 @@ interface DeletePayload {
   key?: string;
 }
 
+interface ClaimPayload {
+  key?: string;
+  value?: string;
+  ttlSeconds?: number;
+}
+
 export class AppStateDurableObject extends DurableObject {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -67,6 +73,35 @@ export class AppStateDurableObject extends DurableObject {
 
       await this.ctx.storage.put(key, record);
       return json({ ok: true }, 200);
+    }
+
+    // Atomic put-if-absent — used to prevent duplicate cron / telegram deliveries.
+    if (request.method === "POST" && url.pathname === "/claim") {
+      const body = await readJson<ClaimPayload>(request);
+      const key = typeof body.key === "string" ? body.key : "";
+      const value = typeof body.value === "string" ? body.value : undefined;
+
+      if (!key || value === undefined) {
+        return json({ error: "key and value are required" }, 400);
+      }
+
+      const existing = await this.ctx.storage.get<StoredValueRecord>(key);
+      if (existing && typeof existing.value === "string") {
+        if (typeof existing.expiresAt !== "number" || existing.expiresAt > Date.now()) {
+          return json({ claimed: false, value: existing.value }, 200);
+        }
+        await this.ctx.storage.delete(key);
+      }
+
+      const ttlSeconds = typeof body.ttlSeconds === "number" && body.ttlSeconds > 0
+        ? Math.floor(body.ttlSeconds)
+        : undefined;
+      const record: StoredValueRecord = { value };
+      if (ttlSeconds) {
+        record.expiresAt = Date.now() + ttlSeconds * 1000;
+      }
+      await this.ctx.storage.put(key, record);
+      return json({ claimed: true, value }, 200);
     }
 
     if (request.method === "POST" && url.pathname === "/delete") {
