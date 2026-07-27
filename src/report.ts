@@ -95,7 +95,6 @@ export async function buildScheduleReport(env: Env, schedule: PulseSchedule, now
   });
 
   let body = rendered.body;
-  let title = rendered.title;
   let continuitySnapshot: PulseSnapshot | undefined;
   let continuityDelta: ContinuityDelta | undefined;
   if (schedule.continuityEnabled) {
@@ -111,14 +110,8 @@ export async function buildScheduleReport(env: Env, schedule: PulseSchedule, now
     body = appendContinuitySection(body, continuityDelta, schedule.language);
   }
 
-  if (schedule.language === "zh") {
-    const polished = await ensureChineseBrief(env, title, body);
-    title = polished.title;
-    body = polished.body;
-  }
-
   return {
-    title,
+    title: rendered.title,
     body,
     generatedAt: local.label,
     sourceUrl: fetched.sourceUrl,
@@ -656,9 +649,10 @@ export async function ensureChineseBrief(
     env,
     candidates.map((entry) => ({ title: entry.text, summary: "", url: "", source: "brief" })),
     {
+      // Polish pass: Google only — avoid a second Gemini/Workers AI batch after item translation.
       maxItems: Math.min(24, candidates.length),
-      preferBatchAi: true,
-      allowAiFallback: true,
+      preferBatchAi: false,
+      allowAiFallback: false,
       concurrency: 3,
     },
   );
