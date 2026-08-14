@@ -39,6 +39,9 @@ export {
   scoreFromFactors,
   stanceFromFactors,
   reasonFromFactors,
+  riskFromFactors,
+  scalesForSymbol,
+  isCnGrowthBoard,
   type DailyBar,
   type FactorScores,
   type Stance,
@@ -48,6 +51,8 @@ export {
   minTurnover,
   passesHardFilters,
   stage1Score,
+  classifyHardFilter,
+  listedDaysFromYmd,
   type LiquidityRow,
 } from "./universe/liquidity";
 

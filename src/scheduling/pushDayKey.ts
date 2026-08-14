@@ -9,10 +9,12 @@ import {
   type MarketId,
 } from "../research/sources/session";
 
-/** Slot kinds used in de-dupe keys. `pre_open` keeps the historical two-part shape. */
+/**
+ * Slot kinds used in de-dupe keys. `pre_open` keeps the historical two-part shape.
+ * Intraday slots are numbered — a bare `intraday` key is not emitted by the Rust worker.
+ */
 export type SlotKind =
   | "pre_open"
-  | "intraday"
   | "intraday_1"
   | "intraday_2"
   | "intraday_3"
@@ -40,7 +42,7 @@ export function fireLocalDay(market: MarketId, ms: number): string {
 }
 
 /**
- * KV / D1 field without the date: pop the last `:` segment.
+ * Store field without the date: pop the last `:` segment.
  * `CN:2026-08-11` → `CN`; `US:post_close:2026-08-11` → `US:post_close`.
  */
 export function pushMark(dayKey: string): string | null {

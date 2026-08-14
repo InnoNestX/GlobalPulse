@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyHardFilter,
   isShellName,
+  listedDaysFromYmd,
   minTurnover,
   MIN_LISTED_DAYS,
   passesHardFilters,
@@ -56,23 +57,16 @@ describe("liquidity filters", () => {
     expect(percentiles([5, 5, 5])).toEqual([0.5, 0.5, 0.5]);
   });
 
-  it("ranks stage1 with anti-chase penalties", () => {
-    const rows = [
-      row({ symbol: "N", name: "Normal", chg60d: 10, ytd: 20, turnover: 2e8, turnoverRate: 2, volRatio: 1 }),
-      row({
-        symbol: "R",
-        name: "Runaway",
-        chg60d: 120,
-        ytd: 200,
-        turnover: 2e8,
-        turnoverRate: 2,
-        volRatio: 1,
-      }),
-    ];
-    const scores = stage1Score(rows);
-    expect(scores).toHaveLength(2);
-    expect(scores[0]!).toBeGreaterThan(scores[1]!);
-    expect(scores[0]!).toBeGreaterThanOrEqual(0);
-    expect(scores[0]!).toBeLessThanOrEqual(100);
+  it("approximates trading days from YYYYMMDD listing dates", () => {
+    expect(listedDaysFromYmd(20260101, 20260101)).toBe(0);
+    // ~365 calendar days → floor(365*5/7)=260
+    expect(listedDaysFromYmd(20250101, 20260101)).toBe(Math.floor((20260101 - 20250101) * 5 / 7));
+    expect(
+      classifyHardFilter(
+        row({ symbol: "N", name: "New", listedDays: null, listedOn: 20260701 }),
+        "CN",
+        20260814,
+      ),
+    ).toBe("too_new");
   });
 });

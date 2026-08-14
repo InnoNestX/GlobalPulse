@@ -1,12 +1,15 @@
 /**
- * Multi-factor scoring from completed daily bars.
- * Ported core of tg-stock-reco `factors.rs` (deterministic, no ML).
+ * Multi-factor scoring from completed daily bars + session-aware quote.
+ * Ported from tg-stock-reco `factors.rs` (deterministic, no ML).
  *
  * Weights sum to 50; score = 50 + Σ(factor × weight), then volatility shrinks
  * distance from 50. English reason / stance strings only.
  */
 
+import type { QuoteSession } from "../sources/session";
+
 export interface DailyBar {
+  /** Exchange-local YYYY-MM-DD. */
   date: string;
   open: number;
   high: number;
@@ -24,6 +27,7 @@ export interface SatScales {
   ret5Pct: number;
   ret20Pct: number;
   rvol: number;
+  extPct: number;
   dayPct: number;
   atrPct: number;
 }
@@ -32,41 +36,78 @@ export const W_TREND = 18;
 export const W_MOMENTUM = 12;
 export const W_RANGE = 6;
 export const W_VOLUME = 4;
-export const W_DAY = 10; // day + extended collapsed for bars-only path (3+7)
+export const W_EXTENDED = 3;
+export const W_DAY = 7;
+export const W_DAY_DEGRADED = 30;
+export const W_EXTENDED_DEGRADED = 5;
 export const VOL_SHRINK = 0.25;
 
 export const LONG_SCORE_MIN = 62;
 export const SHORT_SCORE_MAX = 38;
 export const TREND_CONFIRM = 0.1;
+export const CONTRADICTION_PCT = 1.0;
+const CONTRADICTION_FLOOR_PCT = 0.5;
 
+export const SAT_LEGACY: SatScales = {
+  ma5Pct: 4,
+  ma20Pct: 8,
+  ret5Pct: 6,
+  ret20Pct: 15,
+  rvol: 1.5,
+  extPct: 2,
+  dayPct: 3,
+  atrPct: 4,
+};
+
+export const SAT_US: SatScales = {
+  ma5Pct: 7,
+  ma20Pct: 22,
+  ret5Pct: 14,
+  ret20Pct: 34,
+  rvol: 2.4,
+  extPct: 4,
+  dayPct: 11,
+  atrPct: 10,
+};
+
+export const SAT_HK: SatScales = {
+  ma5Pct: 6,
+  ma20Pct: 18,
+  ret5Pct: 12,
+  ret20Pct: 28,
+  rvol: 2.2,
+  extPct: 3,
+  dayPct: 9,
+  atrPct: 8,
+};
+
+export const SAT_CN_MAIN: SatScales = {
+  ma5Pct: 14,
+  ma20Pct: 30,
+  ret5Pct: 28,
+  ret20Pct: 60,
+  rvol: 3,
+  extPct: 2,
+  dayPct: 10,
+  atrPct: 10,
+};
+
+export const SAT_CN_GROWTH: SatScales = {
+  ma5Pct: 18,
+  ma20Pct: 40,
+  ret5Pct: 38,
+  ret20Pct: 80,
+  rvol: 3,
+  extPct: 2,
+  dayPct: 20,
+  atrPct: 12,
+};
+
+/** @deprecated Prefer {@link scalesForSymbol}; kept for market-level callers. */
 export const SAT_SCALES: Record<MarketId, SatScales> = {
-  US: {
-    ma5Pct: 7,
-    ma20Pct: 22,
-    ret5Pct: 14,
-    ret20Pct: 34,
-    rvol: 2.4,
-    dayPct: 11,
-    atrPct: 10,
-  },
-  HK: {
-    ma5Pct: 6,
-    ma20Pct: 18,
-    ret5Pct: 12,
-    ret20Pct: 28,
-    rvol: 2.2,
-    dayPct: 9,
-    atrPct: 8,
-  },
-  CN: {
-    ma5Pct: 14,
-    ma20Pct: 30,
-    ret5Pct: 28,
-    ret20Pct: 60,
-    rvol: 3,
-    dayPct: 10,
-    atrPct: 10,
-  },
+  US: SAT_US,
+  HK: SAT_HK,
+  CN: SAT_CN_MAIN,
 };
 
 const MA_SHORT = 5;
@@ -87,6 +128,9 @@ export interface FactorDetail {
   rangePct: number | null;
   rvol: number | null;
   atrPct: number | null;
+  gapPct: number | null;
+  extMovePct: number | null;
+  extContradicts: boolean;
   dayChangePct: number;
   sessions: number;
   degraded: boolean;
@@ -97,9 +141,54 @@ export interface FactorScores {
   momentum: number;
   rangePos: number;
   volume: number;
+  extended: number;
   dayChange: number;
   volatility: number;
   detail: FactorDetail;
+}
+
+/** Quote fields the engine needs for session-correct scoring. */
+export interface FactorQuoteInput {
+  symbol?: string;
+  price: number;
+  changePct?: number;
+  /** Prior regular session change % (used when session is pre/post). */
+  regularChangePct?: number;
+  regularPrice?: number;
+  session?: QuoteSession;
+  /** ISO or YYYY-MM-DD — bars on this exchange day are excluded. */
+  asOf?: string;
+  /** When false, day change is treated as unknown (0). Default true. */
+  changeReportable?: boolean;
+}
+
+export function isCnGrowthBoard(symbol: string): boolean {
+  const code = symbol.split(/[.:]/)[0]?.replace(/^(SH|SZ)/i, "") ?? "";
+  if (code.length !== 6 || !/^\d{6}$/.test(code)) return false;
+  const prefix = code.slice(0, 3);
+  return prefix === "300" || prefix === "301" || prefix === "688" || prefix === "689";
+}
+
+export function inferMarketId(symbol: string): MarketId {
+  const upper = symbol.toUpperCase();
+  if (upper.endsWith(".HK") || upper.includes(":HK")) return "HK";
+  if (
+    upper.endsWith(".SS") ||
+    upper.endsWith(".SZ") ||
+    upper.endsWith(".SH") ||
+    /^(SH|SZ)\d{6}/i.test(upper) ||
+    /^\d{6}$/.test(upper.split(/[.:]/)[0] ?? "")
+  ) {
+    return "CN";
+  }
+  return "US";
+}
+
+export function scalesForSymbol(symbol: string): SatScales {
+  const market = inferMarketId(symbol);
+  if (market === "CN") return isCnGrowthBoard(symbol) ? SAT_CN_GROWTH : SAT_CN_MAIN;
+  if (market === "HK") return SAT_HK;
+  return SAT_US;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -109,10 +198,6 @@ function clamp(value: number, min: number, max: number): number {
 
 function round1(value: number): number {
   return Math.round(value * 10) / 10;
-}
-
-function toFixed(value: number, digits: number): string {
-  return value.toFixed(digits);
 }
 
 function norm(value: number, saturation: number): number {
@@ -144,6 +229,9 @@ function emptyDetail(partial: Partial<FactorDetail> = {}): FactorDetail {
     rangePct: null,
     rvol: null,
     atrPct: null,
+    gapPct: null,
+    extMovePct: null,
+    extContradicts: false,
     dayChangePct: 0,
     sessions: 0,
     degraded: true,
@@ -151,67 +239,127 @@ function emptyDetail(partial: Partial<FactorDetail> = {}): FactorDetail {
   };
 }
 
-function atrPct(bars: DailyBar[], price: number): number | null {
-  if (bars.length < ATR_WINDOW + 1 || !Number.isFinite(price) || price <= 0) return null;
-  const start = bars.length - ATR_WINDOW;
+function isExtended(session: QuoteSession | undefined): boolean {
+  return session === "pre" || session === "post";
+}
+
+function asOfDay(asOf: string | undefined): string | undefined {
+  if (!asOf) return undefined;
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(asOf.trim());
+  return m?.[1];
+}
+
+function completedBefore(bars: DailyBar[], liveDay: string | undefined): DailyBar[] {
+  const valid = bars.filter((b) => Number.isFinite(b.close) && b.close > 0);
+  if (!liveDay) return valid;
+  return valid.filter((b) => b.date < liveDay);
+}
+
+function extendedMovePct(quote: FactorQuoteInput): number | null {
+  if (!isExtended(quote.session)) return null;
+  const basis = quote.regularPrice;
+  if (basis == null || !Number.isFinite(basis) || basis <= 0) return null;
+  return pctChange(basis, quote.price);
+}
+
+function dayChangeFor(quote: FactorQuoteInput, completed: DailyBar[]): number {
+  if (isExtended(quote.session)) {
+    if (quote.regularChangePct != null && Number.isFinite(quote.regularChangePct)) {
+      return quote.regularChangePct;
+    }
+    if (completed.length >= 2) {
+      const prev = completed[completed.length - 2]!.close;
+      const last = completed[completed.length - 1]!.close;
+      return pctChange(prev, last) ?? 0;
+    }
+    return 0;
+  }
+  if (quote.changeReportable === false) return 0;
+  if (quote.changePct != null && Number.isFinite(quote.changePct)) return quote.changePct;
+  if (completed.length >= 2) {
+    return pctChange(completed[completed.length - 2]!.close, completed[completed.length - 1]!.close) ?? 0;
+  }
+  if (completed.length === 1) {
+    const last = completed[0]!;
+    return pctChange(last.open, last.close) ?? 0;
+  }
+  return 0;
+}
+
+function atrPct(completed: DailyBar[], price: number): number | null {
+  if (completed.length < ATR_WINDOW + 1 || !Number.isFinite(price) || price <= 0) return null;
+  const start = completed.length - ATR_WINDOW;
   const ranges: number[] = [];
-  for (let i = start; i < bars.length; i += 1) {
-    const bar = bars[i]!;
-    const prevClose = bars[i - 1]!.close;
-    const a = bar.high - bar.low;
-    const b = Math.abs(bar.high - prevClose);
-    const c = Math.abs(bar.low - prevClose);
-    const tr = Math.max(a, b, c);
+  for (let i = start; i < completed.length; i += 1) {
+    const bar = completed[i]!;
+    const prevClose = completed[i - 1]!.close;
+    const tr = Math.max(bar.high - bar.low, Math.abs(bar.high - prevClose), Math.abs(bar.low - prevClose));
     if (Number.isFinite(tr) && tr >= 0) ranges.push(tr);
   }
   const atr = mean(ranges);
-  if (atr === null) return null;
-  return (atr / price) * 100;
+  return atr === null ? null : (atr / price) * 100;
 }
 
-function relativeVolume(bars: DailyBar[]): number | null {
-  if (bars.length < VOLUME_WINDOW + 1) return null;
-  const last = bars[bars.length - 1]!.volume;
+function relativeVolume(completed: DailyBar[]): number | null {
+  if (completed.length < VOLUME_WINDOW + 1) return null;
+  const last = completed[completed.length - 1]!.volume;
   if (!Number.isFinite(last) || last <= 0) return null;
-  const base = bars.slice(bars.length - 1 - VOLUME_WINDOW, bars.length - 1);
+  const base = completed.slice(completed.length - 1 - VOLUME_WINDOW, completed.length - 1);
   const volumes = base.map((b) => b.volume).filter((v) => v > 0);
   if (volumes.length < VOLUME_WINDOW / 2) return null;
   const avg = mean(volumes);
-  if (avg === null || avg <= 0) return null;
-  return last / avg;
+  return avg !== null && avg > 0 ? last / avg : null;
+}
+
+function gapPct(quote: FactorQuoteInput, completed: DailyBar[]): number | null {
+  if (isExtended(quote.session)) return extendedMovePct(quote);
+  if (completed.length < 2) return null;
+  const last = completed[completed.length - 1]!;
+  const prevClose = completed[completed.length - 2]!.close;
+  return pctChange(prevClose, last.open);
 }
 
 export interface ComputeFactorsOptions {
   market?: MarketId;
-  /** Live price; defaults to last close. */
   price?: number;
-  /** Session day-change %; defaults to last bar open→close (or prior close→close). */
   dayChangePct?: number;
   scales?: SatScales;
+  quote?: FactorQuoteInput;
+  symbol?: string;
 }
 
 /**
  * Compute factors from a completed daily series.
- * With fewer than 20 bars the result is `degraded` (day move only).
+ * Prefer passing {@link ComputeFactorsOptions.quote} for session-correct scoring.
  */
 export function computeFactors(bars: DailyBar[], options: ComputeFactorsOptions = {}): FactorScores {
-  const market = options.market ?? "US";
-  const scales = options.scales ?? SAT_SCALES[market];
-  const completed = bars.filter((b) => Number.isFinite(b.close) && b.close > 0);
-  const last = completed[completed.length - 1];
-  const price = options.price ?? last?.close ?? 0;
+  const symbol = options.quote?.symbol ?? options.symbol ?? "";
+  const scales =
+    options.scales ??
+    (symbol ? scalesForSymbol(symbol) : SAT_SCALES[options.market ?? "US"]);
 
-  let dayChangePct = options.dayChangePct;
-  if (dayChangePct === undefined) {
-    if (completed.length >= 2) {
-      dayChangePct = pctChange(completed[completed.length - 2]!.close, last!.close) ?? 0;
-    } else if (last) {
-      dayChangePct = pctChange(last.open, last.close) ?? 0;
-    } else {
-      dayChangePct = 0;
-    }
-  }
+  const quote: FactorQuoteInput = options.quote ?? {
+    price: options.price ?? 0,
+    changePct: options.dayChangePct,
+    session: "regular",
+    changeReportable: true,
+  };
+  if (options.price != null && options.quote == null) quote.price = options.price;
+  if (options.dayChangePct != null && options.quote == null) quote.changePct = options.dayChangePct;
 
+  const liveDay = asOfDay(quote.asOf);
+  const completed = completedBefore(bars, liveDay);
+  const price = quote.price || completed[completed.length - 1]?.close || 0;
+
+  const extMove = extendedMovePct(quote);
+  const dayChangePct = dayChangeFor(quote, completed);
+  const extContradicts =
+    extMove != null &&
+    Math.abs(extMove) >= CONTRADICTION_FLOOR_PCT &&
+    Math.abs(dayChangePct) >= 0.1 &&
+    Math.sign(extMove) !== Math.sign(dayChangePct);
+
+  const extended = norm(extMove ?? 0, scales.extPct);
   const day = norm(dayChangePct, scales.dayPct);
 
   if (completed.length < MA_LONG || !Number.isFinite(price) || price <= 0) {
@@ -220,9 +368,13 @@ export function computeFactors(bars: DailyBar[], options: ComputeFactorsOptions 
       momentum: 0,
       rangePos: 0,
       volume: 0,
+      extended,
       dayChange: day,
       volatility: 0,
       detail: emptyDetail({
+        gapPct: gapPct(quote, completed),
+        extMovePct: extMove,
+        extContradicts,
         dayChangePct,
         sessions: completed.length,
         degraded: true,
@@ -233,10 +385,8 @@ export function computeFactors(bars: DailyBar[], options: ComputeFactorsOptions 
   const maOf = (n: number): number | null => {
     const take = n - 1;
     const tail = completed.slice(completed.length - take);
-    const values = [...tail.map((b) => b.close), price];
-    return mean(values);
+    return mean([...tail.map((b) => b.close), price]);
   };
-
   const ma5 = maOf(MA_SHORT);
   const ma20 = maOf(MA_LONG);
   const distMa5 = ma5 !== null ? pctChange(ma5, price) : null;
@@ -260,9 +410,7 @@ export function computeFactors(bars: DailyBar[], options: ComputeFactorsOptions 
   const rangePos = rangePct !== null ? rangePct / 50 - 1 : 0;
 
   const rvol = relativeVolume(completed);
-  const volume =
-    rvol !== null ? clamp((rvol - 1) / scales.rvol, -1, 1) : 0;
-
+  const volume = rvol !== null ? clamp((rvol - 1) / scales.rvol, -1, 1) : 0;
   const atr = atrPct(completed, price);
   const volatility = atr !== null ? clamp(atr / scales.atrPct, 0, 1) : 0;
 
@@ -271,6 +419,7 @@ export function computeFactors(bars: DailyBar[], options: ComputeFactorsOptions 
     momentum,
     rangePos,
     volume,
+    extended,
     dayChange: day,
     volatility,
     detail: {
@@ -285,6 +434,9 @@ export function computeFactors(bars: DailyBar[], options: ComputeFactorsOptions 
       rangePct,
       rvol,
       atrPct: atr,
+      gapPct: gapPct(quote, completed),
+      extMovePct: extMove,
+      extContradicts,
       dayChangePct,
       sessions: completed.length,
       degraded: false,
@@ -292,37 +444,49 @@ export function computeFactors(bars: DailyBar[], options: ComputeFactorsOptions 
   };
 }
 
-function contributions(f: FactorScores): Array<{ weight: number; value: number }> {
+export function contributions(f: FactorScores): Array<{ weight: number; value: number; points: number }> {
   const degraded = f.detail.degraded;
-  return [
+  const rows = [
     { weight: degraded ? 0 : W_TREND, value: f.trend },
     { weight: degraded ? 0 : W_MOMENTUM, value: f.momentum },
     { weight: degraded ? 0 : W_RANGE, value: f.rangePos },
     { weight: degraded ? 0 : W_VOLUME, value: f.volume },
-    { weight: degraded ? 35 : W_DAY, value: f.dayChange },
+    { weight: degraded ? W_EXTENDED_DEGRADED : W_EXTENDED, value: f.extended },
+    { weight: degraded ? W_DAY_DEGRADED : W_DAY, value: f.dayChange },
   ];
+  return rows.map((r) => ({ ...r, points: r.value * r.weight }));
 }
 
-/** `50 + Σ(factor × weight)`, then shrunk toward 50 by volatility. */
 export function scoreFromFactors(f: FactorScores): number {
-  const raw = 50 + contributions(f).reduce((sum, c) => sum + c.value * c.weight, 0);
+  const raw = 50 + contributions(f).reduce((sum, c) => sum + c.points, 0);
   const shrunk = 50 + (raw - 50) * (1 - VOL_SHRINK * clamp(f.volatility, 0, 1));
   return clamp(round1(shrunk), 0, 100);
 }
 
 export function stanceFromFactors(score: number, f: FactorScores): Stance {
+  const ext = f.detail.extMovePct ?? 0;
+  const hardContradiction = f.detail.extContradicts && Math.abs(ext) >= CONTRADICTION_PCT;
+
   if (f.detail.degraded) {
-    if (score >= LONG_SCORE_MIN && f.detail.dayChangePct > 0.5) return "bullish";
-    if (score <= SHORT_SCORE_MAX && f.detail.dayChangePct < -0.5) return "bearish";
+    if (score >= LONG_SCORE_MIN && f.detail.dayChangePct > 0.5 && !hardContradiction) return "bullish";
+    if (score <= SHORT_SCORE_MAX && f.detail.dayChangePct < -0.5 && !hardContradiction) return "bearish";
     return "neutral";
   }
-  if (score >= LONG_SCORE_MIN && f.trend > TREND_CONFIRM) return "bullish";
-  if (score <= SHORT_SCORE_MAX && f.trend < -TREND_CONFIRM) return "bearish";
+  if (score >= LONG_SCORE_MIN && f.trend > TREND_CONFIRM && !(hardContradiction && ext < 0)) {
+    return "bullish";
+  }
+  if (score <= SHORT_SCORE_MAX && f.trend < -TREND_CONFIRM && !(hardContradiction && ext > 0)) {
+    return "bearish";
+  }
   return "neutral";
 }
 
 function pct1(v: number): string {
-  return `${v >= 0 ? "+" : ""}${toFixed(v, 1)}%`;
+  return `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
+}
+
+function pct2(v: number): string {
+  return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
 }
 
 function trendPhrase(d: FactorDetail): string | null {
@@ -341,7 +505,7 @@ function momentumPhrase(d: FactorDetail): string | null {
 
 function rangePhrase(d: FactorDetail): string | null {
   if (d.rangePct === null) return null;
-  const tag = toFixed(d.rangePct, 0);
+  const tag = d.rangePct.toFixed(0);
   if (d.rangePct >= 85) return `Near 20-day high (range ${tag}%)`;
   if (d.rangePct >= 60) return `Upper 20-day range (${tag}%)`;
   if (d.rangePct <= 15) return `Near 20-day low (range ${tag}%)`;
@@ -351,24 +515,33 @@ function rangePhrase(d: FactorDetail): string | null {
 
 function volumePhrase(d: FactorDetail): string | null {
   if (d.rvol === null) return null;
-  const tag = toFixed(d.rvol, 2);
-  if (d.rvol >= 1.5) return `Volume ${tag}× 20-day average`;
-  if (d.rvol >= 1.15) return `Mild volume lift ${tag}×`;
-  if (d.rvol <= 0.6) return `Clear volume dry-up ${tag}×`;
-  if (d.rvol <= 0.85) return `Light volume ${tag}×`;
-  return `Volume steady (${tag}×)`;
+  const tag = d.rvol.toFixed(2);
+  if (d.rvol >= 1.5) return `Volume ${tag}x 20-day average`;
+  if (d.rvol >= 1.15) return `Mild volume lift ${tag}x`;
+  if (d.rvol <= 0.6) return `Clear volume dry-up ${tag}x`;
+  if (d.rvol <= 0.85) return `Light volume ${tag}x`;
+  return `Volume steady (${tag}x)`;
 }
 
-/** Dominant factors for this ticker, quoting real values (English). */
-export function reasonFromFactors(f: FactorScores, score: number): string {
+export function reasonFromFactors(
+  f: FactorScores,
+  score: number,
+  quote?: FactorQuoteInput,
+): string {
   const d = f.detail;
-  const tail = `｜ session ${pct1(d.dayChangePct)} · score ${toFixed(score, 0)}`;
+  const dayLabel = isExtended(quote?.session) ? "prior session" : "session";
+  const tail = `| ${dayLabel} ${pct2(d.dayChangePct)} · score ${score.toFixed(0)}`;
 
   if (d.degraded) {
-    return `Factors: history incomplete (${d.sessions} sessions); scored from day change only ${tail}`;
+    return `Factors: history incomplete (${d.sessions} sessions); scored from ${dayLabel} change only ${tail}`;
   }
 
   const parts: string[] = [];
+  if (d.extMovePct != null && isExtended(quote?.session)) {
+    const label = quote?.session === "pre" ? "pre-market" : "after-hours";
+    parts.push(`${label} ${pct2(d.extMovePct)}`);
+  }
+
   const ranked: Array<{ pts: number; text: string }> = [];
   const add = (pts: number, phrase: string | null) => {
     if (phrase && Math.abs(pts) >= 0.3) ranked.push({ pts: Math.abs(pts), text: phrase });
@@ -384,12 +557,35 @@ export function reasonFromFactors(f: FactorScores, score: number): string {
   if (volPhrase && d.rvol !== null && (d.rvol >= 1.5 || d.rvol <= 0.6) && !parts.includes(volPhrase)) {
     parts.push(volPhrase);
   }
-  if (parts.length === 0) {
-    parts.push("No clear trend, momentum, or volume direction");
-  }
+  if (parts.length === 0) parts.push("No clear trend, momentum, or volume direction");
   if (d.atrPct !== null) {
     const band = d.atrPct >= 4 ? "elevated" : d.atrPct >= 2 ? "moderate" : "low";
-    parts.push(`ATR ${toFixed(d.atrPct, 1)}% (${band})`);
+    parts.push(`ATR ${d.atrPct.toFixed(1)}% (${band})`);
+  }
+  if (d.gapPct != null && Math.abs(d.gapPct) >= 1 && !isExtended(quote?.session)) {
+    parts.push(`gap ${pct1(d.gapPct)}`);
   }
   return `Factors: ${parts.join(" · ")} ${tail}`;
+}
+
+export function riskFromFactors(stance: Stance, f: FactorScores): string {
+  const d = f.detail;
+  const atr = d.atrPct ?? 0;
+  const range = d.rangePct ?? 50;
+  if (stance === "bullish") {
+    if (d.extContradicts) return "Extended session disagrees with the prior day; wait for confirmation.";
+    if (atr >= 4) return `Volatility elevated (ATR ${atr.toFixed(1)}%); size small and use a stop.`;
+    if (range >= 90) return "Near the 20-day high; failed breakouts reverse quickly.";
+    if (d.rvol != null && d.rvol < 0.85) return "Trend constructive but volume has not confirmed.";
+    return "Trend and momentum aligned; track with a defined stop.";
+  }
+  if (stance === "bearish") {
+    if (atr >= 4) return `Downside momentum with high ATR (${atr.toFixed(1)}%); avoid catching knives.`;
+    if (range <= 10) return "Near the 20-day low; breakdown risk may still be open.";
+    return "Trend and momentum lean bearish; wait or hedge lightly.";
+  }
+  if (d.degraded) return "Insufficient history; day change alone is not a stance.";
+  if (d.extContradicts) return "Extended session contradicts the prior day; stay flat.";
+  if (atr <= 1.5) return "Direction unclear and volatility compressed; stay flat.";
+  return "Mixed factor tape; stay flat.";
 }

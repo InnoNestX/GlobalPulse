@@ -12,12 +12,23 @@ describe("pushDayKey", () => {
     expect(fireDayKey("CN", "pre_open", cnFire)).toBe("CN:2026-08-11");
   });
 
-  it("includes slot for post_close and weekly", () => {
+  it("includes slot for post_close, weekly, and numbered intraday", () => {
     const noon = ms("2026-08-11T04:00:00Z"); // 12:00 CST
     expect(fireDayKey("CN", "pre_open", noon)).toBe("CN:2026-08-11");
     expect(fireDayKey("CN", "post_close", noon)).toBe("CN:post_close:2026-08-11");
     expect(fireDayKey("CN", "weekly", noon)).toBe("CN:weekly:2026-08-11");
-    expect(fireDayKey("CN", "intraday", noon)).toBe("CN:intraday:2026-08-11");
+    expect(fireDayKey("CN", "intraday_1", noon)).toBe("CN:intraday_1:2026-08-11");
+    expect(fireDayKey("CN", "intraday_2", noon)).toBe("CN:intraday_2:2026-08-11");
+    expect(fireDayKey("US", "intraday_3", noon)).toBe("US:intraday_3:2026-08-11");
+  });
+
+  it("uses HK local day across the UTC midnight boundary", () => {
+    // 23:30 UTC on 2026-08-10 is already 07:30 HKT on 2026-08-11
+    expect(fireDayKey("HK", "pre_open", ms("2026-08-10T23:30:00Z"))).toBe("HK:2026-08-11");
+  });
+
+  it("crosses the year boundary on the exchange calendar", () => {
+    expect(fireDayKey("CN", "pre_open", ms("2026-12-31T20:00:00Z"))).toBe("CN:2027-01-01");
   });
 
   it("does not confuse US and CN local days near the UTC boundary", () => {

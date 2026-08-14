@@ -3,6 +3,7 @@ import type { ApiUsageEntry, DataQuality, DecisionPolicy, ResearchMeta } from ".
 import type { EvidenceItem } from "./evidence";
 import type { SignalScores } from "./scoring";
 import type { DailyBar } from "../scoring/factors";
+import type { QuoteSession } from "../sources/session";
 
 export interface MarketQuote {
   symbol: string;
@@ -13,6 +14,10 @@ export interface MarketQuote {
   source: string;
   /** Optional completed daily bars for multifactor scoring. */
   bars?: DailyBar[];
+  session?: QuoteSession;
+  as_of?: string;
+  regular_price?: number;
+  regular_change_pct?: number;
 }
 
 export interface MacroSnapshot {

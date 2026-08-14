@@ -10,7 +10,7 @@ export const ANCHOR_MAX = 3_900;
 const FOLD_NOTE = "<i>(Base brief truncated to keep the latest update.)</i>";
 
 const DEFAULT_TIMELINE_HEADER = "<b>Today's updates</b>";
-const DEFAULT_TIMELINE_MAX = 8;
+const DEFAULT_TIMELINE_MAX = 4;
 
 export interface ComposeDigestOptions {
   /** Max characters (Unicode code points), default {@link ANCHOR_MAX}. */
@@ -76,7 +76,7 @@ export function composeDigest(
     return clipText(tailText, maxChars);
   }
 
-  const baseLines = base.split("\n");
+  const baseLines = splitLines(base);
   const footer = baseLines.length > 0 ? baseLines.pop() : undefined;
   let room = maxChars - tailLen - 1;
   const footerCost = footer !== undefined ? charCount(footer) + 1 : 0;
@@ -104,6 +104,15 @@ export function composeDigest(
   }
   out.push(tailText);
   return out.join("\n");
+}
+
+/** Match Rust `str::lines()`: no trailing empty segment from a final newline. */
+function splitLines(text: string): string[] {
+  const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  if (normalized === "") return [];
+  const lines = normalized.split("\n");
+  if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+  return lines;
 }
 
 export { FOLD_NOTE as DIGEST_FOLD_NOTE };

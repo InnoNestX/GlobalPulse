@@ -58,6 +58,22 @@ describe("composeDigest", () => {
     expect(out).toContain("<i>A &lt; B &amp; C &gt; D</i>");
   });
 
+  it("keeps the disclaimer when the base ends with a trailing newline", () => {
+    const base = "line1\nline2\nNot investment advice.\n";
+    const out = composeDigest(base, ["section"], []);
+    expect(out).toContain("Not investment advice.");
+    expect(out.indexOf("Not investment advice.")).toBeLessThan(out.indexOf("section"));
+  });
+
+  it("defaults timeline max to four entries", () => {
+    const timeline = ["t1", "t2", "t3", "t4", "t5", "t6"];
+    const out = composeDigest("base\nfooter", [], timeline);
+    expect(out).toContain("t3");
+    expect(out).toContain("t6");
+    expect(out).not.toContain(">t1<");
+    expect(out).not.toContain(">t2<");
+  });
+
   it("clips an oversized tail rather than exceeding the limit", () => {
     const section = Array.from({ length: 80 }, () => "x".repeat(100));
     const out = composeDigest("base\nfooter", section, []);

@@ -6,18 +6,34 @@ import {
   scoreFromFactors,
   SHORT_SCORE_MAX,
   stanceFromFactors,
+  W_DAY,
+  W_DAY_DEGRADED,
+  W_EXTENDED,
+  W_EXTENDED_DEGRADED,
+  W_MOMENTUM,
+  W_RANGE,
+  W_TREND,
+  W_VOLUME,
   type DailyBar,
 } from "../src/research/scoring/factors";
 
 function barsFrom(closes: number[], spread: number, volume: number): DailyBar[] {
-  return closes.map((close, i) => ({
-    date: `2026-06-${String((i % 28) + 1).padStart(2, "0")}`,
-    open: close,
-    high: close + spread,
-    low: close - spread,
-    close,
-    volume,
-  }));
+  return closes.map((close, i) => {
+    let month = 6;
+    let day = 1 + i;
+    while (day > 28) {
+      day -= 28;
+      month += 1;
+    }
+    return {
+      date: `2026-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+      open: close,
+      high: close + spread,
+      low: close - spread,
+      close,
+      volume,
+    };
+  });
 }
 
 function flatSeries(n: number, level: number): number[] {
@@ -113,10 +129,68 @@ describe("factors", () => {
     bars[bars.length - 1]!.volume = 2000;
     const f = computeFactors(bars, { price: 100, dayChangePct: 0 });
     expect(f.detail.rvol).toBe(2);
-    expect(reasonFromFactors(f, 50)).toContain("Volume 2.00×");
+    expect(reasonFromFactors(f, 50)).toContain("Volume 2.00x");
   });
 
-  it("keeps scores inside 0–100", () => {
+  it("uses board-specific day saturation for A-share growth names", () => {
+    const main = computeFactors(barsFrom(flatSeries(5, 100), 1, 1000), {
+      quote: { symbol: "600519.SS", price: 110, changePct: 10, session: "regular" },
+    });
+    const growth = computeFactors(barsFrom(flatSeries(5, 100), 1, 1000), {
+      quote: { symbol: "300750.SZ", price: 110, changePct: 10, session: "regular" },
+    });
+    expect(Math.abs(main.dayChange)).toBeCloseTo(1, 5);
+    expect(Math.abs(growth.dayChange)).toBeCloseTo(0.5, 5);
+  });
+
+  it("excludes the live session bar from averages", () => {
+    const closes = flatSeries(30, 100);
+    closes[closes.length - 1] = 200;
+    const bars = barsFrom(closes, 1, 1000);
+    const liveDate = bars[bars.length - 1]!.date;
+    const f = computeFactors(bars, {
+      quote: {
+        symbol: "AAPL",
+        price: 100,
+        changePct: 0,
+        session: "regular",
+        asOf: `${liveDate}T20:00:00.000Z`,
+      },
+    });
+    expect(f.detail.degraded).toBe(false);
+    expect(f.detail.ma5).toBe(100);
+    expect(f.detail.sessions).toBe(29);
+  });
+
+  it("blocks bullish when extended session contradicts the prior day", () => {
+    const closes = Array.from({ length: 30 }, (_, i) => 100 * 1.012 ** i);
+    const last = closes[closes.length - 1]!;
+    const price = last * 0.97;
+    const f = computeFactors(barsFrom(closes, last * 0.01, 1000), {
+      quote: {
+        symbol: "AAPL",
+        price,
+        changePct: -3,
+        regularChangePct: 1.2,
+        regularPrice: last,
+        session: "pre",
+        asOf: "2026-07-15T12:00:00.000Z",
+      },
+    });
+    const score = scoreFromFactors(f);
+    expect(f.detail.extContradicts).toBe(true);
+    // Without contradiction this uptrend would clear bullish; with it, stay flat or not bullish.
+    if (score >= LONG_SCORE_MIN) {
+      expect(stanceFromFactors(score, f)).not.toBe("bullish");
+    }
+  });
+
+  it("weights sum to 50 on the full path", () => {
+    expect(W_TREND + W_MOMENTUM + W_RANGE + W_VOLUME + W_EXTENDED + W_DAY).toBe(50);
+    expect(W_DAY_DEGRADED + W_EXTENDED_DEGRADED).toBe(35);
+  });
+
+  it("keeps scores inside 0-100", () => {
     const up = Array.from({ length: 30 }, (_, i) => 10 * 1.1 ** i);
     const down = Array.from({ length: 30 }, (_, i) => 10_000 * 0.9 ** i);
     const hot = computeFactors(barsFrom(up, 0.01, 1000), {

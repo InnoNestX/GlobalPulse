@@ -49,8 +49,21 @@ export interface LiquidityRow {
   /** Year-to-date change %. */
   ytd: number;
   changePct: number;
-  /** Calendar days since listing, if known. */
+  /** Trading-day count since listing (prefer {@link listedDaysFromYmd}). */
   listedDays?: number | null;
+  /** Listing date as YYYYMMDD integer, if known. */
+  listedOn?: number | null;
+}
+
+/**
+ * Approximate trading days between listing and today (Rust scan.rs):
+ * `((today - listed) * 5) / 7` on YYYYMMDD integers.
+ */
+export function listedDaysFromYmd(listedOn: number, todayYmd: number): number {
+  if (!Number.isFinite(listedOn) || !Number.isFinite(todayYmd) || listedOn <= 0) return 0;
+  const delta = todayYmd - listedOn;
+  if (delta <= 0) return 0;
+  return Math.floor((delta * 5) / 7);
 }
 
 /** ST / delisting / PT shells — rejected by name pattern. */
@@ -61,12 +74,18 @@ export function isShellName(name: string): boolean {
 export function classifyHardFilter(
   row: LiquidityRow,
   market: MarketId,
+  todayYmd?: number,
 ): RejectReason | null {
   if (isShellName(row.name)) return "shell";
   if (!Number.isFinite(row.cap) || row.cap <= 0) return "no_cap";
   if (row.turnover < minTurnover(market)) return "thin";
   if (row.price < minPrice(market)) return "cheap";
-  if (row.listedDays != null && row.listedDays < MIN_LISTED_DAYS) return "too_new";
+  const listedDays =
+    row.listedDays ??
+    (row.listedOn != null && todayYmd != null
+      ? listedDaysFromYmd(row.listedOn, todayYmd)
+      : null);
+  if (listedDays != null && listedDays < MIN_LISTED_DAYS) return "too_new";
   return null;
 }
 
