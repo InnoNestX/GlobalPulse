@@ -50,6 +50,19 @@ export function buildStockInputs(symbols: string[], universe: MarketQuote[], evi
   return symbols.map((symbol) => {
     const quote = universe.find((row) => row.symbol.toUpperCase() === symbol.toUpperCase());
     const related = evidence.filter((item) => item.related_tickers.includes(symbol.toUpperCase()) || item.ticker === symbol.toUpperCase());
+    const bars = quoteBars(quote);
+    const market = reportType === "a_share" ? "CN" : "US";
+    const multifactor =
+      bars && bars.length >= 20
+        ? (() => {
+            const factors = computeFactors(bars, {
+              price: quote?.price,
+              dayChangePct: quote?.change_pct,
+              market,
+            });
+            return { factors, score: scoreFromFactors(factors) };
+          })()
+        : undefined;
     const input: StockResearchInput = {
       ticker: symbol.toUpperCase(),
       timeframe: "swing",
@@ -57,19 +70,30 @@ export function buildStockInputs(symbols: string[], universe: MarketQuote[], evi
       technical: {
         change_pct: quote?.change_pct ?? "未指定",
         rsi14: "未指定",
-        ma20: "未指定",
+        ma20: multifactor?.factors.detail.ma20 ?? "未指定",
         ma60: "未指定",
+        multifactor_score: multifactor?.score ?? "未指定",
+        multifactor_degraded: multifactor
+          ? multifactor.factors.detail.degraded
+            ? 1
+            : 0
+          : "未指定",
       },
       fundamental: { revenue_yoy: "未指定", eps_revision_30d: "未指定", pe_ntm: "未指定" },
       ownership: { institutional_change: "未指定", insider_change: "未指定", short_interest_pct_float: "未指定" },
       evidence: related,
-      signals: buildSignalScores(reportType, quote, related, average),
+      signals: buildSignalScoresWithBars(reportType, quote, related, average, bars),
     };
     if (quote?.name) {
       input.name = quote.name;
     }
     return input;
   });
+}
+
+/** Optional daily bars may be attached by market providers under `bars`. */
+function quoteBars(quote: MarketQuote | undefined): DailyBar[] | undefined {
+  return quote?.bars?.length ? quote.bars : undefined;
 }
 
 function evidenceSentiment(item: EvidenceItem): number {

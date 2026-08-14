@@ -2,6 +2,7 @@ import type { ReportType } from "../../config";
 import type { ApiUsageEntry, DataQuality, DecisionPolicy, ResearchMeta } from "./common";
 import type { EvidenceItem } from "./evidence";
 import type { SignalScores } from "./scoring";
+import type { DailyBar } from "../scoring/factors";
 
 export interface MarketQuote {
   symbol: string;
@@ -10,6 +11,8 @@ export interface MarketQuote {
   change_pct: number;
   volume_ratio?: number | undefined;
   source: string;
+  /** Optional completed daily bars for multifactor scoring. */
+  bars?: DailyBar[];
 }
 
 export interface MacroSnapshot {
