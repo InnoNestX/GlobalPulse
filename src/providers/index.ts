@@ -9,6 +9,12 @@ import { emailProvider } from "./email";
 import { discordProvider } from "./discord";
 import { slackProvider } from "./slack";
 
+export {
+  ANCHOR_MAX,
+  composeDigest,
+  DIGEST_FOLD_NOTE,
+} from "./composeDigest";
+
 export const providers = [
   feishuProvider,
   wechatOfficialAccountProvider,

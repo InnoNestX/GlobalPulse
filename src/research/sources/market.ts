@@ -3,6 +3,8 @@ import type { ReportType } from "../../config";
 import { dedupeSymbols, normalizeAShareCode, toCryptoPair } from "../normalize/ticker";
 import type { ApiUsageEntry } from "../types/common";
 import type { MarketQuote } from "../types/packet";
+import type { DailyBar } from "../scoring/factors";
+import type { QuoteSession } from "./session";
 
 export interface MarketDataResult {
   indices: MarketQuote[];
@@ -28,7 +30,9 @@ type QuoteSource = {
 type YahooSessionQuote = {
   price: number;
   changePct: number;
-  session: "盘前" | "盘中" | "盘后" | "收盘";
+  session: QuoteSession;
+  regularPrice?: number;
+  regularChangePct?: number;
 };
 
 const MIN_QUOTE_COVERAGE = 0.85;
@@ -55,7 +59,22 @@ async function fetchUsMarket(env: MarketEnv, focus: string[], positions: string[
     { provider: "finnhub", endpoint: "quote_limited", fetcher: (items) => fetchFinnhubUsQuotes(env, items), requiresKey: "FINNHUB_API_KEY", maxSymbols: 2 },
     { provider: "alpha_vantage", endpoint: "global_quote_limited", fetcher: (items) => fetchAlphaVantageUsQuotes(env, items), requiresKey: "ALPHA_VANTAGE_API_KEY", maxSymbols: 2 },
   ], env, (rows) => hasCoreUsCoverage(rows, indexSet));
-  return { indices: rows.filter((row) => indexSet.has(row.symbol.toUpperCase())), universe: rows, usages };
+  const enriched = await enrichMissingDailyBars(rows, usages);
+  return { indices: enriched.filter((row) => indexSet.has(row.symbol.toUpperCase())), universe: enriched, usages };
+}
+
+async function enrichMissingDailyBars(rows: MarketQuote[], usages: ApiUsageEntry[]): Promise<MarketQuote[]> {
+  const needBars = rows.filter((row) => !row.bars?.length).slice(0, 4).map((row) => row.symbol);
+  if (!needBars.length) return rows;
+  const started = Date.now();
+  try {
+    const chartRows = await fetchYahooChartUsQuotes(needBars);
+    usages.push(apiUsage("yahoo", "chart_bars_enrich", chartRows.length > 0, Date.now() - started, false, chartRows.length ? undefined : "empty result"));
+    return mergeQuoteRows(rows, chartRows);
+  } catch (error) {
+    usages.push(apiUsage("yahoo", "chart_bars_enrich", false, Date.now() - started, isRateLimitError(error), error instanceof Error ? error.message.slice(0, 220) : "unknown error"));
+    return rows;
+  }
 }
 
 async function fetchAShareMarket(env: MarketEnv, focus: string[], positions: string[]): Promise<MarketDataResult> {
@@ -245,7 +264,16 @@ async function fetchYahooUsQuotes(symbols: string[]): Promise<MarketQuote[]> {
       const quote = selectYahooSessionQuote(entry);
       const volumeRatio = volumeRatioFromFields(entry.regularMarketVolume, entry.averageDailyVolume10Day ?? entry.averageDailyVolume3Month);
       if (!symbol || !quote) return [];
-      return [withOptionalName({ symbol: symbol.split(".")[0] ?? symbol, price: quote.price, change_pct: quote.changePct, volume_ratio: volumeRatio, source: `Yahoo Finance ${quote.session}` }, sanitizeUsDisplayName(typeof entry.shortName === "string" ? entry.shortName : symbol, symbol))];
+      return [withOptionalName({
+        symbol: symbol.split(".")[0] ?? symbol,
+        price: quote.price,
+        change_pct: quote.changePct,
+        volume_ratio: volumeRatio,
+        source: `Yahoo Finance ${quote.session}`,
+        session: quote.session,
+        regular_price: quote.regularPrice,
+        regular_change_pct: quote.regularChangePct,
+      }, sanitizeUsDisplayName(typeof entry.shortName === "string" ? entry.shortName : symbol, symbol))];
     }));
   }
   return sanitizeQuotes(rows);
@@ -260,25 +288,51 @@ function selectYahooSessionQuote(entry: Record<string, unknown>): YahooSessionQu
   const postChange = Number(entry.postMarketChangePercent);
   const prePrice = Number(entry.preMarketPrice);
   const preChange = Number(entry.preMarketChangePercent);
+  const regularChangePct =
+    Number.isFinite(regularPreviousClose) && regularPreviousClose > 0 && Number.isFinite(regularPrice)
+      ? ((regularPrice - regularPreviousClose) / regularPreviousClose) * 100
+      : Number.isFinite(regularChange)
+        ? regularChange
+        : undefined;
 
   if ((marketState.includes("POST") || marketState === "CLOSED") && Number.isFinite(postPrice) && postPrice > 0) {
-    return buildYahooSessionQuote(postPrice, regularPreviousClose, postChange, "盘后");
+    return buildYahooSessionQuote(postPrice, regularPreviousClose, postChange, "post", regularPrice, regularChangePct);
   }
   if (marketState.includes("PRE") && Number.isFinite(prePrice) && prePrice > 0) {
-    return buildYahooSessionQuote(prePrice, regularPreviousClose, preChange, "盘前");
+    return buildYahooSessionQuote(prePrice, regularPreviousClose, preChange, "pre", regularPrice, regularChangePct);
   }
   if (Number.isFinite(regularPrice) && regularPrice > 0) {
-    return buildYahooSessionQuote(regularPrice, regularPreviousClose, regularChange, marketState === "REGULAR" ? "盘中" : "收盘");
+    return buildYahooSessionQuote(
+      regularPrice,
+      regularPreviousClose,
+      regularChange,
+      marketState === "REGULAR" ? "regular" : "closed",
+      regularPrice,
+      regularChangePct,
+    );
   }
   return undefined;
 }
 
-function buildYahooSessionQuote(price: number, previousClose: number, fallbackChangePct: number, session: YahooSessionQuote["session"]): YahooSessionQuote | undefined {
+function buildYahooSessionQuote(
+  price: number,
+  previousClose: number,
+  fallbackChangePct: number,
+  session: QuoteSession,
+  regularPrice?: number,
+  regularChangePct?: number,
+): YahooSessionQuote | undefined {
   if (!Number.isFinite(price) || price <= 0) return undefined;
   const calculatedChange = Number.isFinite(previousClose) && previousClose > 0 ? ((price - previousClose) / previousClose) * 100 : undefined;
   const changePct = Number.isFinite(calculatedChange) ? Number(calculatedChange) : fallbackChangePct;
   if (!Number.isFinite(changePct)) return undefined;
-  return { price, changePct, session };
+  return {
+    price,
+    changePct,
+    session,
+    ...(Number.isFinite(regularPrice) && (regularPrice as number) > 0 ? { regularPrice: regularPrice as number } : {}),
+    ...(regularChangePct != null && Number.isFinite(regularChangePct) ? { regularChangePct } : {}),
+  };
 }
 
 async function fetchYahooChartUsQuotes(symbols: string[]): Promise<MarketQuote[]> {
@@ -286,27 +340,110 @@ async function fetchYahooChartUsQuotes(symbols: string[]): Promise<MarketQuote[]
   const candidates = dedupeSymbols([...US_CORE, ...symbols]).slice(0, 4);
   for (const symbol of candidates) {
     const url = new URL(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`);
-    url.searchParams.set("range", "10d");
+    url.searchParams.set("range", "3mo");
     url.searchParams.set("interval", "1d");
-    const payload = await fetch(url.toString(), { headers: jsonHeaders() }).then(assertJsonResponse) as { chart?: { result?: Array<{ meta?: Record<string, unknown>; indicators?: { quote?: Array<{ close?: Array<number | null>; volume?: Array<number | null> }> } }> } };
+    const payload = await fetch(url.toString(), { headers: jsonHeaders() }).then(assertJsonResponse) as {
+      chart?: {
+        result?: Array<{
+          meta?: Record<string, unknown>;
+          timestamp?: number[];
+          indicators?: {
+            quote?: Array<{
+              open?: Array<number | null>;
+              high?: Array<number | null>;
+              low?: Array<number | null>;
+              close?: Array<number | null>;
+              volume?: Array<number | null>;
+            }>;
+          };
+        }>;
+      };
+    };
     const result = payload.chart?.result?.[0];
     const meta = result?.meta ?? {};
     const price = Number(meta.regularMarketPrice);
     const previousClose = Number(meta.previousClose ?? meta.chartPreviousClose);
-    const volumes = result?.indicators?.quote?.[0]?.volume?.filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0) ?? [];
+    const quoteSeries = result?.indicators?.quote?.[0];
+    const volumes =
+      quoteSeries?.volume?.filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0) ?? [];
     const volumeRatio = volumeRatioFromSeries(volumes);
+    const bars = parseYahooDailyBars(result?.timestamp ?? [], quoteSeries);
+    const asOf =
+      typeof meta.regularMarketTime === "number"
+        ? new Date(meta.regularMarketTime * 1000).toISOString()
+        : undefined;
     if (Number.isFinite(price) && Number.isFinite(previousClose) && previousClose > 0) {
-      rows.push({ symbol: symbol.toUpperCase(), price, change_pct: ((price - previousClose) / previousClose) * 100, volume_ratio: volumeRatio, source: "Yahoo Chart" });
+      rows.push({
+        symbol: symbol.toUpperCase(),
+        price,
+        change_pct: ((price - previousClose) / previousClose) * 100,
+        volume_ratio: volumeRatio,
+        source: "Yahoo Chart",
+        bars,
+        session: "regular",
+        as_of: asOf,
+        regular_price: price,
+        regular_change_pct: ((price - previousClose) / previousClose) * 100,
+      });
       continue;
     }
-    const closes = result?.indicators?.quote?.[0]?.close?.filter((value): value is number => typeof value === "number" && Number.isFinite(value)) ?? [];
+    const closes =
+      quoteSeries?.close?.filter((value): value is number => typeof value === "number" && Number.isFinite(value)) ?? [];
     const last = closes.at(-1);
     const prev = closes.at(-2);
-    if (typeof last === "number" && typeof prev === "number" && Number.isFinite(last) && Number.isFinite(prev) && prev > 0) {
-      rows.push({ symbol: symbol.toUpperCase(), price: last, change_pct: ((last - prev) / prev) * 100, volume_ratio: volumeRatio, source: "Yahoo Chart" });
+    if (typeof last === "number" && typeof prev === "number" && prev > 0) {
+      rows.push({
+        symbol: symbol.toUpperCase(),
+        price: last,
+        change_pct: ((last - prev) / prev) * 100,
+        volume_ratio: volumeRatio,
+        source: "Yahoo Chart",
+        bars,
+        session: "closed",
+        as_of: asOf,
+        regular_price: last,
+        regular_change_pct: ((last - prev) / prev) * 100,
+      });
     }
   }
   return sanitizeQuotes(rows);
+}
+
+function parseYahooDailyBars(
+  timestamps: number[],
+  quote:
+    | {
+        open?: Array<number | null>;
+        high?: Array<number | null>;
+        low?: Array<number | null>;
+        close?: Array<number | null>;
+        volume?: Array<number | null>;
+      }
+    | undefined,
+): DailyBar[] {
+  if (!quote || !timestamps.length) return [];
+  const bars: DailyBar[] = [];
+  for (let i = 0; i < timestamps.length; i += 1) {
+    const close = Number(quote.close?.[i]);
+    if (!Number.isFinite(close) || close <= 0) continue;
+    const open = Number(quote.open?.[i] ?? close);
+    const high = Number(quote.high?.[i] ?? Math.max(open, close));
+    const low = Number(quote.low?.[i] ?? Math.min(open, close));
+    const volume = Number(quote.volume?.[i] ?? 0);
+    const date = new Date(timestamps[i]! * 1000);
+    const y = date.getUTCFullYear();
+    const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const d = String(date.getUTCDate()).padStart(2, "0");
+    bars.push({
+      date: `${y}-${m}-${d}`,
+      open: Number.isFinite(open) ? open : close,
+      high: Number.isFinite(high) ? high : close,
+      low: Number.isFinite(low) ? low : close,
+      close,
+      volume: Number.isFinite(volume) && volume > 0 ? volume : 0,
+    });
+  }
+  return bars.slice(-70);
 }
 
 async function fetchStooqUsQuotes(symbols: string[]): Promise<MarketQuote[]> {
@@ -530,9 +667,36 @@ function mergeQuoteRows(primary: MarketQuote[], fallback: MarketQuote[]): Market
     if (!normalized) continue;
     const key = normalized.symbol.toUpperCase();
     const existing = bySymbol.get(key);
-    if (!existing || (!Number.isFinite(existing.volume_ratio) && Number.isFinite(normalized.volume_ratio))) bySymbol.set(key, normalized);
+    if (!existing) {
+      bySymbol.set(key, normalized);
+      continue;
+    }
+    bySymbol.set(key, enrichQuote(existing, normalized));
   }
   return [...bySymbol.values()];
+}
+
+function enrichQuote(existing: MarketQuote, incoming: MarketQuote): MarketQuote {
+  const preferIncomingVolume =
+    !Number.isFinite(existing.volume_ratio) && Number.isFinite(incoming.volume_ratio);
+  const preferIncomingBars = (incoming.bars?.length ?? 0) > (existing.bars?.length ?? 0);
+  return {
+    ...existing,
+    ...(preferIncomingVolume
+      ? {
+          volume_ratio: incoming.volume_ratio,
+          price: incoming.price,
+          change_pct: incoming.change_pct,
+          source: incoming.source,
+        }
+      : {}),
+    bars: preferIncomingBars ? incoming.bars : existing.bars ?? incoming.bars,
+    session: existing.session ?? incoming.session,
+    as_of: existing.as_of ?? incoming.as_of,
+    regular_price: existing.regular_price ?? incoming.regular_price,
+    regular_change_pct: existing.regular_change_pct ?? incoming.regular_change_pct,
+    name: existing.name ?? incoming.name,
+  };
 }
 
 function sanitizeQuotes(rows: MarketQuote[]): MarketQuote[] {
