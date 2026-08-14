@@ -2,6 +2,11 @@ import type { ReportType } from "../../config";
 import type { EvidenceItem } from "../types/evidence";
 import type { MarketQuote, StockResearchInput } from "../types/packet";
 import type { SignalScores } from "../types/scoring";
+import {
+  computeFactors,
+  scoreFromFactors,
+  type DailyBar,
+} from "./factors";
 
 export function buildSignalScores(reportType: ReportType, quote: MarketQuote | undefined, evidence: EvidenceItem[], marketAverage: number): SignalScores {
   const momentum = clamp((quote?.change_pct ?? marketAverage) * 8, -35, 35);
@@ -11,6 +16,33 @@ export function buildSignalScores(reportType: ReportType, quote: MarketQuote | u
   const risk = evidence.some((item) => /risk|lawsuit|监管|诉讼|调查|crash|drop/i.test(`${item.title} ${item.summary ?? ""}`)) ? -12 : 4;
   const total = clamp(50 + momentum + news + technical + macro + risk, 0, 100);
   return { macro, technical, news, momentum, risk, total };
+}
+
+/**
+ * When daily bars are available, blend multifactor technicals into the
+ * quote-only path. Without enough bars, falls back to {@link buildSignalScores}.
+ */
+export function buildSignalScoresWithBars(
+  reportType: ReportType,
+  quote: MarketQuote | undefined,
+  evidence: EvidenceItem[],
+  marketAverage: number,
+  bars: DailyBar[] | undefined,
+): SignalScores {
+  const base = buildSignalScores(reportType, quote, evidence, marketAverage);
+  if (!bars || bars.length < 20) return base;
+
+  const market = reportType === "a_share" ? "CN" : "US";
+  const factors = computeFactors(bars, {
+    price: quote?.price,
+    dayChangePct: quote?.change_pct,
+    market,
+  });
+  const factorScore = scoreFromFactors(factors);
+  const technical = clamp(factorScore - 50, -28, 28);
+  const momentum = clamp(factors.momentum * 30, -35, 35);
+  const total = clamp(50 + momentum + base.news + technical + base.macro + base.risk, 0, 100);
+  return { ...base, technical, momentum, total };
 }
 
 export function buildStockInputs(symbols: string[], universe: MarketQuote[], evidence: EvidenceItem[], reportType: ReportType): StockResearchInput[] {

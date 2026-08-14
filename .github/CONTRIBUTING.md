@@ -41,6 +41,7 @@ npm run test
   - `scheduler.ts` - Cron scheduling
   - `sources.ts` - News/data source fetching
   - `template.ts` - Message templating
+  - Research / scheduling helpers — see [docs/contributed-algorithms.md](../docs/contributed-algorithms.md)
 
 ## Pull Request Guidelines
 
