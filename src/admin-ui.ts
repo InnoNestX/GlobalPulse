@@ -3,6 +3,7 @@ export function renderAdminUi(): Response {
     headers: {
       "Content-Type": "text/html; charset=utf-8",
       "Cache-Control": "no-store",
+      "X-Robots-Tag": "noindex, nofollow",
     },
   });
 }
@@ -12,6 +13,8 @@ const adminHtml = `<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="canonical" href="https://www.xuxuclassmate.com/en/work/globalpulse">
   <title>GlobalPulse Admin</title>
   <link rel="icon" href="https://avatars.githubusercontent.com/u/273979879?v=4" sizes="any" type="image/png">
   <style>
