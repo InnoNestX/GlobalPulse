@@ -32,23 +32,31 @@ export async function handleRequest(request: Request, env: Env, ctx?: ExecutionC
   }
 
   try {
-    if (request.method === "GET" && url.pathname === "/") {
+    // Treat HEAD like GET for public discovery paths so crawlers do not get 401.
+    const method = request.method === "HEAD" ? "GET" : request.method;
+    const isGetLike = method === "GET";
+
+    if (isGetLike && url.pathname === "/robots.txt") {
+      return robotsTxtResponse(request.method === "HEAD");
+    }
+
+    if (isGetLike && url.pathname === "/") {
       return Response.redirect(`${url.origin}/admin`, 302);
     }
 
-    if (request.method === "GET" && isGlobalPulseLogoPath(url.pathname)) {
+    if (isGetLike && isGlobalPulseLogoPath(url.pathname)) {
       return serveGlobalPulseLogo(url.searchParams.has("v") ? 31536000 : 3600);
     }
 
-    if (request.method === "GET" && url.pathname === "/admin") {
+    if (isGetLike && url.pathname === "/admin") {
       return renderAdminUiWithIntelEnhancements();
     }
 
-    if (request.method === "GET" && url.pathname === "/market-data-settings") {
+    if (isGetLike && url.pathname === "/market-data-settings") {
       return Response.redirect(`${url.origin}/admin`, 302);
     }
 
-    if (request.method === "GET" && url.pathname === "/health") {
+    if (isGetLike && url.pathname === "/health") {
       return json(createHealthPayload(env), env);
     }
 
@@ -477,8 +485,31 @@ function assertAdminPassword(suppliedPassword: string | undefined, env: Env): vo
   }
 
   if (!suppliedPassword || suppliedPassword !== env.ADMIN_PASSWORD) {
-    throw new HttpError(401, "Unauthorized");
+    // Prefer 404 over 401 so Google Search Console does not keep "blocked by 401"
+    // for admin API paths discovered under the domain property.
+    throw new HttpError(404, "Not found");
   }
+}
+
+function robotsTxtResponse(headOnly = false): Response {
+  const body = `# GlobalPulse — public worker on pulse.xuxuclassmate.com
+User-agent: *
+Disallow: /api/
+Disallow: /admin
+Disallow: /v1/
+Allow: /health
+Allow: /assets/
+
+Sitemap:
+`;
+  return new Response(headOnly ? null : body, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "public, max-age=3600",
+      "X-Robots-Tag": "noindex",
+    },
+  });
 }
 
 function getBearerToken(request: Request): string | undefined {
