@@ -543,7 +543,10 @@ async function readOptionalJson(request: Request): Promise<unknown> {
 function json(body: unknown, env: Env, status = 200): Response {
   return withCors(new Response(JSON.stringify(body, null, 2), {
     status,
-    headers: jsonHeaders,
+    headers: {
+      ...jsonHeaders,
+      "Cache-Control": "no-store",
+    },
   }), env);
 }
 
