@@ -28,3 +28,4 @@ worker-configuration.d.ts
 coverage/
 npm-debug.log*
 .DS_Store
+.playwright-mcp/
