@@ -1,5 +1,6 @@
 name: Docs
 
+# Deploy VitePress site to GitHub Pages from main.
 on:
   push:
     branches: [main]
