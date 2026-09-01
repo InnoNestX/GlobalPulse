@@ -41,7 +41,11 @@ export async function handleRequest(request: Request, env: Env, ctx?: ExecutionC
     }
 
     if (isGetLike && url.pathname === "/") {
-      return Response.redirect(`${url.origin}/admin`, 302);
+      // Public root should not index the admin console under the domain property.
+      return Response.redirect(
+        "https://www.xuxuclassmate.com/en/work/globalpulse",
+        301,
+      );
     }
 
     if (isGetLike && isGlobalPulseLogoPath(url.pathname)) {
