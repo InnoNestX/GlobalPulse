@@ -963,7 +963,7 @@ const adminHtml = `<!doctype html>
             <li data-i18n="step1Desc">Fork github.com/InnoNestX/GlobalPulse 到你的 GitHub 账户</li>
             <li data-i18n="step2Desc">使用 Wrangler CLI 部署，或直接 push 到 GitHub 触发 Pages 部署</li>
             <li data-i18n="step3Desc">在 Cloudflare Dashboard 设置 ADMIN_PASSWORD 和各渠道的 WEBHOOK/TOKEN</li>
-            <li data-i18n="step4Desc">访问 /admin 路径，输入密码登录并配置推送</li>
+            <li data-i18n="step4Desc">打开站点首页，输入密码登录并配置推送</li>
           </ol>
         </section>
       </div>
@@ -1346,7 +1346,7 @@ const adminHtml = `<!doctype html>
         step3Title: "配置环境变量",
         step3Desc: "在 Cloudflare Dashboard 设置 ADMIN_PASSWORD 和各渠道的 WEBHOOK/TOKEN",
         step4Title: "访问 Admin 后台",
-        step4Desc: "访问 /admin 路径，输入密码登录并配置推送",
+        step4Desc: "打开站点首页，输入密码登录并配置推送",
         footerContribute: "Contribute",
         footerContributeDesc: "发现 Bug 或想参与贡献？",
         footerSupport: "Support",
@@ -1514,7 +1514,7 @@ const adminHtml = `<!doctype html>
         step3Title: "Configure env vars",
         step3Desc: "Set ADMIN_PASSWORD and channel WEBHOOK/TOKEN in Cloudflare Dashboard",
         step4Title: "Access Admin panel",
-        step4Desc: "Visit /admin, enter password to login and configure push",
+        step4Desc: "Open the site home, enter the password, and configure push",
         footerContribute: "Contribute",
         footerContributeDesc: "Found a bug or want to contribute?",
         footerSupport: "Support",
