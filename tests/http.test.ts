@@ -66,6 +66,20 @@ function getTelegramSendCall(fetchMock: ReturnType<typeof vi.fn>): [string, Requ
 }
 
 describe("handleRequest", () => {
+  it("serves the admin console at the site root", async () => {
+    const response = await handleRequest(
+      new Request("https://pulse.xuxuclassmate.com/"),
+      {},
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("X-Robots-Tag")).toContain("noindex");
+    const html = await response.text();
+    expect(html).toContain("GlobalPulse Admin");
+    expect(html).toContain('rel="canonical"');
+    expect(html).toContain("https://www.xuxuclassmate.com/en/work/globalpulse");
+  });
+
   it("returns health without authentication", async () => {
     const response = await handleRequest(new Request("https://worker.example/health"), {
       CF_VERSION_METADATA: {
