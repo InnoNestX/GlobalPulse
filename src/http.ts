@@ -40,24 +40,20 @@ export async function handleRequest(request: Request, env: Env, ctx?: ExecutionC
       return robotsTxtResponse(request.method === "HEAD");
     }
 
-    if (isGetLike && url.pathname === "/") {
-      // Public root should not index the admin console under the domain property.
-      return Response.redirect(
-        "https://www.xuxuclassmate.com/en/work/globalpulse",
-        301,
-      );
+    if (isGetLike && (url.pathname === "/" || url.pathname === "/admin")) {
+      const admin = await renderAdminUiWithIntelEnhancements();
+      if (request.method === "HEAD") {
+        return new Response(null, { status: admin.status, headers: admin.headers });
+      }
+      return admin;
     }
 
     if (isGetLike && isGlobalPulseLogoPath(url.pathname)) {
       return serveGlobalPulseLogo(url.searchParams.has("v") ? 31536000 : 3600);
     }
 
-    if (isGetLike && url.pathname === "/admin") {
-      return renderAdminUiWithIntelEnhancements();
-    }
-
     if (isGetLike && url.pathname === "/market-data-settings") {
-      return Response.redirect(`${url.origin}/admin`, 302);
+      return Response.redirect(`${url.origin}/`, 302);
     }
 
     if (isGetLike && url.pathname === "/health") {
